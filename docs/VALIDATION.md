@@ -6,7 +6,7 @@
 
 390 × 844 的真实浏览器中检查了悬浮毛玻璃底栏，封面内容在底栏后方可见并被模糊；实际拖动导航由发现页返回书架、点书打开详情并返回，控制台无错误。使用浏览器逐帧录制了导航切换和直接点书开封面，两段分别保存在本机 artifacts/frosted-navigation-motion.gif 与 book-opening-motion.gif。这些是实际运行记录，不是设计稿。
 
-本轮构建见 [df08122 Actions](https://github.com/LexianLix/manxia/actions/runs/39429969493)。原生动效与折射的真机边界仍见下文。
+本轮 [df08122 Actions](https://github.com/LexianLix/manxia/actions/runs/39429969493) 全部通过：30 项 Flutter 测试、6 项网关测试、静态分析、Web 和 Android 调试 APK。0.2.1 安装包已下载至 artifacts/android-0.2.1/app-debug.apk，并确认与构建 ZIP 中的 APK 完全一致；大小 177123843 字节，SHA-256 为 d26955b3bacba5bf152b9c7a73ccf323004b98e9e0abc43890d6681301d0c2ff。夜间模式底栏已在浏览器检查并恢复原来的浅色设置。原生动效与折射的真机边界仍见下文。
 
 ## 当前本地结果
 
