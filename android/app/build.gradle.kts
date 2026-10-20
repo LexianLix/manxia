@@ -8,6 +8,8 @@ plugins {
 
 val signingProperties = Properties()
 val signingFile = rootProject.file("key.properties")
+// CI can prepare an explicitly unsigned artifact for private, local release signing.
+val prepareUnsignedRelease = System.getenv("MANXIA_UNSIGNED_RELEASE") == "true"
 if (signingFile.exists()) signingFile.inputStream().use { signingProperties.load(it) }
 
 android {
@@ -53,7 +55,7 @@ android {
 // Never silently sign a production build with Flutter's disposable debug key.
 val applicationProjectPath = project.path
 gradle.taskGraph.whenReady {
-    if (allTasks.any { it.project.path == applicationProjectPath && it.name.contains("Release") } && !signingFile.exists()) {
+    if (allTasks.any { it.project.path == applicationProjectPath && it.name.contains("Release") } && !signingFile.exists() && !prepareUnsignedRelease) {
         throw GradleException("Run tools/Create-Signing.ps1 first. Keep the keystore and key.properties private.")
     }
 }
