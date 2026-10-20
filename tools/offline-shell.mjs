@@ -1,6 +1,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 const root = new URL('../build/web/',import.meta.url);
 async function walk(dir) {
   const entries = await readdir(dir,{withFileTypes:true});
@@ -8,8 +9,8 @@ async function walk(dir) {
   for(const e of entries) { const path=join(dir,e.name); if(e.isDirectory()) files.push(...await walk(path)); else files.push(path); }
   return files;
 }
-const files=(await walk(root.pathname.replace(/^\/([A-Za-z]:)/,'$1'))).filter(p=>!p.endsWith('.map') && !p.endsWith('sw.js'));
-const base=root.pathname.replace(/^\/([A-Za-z]:)/,'$1');
+const base=fileURLToPath(root);
+const files=(await walk(base)).filter(p=>!p.endsWith('.map') && !p.endsWith('sw.js'));
 const digest=createHash('sha256');
 for(const file of [...files].sort())digest.update(relative(base,file)).update(await readFile(file));
 const version=digest.digest('hex').slice(0,12);

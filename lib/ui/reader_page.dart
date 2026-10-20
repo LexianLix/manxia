@@ -58,6 +58,16 @@ class _ReaderPageState extends State<ReaderPage> {
       options['doublePage'] == true &&
       MediaQuery.sizeOf(context).width >= 900 &&
       mode == 'page';
+  int get lastVisiblePage => total <= 0
+      ? 0
+      : paired && page > 0
+      ? (page + 1).clamp(0, total - 1)
+      : page;
+  String get pageLabel => total <= 0
+      ? '加载中'
+      : lastVisiblePage > page
+      ? '${page + 1}–${lastVisiblePage + 1} / $total'
+      : '${page + 1} / $total';
   @override
   void initState() {
     super.initState();
@@ -453,9 +463,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                 child: Column(
                                   children: [
                                     LocalizedText(
-                                      total == 0
-                                          ? '加载章节中'
-                                          : '${page + 1} / $total',
+                                      total == 0 ? '加载章节中' : pageLabel,
                                       style: const TextStyle(fontSize: 12),
                                     ),
                                     const LocalizedText(
@@ -469,7 +477,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                 ),
                               ),
                               if (total > 0 &&
-                                  page >= total - (paired ? 2 : 1) &&
+                                  lastVisiblePage >= total - 1 &&
                                   chapters.indexWhere(
                                         (c) => c.path == chapter.path,
                                       ) <
@@ -487,7 +495,7 @@ class _ReaderPageState extends State<ReaderPage> {
                               else
                                 IconButton(
                                   tooltip: '下一页',
-                                  onPressed: page < total - 1
+                                  onPressed: lastVisiblePage < total - 1
                                       ? () => turn(1)
                                       : null,
                                   icon: const Icon(Icons.chevron_right),
@@ -503,7 +511,7 @@ class _ReaderPageState extends State<ReaderPage> {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(0, 2, 10, 4),
                         child: LocalizedText(
-                          '${page + 1} / $total',
+                          pageLabel,
                           style: const TextStyle(
                             fontSize: 10,
                             color: Color(0xff8b9a8c),
