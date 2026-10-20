@@ -245,13 +245,16 @@ class _OfflinePageState extends State<OfflinePage> {
                                               e,
                                             );
                                           }
-                                          if (action == 'delete') {
+                                          if (action == 'delete' ||
+                                              action == 'deleteComic') {
                                             if (!c.mounted) return;
                                             final ok = await showDialog<bool>(
                                               context: c,
                                               builder: (d) => AlertDialog(
-                                                title: const LocalizedText(
-                                                  '删除离线章节？',
+                                                title: LocalizedText(
+                                                  action == 'deleteComic'
+                                                      ? '清理这本漫画的全部离线文件？'
+                                                      : '删除离线章节？',
                                                 ),
                                                 content: LocalizedText(
                                                   '将移除此设备上的 ${comic.title} ${chapter.title}。收藏与阅读记录会保留。',
@@ -275,7 +278,13 @@ class _OfflinePageState extends State<OfflinePage> {
                                               ),
                                             );
                                             if (ok == true) {
-                                              await offline.remove(e['id']);
+                                              if (action == 'deleteComic') {
+                                                await offline.removeComic(
+                                                  comic.path,
+                                                );
+                                              } else {
+                                                await offline.remove(e['id']);
+                                              }
                                             }
                                           }
                                         } catch (error) {
@@ -311,6 +320,10 @@ class _OfflinePageState extends State<OfflinePage> {
                                         const PopupMenuItem(
                                           value: 'delete',
                                           child: LocalizedText('删除离线章节'),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'deleteComic',
+                                          child: LocalizedText('清理这本漫画的离线文件'),
                                         ),
                                       ],
                                     ),

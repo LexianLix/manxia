@@ -64,6 +64,7 @@ class BookObject extends StatefulWidget {
 
 class _BookObjectState extends State<BookObject> {
   ui.Image? bitmap;
+  ImageInfo? frame;
   ImageStream? stream;
   ImageStreamListener? listener;
   int generation = 0;
@@ -100,21 +101,30 @@ class _BookObjectState extends State<BookObject> {
     if (!mounted || current != generation) return;
     stream = provider.resolve(createLocalImageConfiguration(context));
     listener = ImageStreamListener((info, _) {
-      if (!mounted || current != generation) return;
+      if (!mounted || current != generation) {
+        info.dispose();
+        return;
+      }
+      final previous = frame;
+      frame = info;
       if (mounted) setState(() => bitmap = info.image);
+      previous?.dispose();
       if (widget.onColor != null) _color(info.image);
     }, onError: (_, _) {});
     stream!.addListener(listener!);
   }
 
   Future<void> _color(ui.Image image) async {
+    final width = image.width,
+        height = image.height,
+        cover = widget.comic.cover;
     final data = await image.toByteData();
-    if (data == null || !mounted) return;
+    if (data == null || !mounted || cover != widget.comic.cover) return;
     var r = 0, g = 0, b = 0, n = 0;
     final bytes = data.buffer.asUint8List();
-    for (var y = 0; y < image.height; y += 12) {
-      for (var x = 0; x < image.width; x += 12) {
-        final k = (y * image.width + x) * 4;
+    for (var y = 0; y < height; y += 12) {
+      for (var x = 0; x < width; x += 12) {
+        final k = (y * width + x) * 4;
         final sum = bytes[k] + bytes[k + 1] + bytes[k + 2];
         if (sum > 90 && sum < 680) {
           r += bytes[k];
@@ -133,6 +143,7 @@ class _BookObjectState extends State<BookObject> {
   void dispose() {
     generation++;
     if (listener != null) stream?.removeListener(listener!);
+    frame?.dispose();
     super.dispose();
   }
 

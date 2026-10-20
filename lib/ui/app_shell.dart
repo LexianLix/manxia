@@ -720,7 +720,7 @@ class _AppShellState extends State<AppShell> {
         onPressed: () => showLicensePage(
           context: context,
           applicationName: '漫匣',
-          applicationVersion: '0.1.0',
+          applicationVersion: '0.2.0',
         ),
         child: const LocalizedText('开源许可与字体声明', style: TextStyle(fontSize: 12)),
       ),

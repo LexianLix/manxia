@@ -16,10 +16,15 @@
 
 ## 浏览器
 
-立体书架、每日推荐、四榜切换实际渲染并能切页。新版手机布局和本地文件导入将在本轮发布前继续检查，结果追加在本文件末尾。截图保存在本机 artifacts/，不提交漫画图片。
+- 实际渲染立体书架、每日推荐、四榜与题材/状态筛选；手机 390 × 844 与桌面 1280 × 720 均已查看。
+- 通过真实文件选择器导入自制三页 CBZ，显示页码 1/3，翻到 2/3 并实际显示第二、三页。
+- 导入自制两页 PDF，PDF.js 在本地转图成功并显示 1/2 及页面文字。
+- 仅对 QA 页模拟断网，刷新后应用仍启动、导入书架/封面/阅读记录恢复，继续阅读实际显示本地 PDF；测试后恢复网络。
+- 双页的中缝过宽问题已在视觉检查中发现并修正为靠中线排布。
+- 截图保存在 artifacts/mobile-discovery-0.2.png、pdf-import-reader.png、offline-reload-reader.png 等本机文件，不提交漫画图片。
 
 ## Android 与真实服务
 
-前一版 GitHub Actions 已成功构建 Web 和 Android 调试 APK：[运行记录](https://github.com/LexianLix/manxia/actions/runs/39376048659)。0.2 新增了原生插件，本轮的 Android 编译以对应新提交的 Actions 结果为准。
+0.2 集成新增原生插件后，GitHub Actions 已完成静态分析、测试、Web 和 Android 调试 APK 构建：[3631e4f 运行记录](https://github.com/LexianLix/manxia/actions/runs/39384165407)。后续视觉修正提交继续使用对应的 Actions 验证。
 
 尚无连接的 Android 真机；折射后端、传感器、音量键、触感、常亮、旋转、实际性能、签名覆盖升级均未验收。WebDAV 尚无实际服务账号，已通过模拟协议与图片字节往返测试，不能据此宣称兼容具体网盘。

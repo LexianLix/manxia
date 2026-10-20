@@ -68,6 +68,7 @@ export function createServer({load = upstream, dav = fetch} = {}) {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    if(url.pathname.startsWith('/api/'))res.setHeader('Content-Security-Policy',"default-src 'none'; sandbox");
     try {
       if (url.pathname === '/api/health') {
         res.setHeader('Content-Type','application/json');

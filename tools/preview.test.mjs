@@ -25,6 +25,7 @@ test('deduplicate and briefly cache successful public source reads', async () =>
   try {
     const endpoint=`http://127.0.0.1:${server.address().port}/api/source?path=/`;
     const responses=await Promise.all([fetch(endpoint),fetch(endpoint)]);
+    assert.match(responses[0].headers.get('content-security-policy'),/sandbox/);
     for(const response of responses)assert.equal(await response.text(),'<html>catalog</html>');
     await fetch(endpoint);
     assert.equal(reads,1);

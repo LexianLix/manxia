@@ -450,7 +450,9 @@ class _DiscoveryPageState extends State<DiscoveryPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: LocalizedText(
-                          '来源暂不可达 · 展示 ${snapshot.capturedAt.substring(0, 10)} 的目录快照',
+                          error == null
+                              ? '目录缓存 · ${snapshot.capturedAt.substring(0, 10)} · 正在后台刷新'
+                              : '来源暂不可达 · 展示 ${snapshot.capturedAt.substring(0, 10)} 的目录快照',
                           style: small(context),
                         ),
                       ),

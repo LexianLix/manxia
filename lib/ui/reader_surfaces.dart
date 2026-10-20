@@ -99,7 +99,11 @@ class _PagedSurfaceState extends State<PagedSurface> {
     super.dispose();
   }
 
-  Widget picture(String url, {double curl = 0}) => InteractiveViewer(
+  Widget picture(
+    String url, {
+    double curl = 0,
+    Alignment alignment = Alignment.center,
+  }) => InteractiveViewer(
     minScale: 1,
     maxScale: 4,
     child: PagePicture(
@@ -109,6 +113,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
       autoCrop: widget.autoCrop,
       decodeWidth: widget.decodeWidth,
       curl: curl,
+      alignment: alignment,
     ),
   );
   @override
@@ -131,7 +136,17 @@ class _PagedSurfaceState extends State<PagedSurface> {
       final content = Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (final idx in images) Expanded(child: picture(widget.urls[idx])),
+          for (final entry in images.indexed)
+            Expanded(
+              child: picture(
+                widget.urls[entry.$2],
+                alignment: images.length == 1
+                    ? Alignment.center
+                    : entry.$1 == 0
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+              ),
+            ),
         ],
       );
       if (!widget.paper ||
@@ -162,9 +177,17 @@ class _PagedSurfaceState extends State<PagedSurface> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      for (final idx in images)
+                      for (final entry in images.indexed)
                         Expanded(
-                          child: picture(widget.urls[idx], curl: progress),
+                          child: picture(
+                            widget.urls[entry.$2],
+                            curl: progress,
+                            alignment: images.length == 1
+                                ? Alignment.center
+                                : entry.$1 == 0
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                          ),
                         ),
                     ],
                   ),
@@ -437,6 +460,7 @@ class PagePicture extends StatefulWidget {
     this.decodeWidth = 1800,
     this.onReady,
     this.curl = 0,
+    this.alignment = Alignment.center,
   });
   final String url;
   final bool web, strip, autoCrop;
@@ -444,6 +468,7 @@ class PagePicture extends StatefulWidget {
   final int decodeWidth;
   final ValueChanged<double>? onReady;
   final double curl;
+  final Alignment alignment;
   @override
   State<PagePicture> createState() => _PagePictureState();
 }
@@ -452,6 +477,7 @@ class _PagePictureState extends State<PagePicture> {
   ImageStream? stream;
   ImageStreamListener? listener;
   ui.Image? image;
+  ImageInfo? frame;
   Rect? trim;
   String? error;
   int request = 0;
@@ -497,12 +523,18 @@ class _PagePictureState extends State<PagePicture> {
               );
             }
           }
-          if (!mounted || generation != request) return;
+          if (!mounted || generation != request) {
+            info.dispose();
+            return;
+          }
+          final previous = frame;
+          frame = info;
           setState(() {
             image = info.image;
             trim = crop;
             error = null;
           });
+          previous?.dispose();
         },
         onError: (Object e, StackTrace? _) {
           if (mounted && generation == request) {
@@ -520,6 +552,7 @@ class _PagePictureState extends State<PagePicture> {
   void dispose() {
     request++;
     if (listener != null) stream?.removeListener(listener!);
+    frame?.dispose();
     super.dispose();
   }
 
@@ -606,7 +639,12 @@ class _PagePictureState extends State<PagePicture> {
             width: width,
             height: height,
             child: CustomPaint(
-              painter: _PicturePainter(bitmap, source, widget.curl),
+              painter: _PicturePainter(
+                bitmap,
+                source,
+                widget.curl,
+                widget.alignment,
+              ),
             ),
           ),
         );
@@ -616,17 +654,15 @@ class _PagePictureState extends State<PagePicture> {
 }
 
 class _PicturePainter extends CustomPainter {
-  _PicturePainter(this.image, this.source, this.curl);
+  _PicturePainter(this.image, this.source, this.curl, this.alignment);
   final ui.Image image;
   final Rect source;
   final double curl;
+  final Alignment alignment;
   @override
   void paint(Canvas canvas, Size size) {
     final fitted = applyBoxFit(BoxFit.contain, source.size, size);
-    final rect = Alignment.center.inscribe(
-      fitted.destination,
-      Offset.zero & size,
-    );
+    final rect = alignment.inscribe(fitted.destination, Offset.zero & size);
     if (curl.abs() > .002) {
       final t = curl.abs().clamp(0.0, 1.0);
       final positions = <Offset>[], textures = <Offset>[];
@@ -719,5 +755,8 @@ class _PicturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PicturePainter old) =>
-      old.image != image || old.source != source || old.curl != curl;
+      old.image != image ||
+      old.source != source ||
+      old.curl != curl ||
+      old.alignment != alignment;
 }
