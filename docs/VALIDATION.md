@@ -25,7 +25,7 @@
 
 ## Android 与真实服务
 
-0.2 集成新增原生插件后，GitHub Actions 已完成静态分析、测试、Web 和 Android 调试 APK 构建：[3631e4f 运行记录](https://github.com/LexianLix/manxia/actions/runs/39384165407)。后续视觉修正提交继续使用对应的 Actions 验证。
+最终代码提交 b51bacd 已通过 GitHub Actions 的静态分析、26 项 Flutter 测试、6 项网关测试、Web 和 Android 调试 APK 构建：[完整运行记录](https://github.com/LexianLix/manxia/actions/runs/39387721366)。调试包已下载至本机 artifacts/android-0.2/app-debug.apk，并逐字节确认与该次构建的 ZIP 内 APK 一致；同目录 build-info.json 记录提交、运行编号、大小及 SHA-256。
 
 尚无连接的 Android 真机；折射后端、传感器、音量键、触感、常亮、旋转、实际性能、签名覆盖升级均未验收。WebDAV 尚无实际服务账号，已通过模拟协议与图片字节往返测试，不能据此宣称兼容具体网盘。
 
@@ -34,3 +34,5 @@
 纸页检查：浏览器中开启纸页弯曲后，实际从 2/3 翻至 3/3，下一页正确禁用，控制台无渲染错误。
 
 离线目录检查：保存原站完整章节顺序；用户先下载旧章、再下载新章，重启后仍按原站顺序展示。书库 ZIP 同时携带目录，未来不支持的资料版本在写入图片前拒绝。
+
+双页最终检查：在桌面宽度恢复到第三页时，实际显示相邻的第二、三页，页码为 2–3 / 3，下一页禁用，控制台无渲染错误；截图为 artifacts/double-page-reader-0.2.png。
