@@ -28,5 +28,5 @@
 ## 尚未验证/实现
 
 - 本机未安装 Android SDK，当前 Java 为 JDK 8，尚未构建 Android APK 或进行 Android 真机测试。
-- GitHub 仓库尚未创建或推送，Actions 的 Android 构建尚未实际运行。
+- GitHub 公开仓库已创建并推送：<https://github.com/LexianLix/manxia>。本记录尚未确认 Android 构建成功；实际 Actions 结果见仓库运行记录。
 - 正式签名、升级安装、离线下载、本地漫画导入和连续条漫滚动尚未实现。

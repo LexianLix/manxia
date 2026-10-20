@@ -1,5 +1,7 @@
 # 漫匣 · Manxia
 
+[GitHub 源码](https://github.com/LexianLix/manxia) · [功能选择清单](docs/FEATURE_CHOICES.md) · [自动构建](https://github.com/LexianLix/manxia/actions)
+
 把喜欢的故事，留在手边。
 
 一个以实体书质感为中心的 Flutter 漫画阅读器。默认漫画源为动漫屋，Android 为目标平台，同时提供可操作的浏览器预览。
