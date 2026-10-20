@@ -257,7 +257,9 @@ class _OfflinePageState extends State<OfflinePage> {
                                                       : '删除离线章节？',
                                                 ),
                                                 content: LocalizedText(
-                                                  '将移除此设备上的 ${comic.title} ${chapter.title}。收藏与阅读记录会保留。',
+                                                  action == 'deleteComic'
+                                                      ? '将移除此设备上 ${comic.title} 的全部离线章节。收藏与阅读记录会保留。'
+                                                      : '将移除此设备上的 ${comic.title} ${chapter.title}。收藏与阅读记录会保留。',
                                                 ),
                                                 actions: [
                                                   TextButton(
@@ -372,7 +374,10 @@ class _OfflinePageState extends State<OfflinePage> {
                                           builder: (_) => ReaderPage(
                                             comic: comic,
                                             chapter: chapter,
-                                            chapters: offline.chapters(comic),
+                                            chapters: offline
+                                                .chapters(comic)
+                                                .reversed
+                                                .toList(),
                                             library: widget.library,
                                             source: widget.source,
                                             web: widget.web,

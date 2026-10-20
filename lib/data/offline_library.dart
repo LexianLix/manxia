@@ -26,6 +26,7 @@ class OfflineLibrary extends ChangeNotifier {
   BlobStore? _store;
   final List<Map<String, dynamic>> entries = [];
   final Set<String> _running = {};
+  final Map<String, List<String>> chapterCatalogs = {};
   final Map<String, Uint8List> _memory = {};
   int _memoryBytes = 0;
   bool ready = false;
@@ -36,6 +37,14 @@ class OfflineLibrary extends ChangeNotifier {
         (jsonDecode(library.prefs.getString('offline.v1') ?? '[]') as List).map(
           (e) => Map<String, dynamic>.from(e),
         ),
+      );
+    } catch (_) {}
+    try {
+      final saved =
+          jsonDecode(library.prefs.getString('offline.catalogs.v1') ?? '{}')
+              as Map;
+      chapterCatalogs.addAll(
+        saved.map((k, v) => MapEntry(k.toString(), List<String>.from(v))),
       );
     } catch (_) {}
     for (final e in entries) {
@@ -92,10 +101,25 @@ class OfflineLibrary extends ChangeNotifier {
         Map<String, dynamic>.from(e['comic']),
       ),
   }.values.toList();
-  List<Chapter> chapters(Comic c) => entries
-      .where((e) => e['comic']['path'] == c.path && e['status'] == 'complete')
-      .map((e) => Chapter.fromJson(Map<String, dynamic>.from(e['chapter'])))
-      .toList();
+  List<Chapter> chapters(Comic c) {
+    final list = entries
+        .where((e) => e['comic']['path'] == c.path && e['status'] == 'complete')
+        .map((e) => Chapter.fromJson(Map<String, dynamic>.from(e['chapter'])))
+        .toList();
+    final order =
+        chapterCatalogs[c.path] ??
+        Dm5Source.chapterCatalogs[c.path]?.map((c) => c.path).toList();
+    if (order != null) {
+      final rank = {for (final e in order.indexed) e.$2: e.$1};
+      list.sort(
+        (a, b) => (rank[a.path] ?? order.length).compareTo(
+          rank[b.path] ?? order.length,
+        ),
+      );
+    }
+    return list;
+  }
+
   Future<List<String>?> pages(String path) async {
     final entry = entries
         .where((e) => e['chapter']['path'] == path && e['status'] == 'complete')
@@ -113,6 +137,17 @@ class OfflineLibrary extends ChangeNotifier {
   Future<void> enqueue(Comic comic, Chapter chapter) async {
     if (!ready) throw StateError('离线书库正在初始化');
     if (entries.any((e) => e['chapter']['path'] == chapter.path)) return;
+    final canonical = Dm5Source.chapterCatalogs[comic.path]
+        ?.map((c) => c.path)
+        .toList();
+    if (canonical != null &&
+        !listEquals(canonical, chapterCatalogs[comic.path])) {
+      chapterCatalogs[comic.path] = canonical;
+      await library.prefs.setString(
+        'offline.catalogs.v1',
+        jsonEncode(chapterCatalogs),
+      );
+    }
     entries.add({
       'id': key(chapter.path),
       'comic': comic.toJson(),
@@ -387,6 +422,7 @@ class OfflineLibrary extends ChangeNotifier {
         'schema': 1,
         'library': library.backup(),
         'entries': complete,
+        'chapterCatalogs': chapterCatalogs,
         'sha256': sums,
       }),
     );
@@ -405,6 +441,14 @@ class OfflineLibrary extends ChangeNotifier {
     if (json['format'] != 'manxia-offline' || json['schema'] != 1) {
       throw const FormatException('不支持的书库备份版本。');
     }
+    final restoredLibrary = Map<String, dynamic>.from(json['library']);
+    if (restoredLibrary['format'] != 'manxia' ||
+        (restoredLibrary['schema'] as num? ?? 0) > 2) {
+      throw const FormatException('书库资料版本高于当前应用，请先升级应用。');
+    }
+    final restoredCatalogs = (json['chapterCatalogs'] as Map? ?? {}).map(
+      (k, v) => MapEntry(k.toString(), List<String>.from(v)),
+    );
     final sums = Map<String, String>.from(json['sha256']);
     final incoming = (json['entries'] as List)
         .map((e) => Map<String, dynamic>.from(e))
@@ -424,7 +468,7 @@ class OfflineLibrary extends ChangeNotifier {
         throw const FormatException('章节索引不完整。');
       }
     }
-    // Validation finishes before any persistent state changes.
+    // Image integrity and format versions are checked before writing files.
     for (final k in sums.keys) {
       await _store!.write(
         k,
@@ -435,9 +479,15 @@ class OfflineLibrary extends ChangeNotifier {
       entries.removeWhere((v) => v['id'] == e['id']);
       entries.add(e);
     }
-    await library.restore(
-      Map<String, dynamic>.from(json['library']),
-      restoreOptions: true,
+    await library.restore(restoredLibrary, restoreOptions: true);
+    for (final e in restoredCatalogs.entries) {
+      final incoming = e.value;
+      final existing = chapterCatalogs[e.key] ?? [];
+      if (incoming.length >= existing.length) chapterCatalogs[e.key] = incoming;
+    }
+    await library.prefs.setString(
+      'offline.catalogs.v1',
+      jsonEncode(chapterCatalogs),
     );
     await persist();
   }

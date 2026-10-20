@@ -104,7 +104,9 @@ class SourceHub extends Dm5Source {
     if (!comic.path.startsWith('custom:')) return super.detail(comic);
     final p = profile(comic.path);
     try {
-      return p.detail(await customPage(p, p.decode(comic.path)), comic);
+      final result = p.detail(await customPage(p, p.decode(comic.path)), comic);
+      Dm5Source.chapterCatalogs[comic.path] = result.chapters;
+      return result;
     } catch (_) {
       final stored = await Dm5Source.offlineDetail?.call(comic);
       if (stored != null) return stored;

@@ -9,6 +9,7 @@ import 'source_catalog.dart';
 class Dm5Source {
   static Future<List<String>?> Function(String path)? offlinePages;
   static Future<ComicDetail?> Function(Comic comic)? offlineDetail;
+  static final Map<String, List<Chapter>> chapterCatalogs = {};
   Dm5Source({this.gateway, http.Client? client})
     : _client = client ?? http.Client();
   final Uri? gateway;
@@ -56,7 +57,9 @@ class Dm5Source {
           (throw SourceException('本地漫画文件不存在。'));
     }
     try {
-      return parseDetail(await fetchPage(comic.path), comic);
+      final result = parseDetail(await fetchPage(comic.path), comic);
+      chapterCatalogs[comic.path] = result.chapters;
+      return result;
     } catch (_) {
       final stored = await offlineDetail?.call(comic);
       if (stored != null) return stored;

@@ -39,10 +39,56 @@ Future<Library> library() async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   tearDown(() {
+    Dm5Source.chapterCatalogs.clear();
     Dm5Source.offlinePages = null;
     Dm5Source.offlineDetail = null;
     OfflineLibrary.instance = null;
   });
+  test(
+    'offline chapter order follows the source after out-of-order downloads and restart',
+    () async {
+      final l = await library();
+      final source = Dm5Source(
+        client: MockClient(
+          (r) async => http.Response(
+            r.url.path == comic.path
+                ? '<h1 class="detail-main-info-title">Test</h1><div class="detail-list-select" id="detail-list-select-1"><a href="/m3/">3</a><a href="/m2/">2</a><a href="/m1/">1</a></div>'
+                : "var newImgs=['https://images.cdndm5.com/1.jpg'];",
+            200,
+          ),
+        ),
+      );
+      await source.detail(comic);
+      final store = MemoryBlobStore();
+      final offline = OfflineLibrary(
+        l,
+        source,
+        store: store,
+        client: MockClient(
+          (_) async => http.Response.bytes(
+            [255, 216, 255],
+            200,
+            headers: {'content-type': 'image/jpeg'},
+          ),
+        ),
+      );
+      await offline.initialize();
+      await offline.enqueue(comic, const Chapter('/m1/', '1'));
+      await offline.enqueue(comic, const Chapter('/m3/', '3'));
+      for (
+        var i = 0;
+        i < 100 && offline.entries.any((e) => e['status'] != 'complete');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      Dm5Source.chapterCatalogs.clear();
+      final restored = OfflineLibrary(l, source, store: store);
+      await restored.initialize();
+      expect(restored.chapters(comic).map((c) => c.path), ['/m3/', '/m1/']);
+      source.close();
+    },
+  );
   test(
     'a stale backup cannot resurrect deleted books, history or bookmarks',
     () async {
@@ -109,6 +155,23 @@ void main() {
         throwsFormatException,
       );
       expect(other.entries, isEmpty);
+      final future = Archive();
+      for (final f in zip.files) {
+        if (f.name == 'manifest.json') {
+          final manifest = jsonDecode(utf8.decode(f.content)) as Map;
+          manifest['library']['schema'] = 999;
+          final data = utf8.encode(jsonEncode(manifest));
+          future.addFile(ArchiveFile(f.name, data.length, data));
+        } else {
+          future.addFile(f);
+        }
+      }
+      await expectLater(
+        other.importBundle(Uint8List.fromList(ZipEncoder().encode(future))),
+        throwsFormatException,
+      );
+      expect(other.entries, isEmpty);
+      expect(await other.read(offline.entries.single['keys'][0]), isNull);
       source.close();
     },
   );
