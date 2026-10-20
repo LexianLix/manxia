@@ -1,7 +1,7 @@
 import 'localized_text.dart';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/source_hub.dart';
@@ -14,6 +14,7 @@ import 'reader_page.dart';
 import 'living_shelf.dart';
 import 'discovery_page.dart';
 import 'glass_navigation.dart';
+import 'retained_pages.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
 
@@ -33,13 +34,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int tab = 0;
-  int direction = 1;
   (String, Rect)? openingOrigin;
-  late final atmosphere = ValueNotifier<Comic?>(
-    widget.library.books.isEmpty
-        ? null
-        : widget.library.books[math.min(3, widget.library.books.length - 1)],
-  );
+  final atmosphere = ValueNotifier<Color>(const Color(0xff8baf99));
   late final source = SourceHub(
     widget.library,
     gateway: widget.web ? Uri.base : null,
@@ -54,7 +50,6 @@ class _AppShellState extends State<AppShell> {
   void navigate(int i) {
     if (tab == i) return;
     setState(() {
-      direction = i > tab ? 1 : -1;
       tab = i;
     });
   }
@@ -106,11 +101,10 @@ class _AppShellState extends State<AppShell> {
           body: Stack(
             children: [
               Positioned.fill(
-                child: ValueListenableBuilder<Comic?>(
+                child: ValueListenableBuilder<Color>(
                   valueListenable: atmosphere,
-                  builder: (_, comic, _) => ReadingAtmosphere(
-                    comic: comic,
-                    web: widget.web,
+                  builder: (_, color, _) => ReadingAtmosphere(
+                    color: color,
                     highQuality:
                         widget.library.option<String>('quality', 'high') ==
                         'high',
@@ -139,92 +133,80 @@ class _AppShellState extends State<AppShell> {
                                 child: _topbar(wide),
                               ),
                               Expanded(
-                                child: AnimatedSwitcher(
-                                  duration: Duration(
-                                    milliseconds:
-                                        MediaQuery.disableAnimationsOf(context)
-                                        ? 0
-                                        : 310,
-                                  ),
-                                  reverseDuration: Duration(
-                                    milliseconds:
-                                        MediaQuery.disableAnimationsOf(context)
-                                        ? 0
-                                        : 210,
-                                  ),
-                                  switchInCurve: Curves.easeOutCubic,
-                                  switchOutCurve: Curves.easeInCubic,
-                                  transitionBuilder: (child, a) =>
-                                      AnimatedBuilder(
-                                        animation: a,
-                                        builder: (_, content) {
-                                          final entering =
-                                              child.key == ValueKey(tab);
-                                          final t = a.value;
-                                          final transformed =
-                                              Transform.translate(
-                                                offset: Offset(
-                                                  (1 - t) *
-                                                      30 *
-                                                      direction *
-                                                      (entering ? 1 : -1),
-                                                  0,
-                                                ),
-                                                child: Opacity(
-                                                  opacity: t,
-                                                  child: content,
-                                                ),
-                                              );
-                                          return IgnorePointer(
-                                            ignoring: !entering,
-                                            child: ImageFiltered(
-                                              enabled:
-                                                  t < .99 &&
-                                                  widget.library.option<String>(
-                                                        'quality',
-                                                        'high',
-                                                      ) ==
-                                                      'high',
-                                              imageFilter: ui.ImageFilter.blur(
-                                                sigmaX: (1 - t) * 3,
-                                                sigmaY: (1 - t) * 3,
-                                              ),
-                                              child: transformed,
-                                            ),
-                                          );
-                                        },
-                                        child: child,
-                                      ),
-                                  child: KeyedSubtree(
-                                    key: ValueKey(tab),
-                                    child: SingleChildScrollView(
-                                      key: PageStorageKey('reading-room-$tab'),
-                                      padding: EdgeInsets.fromLTRB(
-                                        compact ? 22 : 44,
-                                        compact ? 28 : 34,
-                                        compact ? 22 : 44,
-                                        140,
-                                      ),
-                                      child: Center(
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 1100,
+                                child: RetainedPages(
+                                  index: tab,
+                                  animate: widget.library.motion,
+                                  builder: (page) => page == 3
+                                      ? CustomScrollView(
+                                          key: const PageStorageKey(
+                                            'reading-room-3',
                                           ),
-                                          child: switch (tab) {
-                                            0 => _shelf(compact),
-                                            1 => DiscoveryPage(
-                                              library: widget.library,
-                                              source: source,
-                                              web: widget.web,
-                                              onOpen: open,
+                                          scrollCacheExtent:
+                                              const ScrollCacheExtent.pixels(0),
+                                          slivers: [
+                                            SliverLayoutBuilder(
+                                              builder: (context, constraints) =>
+                                                  SliverPadding(
+                                                    padding: EdgeInsets.fromLTRB(
+                                                      math.max(
+                                                        compact ? 22.0 : 44.0,
+                                                        (constraints.crossAxisExtent -
+                                                                1100) /
+                                                            2,
+                                                      ),
+                                                      compact ? 28 : 34,
+                                                      math.max(
+                                                        compact ? 22.0 : 44.0,
+                                                        (constraints.crossAxisExtent -
+                                                                1100) /
+                                                            2,
+                                                      ),
+                                                      140,
+                                                    ),
+                                                    sliver: SliverMainAxisGroup(
+                                                      slivers:
+                                                          _settingsSlivers(),
+                                                    ),
+                                                  ),
                                             ),
-                                            2 => _history(),
-                                            _ => _settings(),
-                                          },
+                                          ],
+                                        )
+                                      : SingleChildScrollView(
+                                          key: PageStorageKey(
+                                            'reading-room-$page',
+                                          ),
+                                          padding: EdgeInsets.fromLTRB(
+                                            compact ? 22 : 44,
+                                            compact ? 28 : 34,
+                                            compact ? 22 : 44,
+                                            140,
+                                          ),
+                                          child: Center(
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                maxWidth: 1100,
+                                              ),
+                                              child: switch (page) {
+                                                0 => _shelf(compact),
+                                                1 => DiscoveryPage(
+                                                  key: ValueKey(
+                                                    widget.library
+                                                        .option<String>(
+                                                          'source',
+                                                          'dm5',
+                                                        ),
+                                                  ),
+                                                  library: widget.library,
+                                                  source: source,
+                                                  web: widget.web,
+                                                  onOpen: open,
+                                                ),
+                                                2 => _history(),
+                                                _ => const SizedBox.shrink(),
+                                              },
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  ),
                                 ),
                               ),
                             ],
@@ -532,8 +514,8 @@ class _AppShellState extends State<AppShell> {
             library: widget.library,
             web: widget.web,
             onOpen: open,
-            onFocus: (comic) {
-              if (mounted) atmosphere.value = comic;
+            onAmbientColor: (color) {
+              if (mounted) atmosphere.value = color;
             },
             onBookOrigin: (comic, rect) => openingOrigin = (comic.path, rect),
           ),
@@ -698,98 +680,134 @@ class _AppShellState extends State<AppShell> {
 
   Widget _history() =>
       HistoryPage(library: widget.library, source: source, web: widget.web);
-  Widget _settings() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _heading('偏好设置', '让阅读室，成为你喜欢的样子。'),
-      _settingGroup('外观与交互', [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const LocalizedText('夜间阅读室', style: TextStyle(fontSize: 15)),
-          subtitle: LocalizedText('柔和深色背景，适合夜晚阅读', style: small(context)),
-          value: widget.library.dark,
-          onChanged: (v) => widget.library.setting('dark', v),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const LocalizedText('书架动效', style: TextStyle(fontSize: 15)),
-          subtitle: LocalizedText('抽书与页面转场；跟随系统减少动画偏好', style: small(context)),
-          value: widget.library.motion,
-          onChanged: (v) => widget.library.setting('motion', v),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const LocalizedText('封面网格', style: TextStyle(fontSize: 15)),
-          subtitle: LocalizedText('使用平面书架浏览收藏', style: small(context)),
-          value: widget.library.grid,
-          onChanged: (v) => widget.library.setting('grid', v),
-        ),
-      ]),
-      const SizedBox(height: 30),
-      _settingGroup('阅读与数据', [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const LocalizedText('默认漫画源', style: TextStyle(fontSize: 15)),
-          subtitle: LocalizedText('动漫屋 · m.dm5.com', style: small(context)),
-          trailing: const Icon(Icons.public, size: 20),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const LocalizedText('显示演示书架', style: TextStyle(fontSize: 15)),
-          subtitle: LocalizedText('个人收藏为空时，展示示例漫画', style: small(context)),
-          value: widget.library.demo,
-          onChanged: (v) => widget.library.setting('demo', v),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const LocalizedText('清空阅读足迹', style: TextStyle(fontSize: 15)),
-          subtitle: LocalizedText('仅清除本机页码记录，保留收藏', style: small(context)),
-          trailing: const Icon(Icons.delete_outline, size: 20),
-          onTap: () async {
-            final ok = await showDialog<bool>(
-              context: context,
-              builder: (c) => AlertDialog(
-                title: const LocalizedText('清空阅读足迹？'),
-                content: const LocalizedText('已保存的章节和页码记录将被清除。'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(c, false),
-                    child: const LocalizedText('取消'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(c, true),
-                    child: const LocalizedText('清空'),
-                  ),
-                ],
+  List<Widget> _settingsSlivers() => [
+    SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _heading('偏好设置', '让阅读室，成为你喜欢的样子。'),
+          _settingGroup('外观与交互', [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const LocalizedText(
+                '夜间阅读室',
+                style: TextStyle(fontSize: 15),
               ),
-            );
-            if (ok == true) await widget.library.clearHistory();
-          },
-        ),
-      ]),
-      AdvancedSettings(
-        library: widget.library,
-        source: source,
-        web: widget.web,
+              subtitle: LocalizedText('柔和深色背景，适合夜晚阅读', style: small(context)),
+              value: widget.library.dark,
+              onChanged: (v) => widget.library.setting('dark', v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const LocalizedText(
+                '书架动效',
+                style: TextStyle(fontSize: 15),
+              ),
+              subtitle: LocalizedText(
+                '抽书与页面转场；跟随系统减少动画偏好',
+                style: small(context),
+              ),
+              value: widget.library.motion,
+              onChanged: (v) => widget.library.setting('motion', v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const LocalizedText(
+                '封面网格',
+                style: TextStyle(fontSize: 15),
+              ),
+              subtitle: LocalizedText('使用平面书架浏览收藏', style: small(context)),
+              value: widget.library.grid,
+              onChanged: (v) => widget.library.setting('grid', v),
+            ),
+          ]),
+          const SizedBox(height: 30),
+          _settingGroup('阅读与数据', [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const LocalizedText(
+                '默认漫画源',
+                style: TextStyle(fontSize: 15),
+              ),
+              subtitle: LocalizedText('动漫屋 · m.dm5.com', style: small(context)),
+              trailing: const Icon(Icons.public, size: 20),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const LocalizedText(
+                '显示演示书架',
+                style: TextStyle(fontSize: 15),
+              ),
+              subtitle: LocalizedText('个人收藏为空时，展示示例漫画', style: small(context)),
+              value: widget.library.demo,
+              onChanged: (v) => widget.library.setting('demo', v),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const LocalizedText(
+                '清空阅读足迹',
+                style: TextStyle(fontSize: 15),
+              ),
+              subtitle: LocalizedText('仅清除本机页码记录，保留收藏', style: small(context)),
+              trailing: const Icon(Icons.delete_outline, size: 20),
+              onTap: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    title: const LocalizedText('清空阅读足迹？'),
+                    content: const LocalizedText('已保存的章节和页码记录将被清除。'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, false),
+                        child: const LocalizedText('取消'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, true),
+                        child: const LocalizedText('清空'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok == true) await widget.library.clearHistory();
+              },
+            ),
+          ]),
+        ],
       ),
-      const SizedBox(height: 35),
-      const LocalizedText(
-        '漫匣 MANXIA',
-        style: TextStyle(fontSize: 23, letterSpacing: 2),
+    ),
+    AdvancedSettings(
+      sliver: true,
+      library: widget.library,
+      source: source,
+      web: widget.web,
+    ),
+    SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 35),
+          const LocalizedText(
+            '漫匣 MANXIA',
+            style: TextStyle(fontSize: 23, letterSpacing: 2),
+          ),
+          const SizedBox(height: 10),
+          LocalizedText('为每一段故事，留一个位置。', style: small(context)),
+          const SizedBox(height: 22),
+          TextButton(
+            onPressed: () => showLicensePage(
+              context: context,
+              applicationName: '漫匣',
+              applicationVersion: '0.2.2',
+            ),
+            child: const LocalizedText(
+              '开源许可与字体声明',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: 10),
-      LocalizedText('为每一段故事，留一个位置。', style: small(context)),
-      const SizedBox(height: 22),
-      TextButton(
-        onPressed: () => showLicensePage(
-          context: context,
-          applicationName: '漫匣',
-          applicationVersion: '0.2.0',
-        ),
-        child: const LocalizedText('开源许可与字体声明', style: TextStyle(fontSize: 12)),
-      ),
-    ],
-  );
+    ),
+  ];
   Widget _settingGroup(String label, List<Widget> children) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [

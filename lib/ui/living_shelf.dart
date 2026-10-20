@@ -22,6 +22,7 @@ class LivingShelf extends StatefulWidget {
     required this.onOpen,
     this.onFocus,
     this.onBookOrigin,
+    this.onAmbientColor,
   });
   final List<Comic> books;
   final Library library;
@@ -29,6 +30,7 @@ class LivingShelf extends StatefulWidget {
   final ValueChanged<Comic> onOpen;
   final ValueChanged<Comic>? onFocus;
   final void Function(Comic, Rect)? onBookOrigin;
+  final ValueChanged<Color>? onAmbientColor;
   @override
   State<LivingShelf> createState() => _LivingShelfState();
 }
@@ -338,6 +340,8 @@ class _LivingShelfState extends State<LivingShelf>
                                                       setState(
                                                         () => ambient = color,
                                                       );
+                                                      widget.onAmbientColor
+                                                          ?.call(color);
                                                     }
                                                   }
                                                 : null,

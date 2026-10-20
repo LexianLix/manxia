@@ -76,7 +76,7 @@ git push -u origin main
 打开仓库 → Actions → `Check and build` → 最近一次运行。构建成功后，页面底部 Artifacts 有：
 
 - `manxia-web`：浏览器前端编译产物，运行仍需要预览网关。
-- `manxia-android-debug`：测试安装用的 APK。它是调试签名包，不能作为正式版签名升级承诺。
+- `manxia-android-profile`：AOT 编译的性能测试 APK（app-profile.apk）。使用临时测试签名，不能作为正式版签名升级承诺；0.2.1 及更早的运行产物名为 manxia-android-debug。
 
 前一版自动构建已通过。每次新增插件后，仍需查看对应提交的运行结果；绿色成功才表示该次 APK 实际生成。真机运行与正式签名升级需另行测试。
 

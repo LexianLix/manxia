@@ -4,9 +4,11 @@
 
 把喜欢的故事，留在手边。
 
-一个以实体书质感为中心的 Flutter 漫画阅读器。默认动漫屋，Android 为目标平台，提供手机与桌面布局的浏览器预览。当前为 **0.2.1 开发版**。
+一个以实体书质感为中心的 Flutter 漫画阅读器。默认动漫屋，Android 为目标平台，提供手机与桌面布局的浏览器预览。当前为 **0.2.2 开发版**。
 
 本轮重做悬浮毛玻璃导航、可拖动的弹簧选中块、页面失焦过渡、书架入场与跟手倾斜，以及从所点书籍位置开始的开书动画。详见 [玻璃与动效调整](docs/MOTION.md)。
+
+0.2.2 优化书籍底图缓存、封面解码/取色、页面状态复用与玻璃分层；切页保留滑移和淡入，移除整页动态模糊。Android 试用包改为 AOT 编译的 Profile 模式，性能记录见 [性能说明](docs/PERFORMANCE.md)。
 
 ## 已接入的主要功能
 
@@ -50,7 +52,7 @@ PDF.js 本地组件在构建前准备，应用资源离线缓存由独立的 `sw
 
 ## Android 构建与安装
 
-GitHub Actions 检查成功后，进入该次运行底部 **Artifacts → manxia-android-debug**，解压得到调试 APK。下载步骤见 [GitHub 指南](docs/GITHUB.md)。调试包用于试用，跨运行的临时调试证书不保证可覆盖安装。
+GitHub Actions 检查成功后，进入该次运行底部 **Artifacts → manxia-android-profile**，解压得到 AOT 编译的性能测试 APK。下载步骤见 [GitHub 指南](docs/GITHUB.md)。它保留性能分析能力，使用临时测试证书；跨运行不保证可覆盖安装，正式发行仍应使用自己的固定密钥。
 
 本机需安装 JDK 17 与 Android SDK，并完成 `flutter doctor` 中的开发环境配置：
 

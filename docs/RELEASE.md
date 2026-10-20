@@ -15,7 +15,7 @@
 
 把密钥和配置一起放到自己的加密备份中。不要提交、发到聊天或放进公开仓库。后续更新必须使用相同 applicationId 和密钥，并递增 pubspec.yaml 的构建号。
 
-本机已生成并检查 Git 忽略的私有 RSA-3072 签名密钥，未上传到仓库。本机没有完整 Android SDK，本轮未生成自有正式签名安装包。CI 负责调试构建；没有自动上传私有密钥到 GitHub Secrets。
+本机已生成并检查 Git 忽略的私有 RSA-3072 签名密钥，未上传到仓库。本机没有完整 Android SDK，本轮未生成自有正式签名安装包。CI 负责测试构建；没有自动上传私有密钥到 GitHub Secrets。
 
 ## 升级与恢复
 
@@ -28,3 +28,6 @@
 ## 当前未验证
 
 真机安装、同签名覆盖升级、正式签名 APK 构建和回滚。源码与模拟持久化测试不能代替以上验证。
+## 性能测试包补充（0.2.2）
+
+Actions 默认产出 `manxia-android-profile/app-profile.apk`，用 Profile 模式 AOT 编译，以免把 Debug 模式开销带入流畅度试用。它仍是临时测试签名，保留性能分析能力；正式发行和稳定覆盖升级继续使用自己的固定 Release 密钥。默认执行 `tools/Build-Android.ps1` 也构建 Profile，`-Debug` 用于开发调试，`-Release` 用于正式签名构建。

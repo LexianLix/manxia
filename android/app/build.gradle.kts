@@ -51,8 +51,9 @@ android {
 }
 
 // Never silently sign a production build with Flutter's disposable debug key.
+val applicationProjectPath = project.path
 gradle.taskGraph.whenReady {
-    if (allTasks.any { it.name.contains("Release") } && !signingFile.exists()) {
+    if (allTasks.any { it.project.path == applicationProjectPath && it.name.contains("Release") } && !signingFile.exists()) {
         throw GradleException("Run tools/Create-Signing.ps1 first. Keep the keystore and key.properties private.")
     }
 }
