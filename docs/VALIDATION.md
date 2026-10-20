@@ -6,7 +6,9 @@
 
 固定场景的浏览器主线程帧工作 P95 从 17.299 ms 降至 12.204 ms；首次设置页仍有一次 59.560 ms 长帧。已访问页面后重复操作的 P95 为 10.780 ms，最大 26.107 ms，通过本机检查。完整条件与保留的失败结果见 [性能说明](PERFORMANCE.md)。这些不是 Android/GPU FPS 结论。
 
-本轮 [Actions 运行](https://github.com/LexianLix/manxia/actions/runs/39435016723) 使用 Profile/AOT Android 性能测试包，替代此前默认 Debug 包。真机帧率、触感与具体设备表现仍需实机确认。
+本轮 [Actions 运行](https://github.com/LexianLix/manxia/actions/runs/39435016723) 全部通过：静态分析、33 项 Flutter 测试、6 项网关测试、Web 与 Profile/AOT Android 构建。安装包已下载至本机 artifacts/android-0.2.2/app-profile.apk，大小 95589904 字节，已逐文件摘要确认与构建 ZIP 中的 APK 一致；包含 arm64-v8a、armeabi-v7a、x86_64 的 libapp.so，不含 Debug 的 kernel_blob.bin。SHA-256 为 aa9ac0dd5b68660334e9cf9325c92c455e8c10a94d59ba6658676a3a6ab51e8c。真机帧率、触感与具体设备表现仍需实机确认。
+
+实际比较 APK Signing Block 中的证书，新测试包与本机保存的 0.2.1 调试包签名不同。换装前需先导出完整书库并妥善保存；本轮没有执行卸载或删除用户书库。迁移步骤见发布指南。
 
 ## 0.2.1 玻璃与动效复核
 
