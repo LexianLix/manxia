@@ -58,15 +58,17 @@ class _ReaderPageState extends State<ReaderPage> {
       options['doublePage'] == true &&
       MediaQuery.sizeOf(context).width >= 900 &&
       mode == 'page';
+  int get firstVisiblePage =>
+      paired && page > 0 ? 1 + ((page - 1) ~/ 2) * 2 : page;
   int get lastVisiblePage => total <= 0
       ? 0
       : paired && page > 0
-      ? (page + 1).clamp(0, total - 1)
+      ? (firstVisiblePage + 1).clamp(0, total - 1)
       : page;
   String get pageLabel => total <= 0
       ? '加载中'
-      : lastVisiblePage > page
-      ? '${page + 1}–${lastVisiblePage + 1} / $total'
+      : lastVisiblePage > firstVisiblePage
+      ? '${firstVisiblePage + 1}–${lastVisiblePage + 1} / $total'
       : '${page + 1} / $total';
   @override
   void initState() {
@@ -190,8 +192,8 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void turn(int direction) {
-    final step = paired && page > 0 ? 2 : 1;
-    go(page + direction * step);
+    final step = paired && firstVisiblePage > 0 ? 2 : 1;
+    go(firstVisiblePage + direction * step);
   }
 
   Future<void> changeChapter(

@@ -10,6 +10,53 @@ import 'package:manxia/ui/reader_page.dart';
 
 void main() {
   testWidgets(
+    'restoring the right page of a spread does not skip the final page',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      late Library library;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        library = Library(await SharedPreferences.getInstance());
+        await library.load();
+      });
+      final source = Dm5Source(
+        client: MockClient(
+          (_) async => http.Response(
+            "var newImgs=[${List.generate(6, (i) => "'https://images.cdndm5.com/${i + 1}.jpg'").join(',')}];",
+            200,
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderPage(
+            comic: library.samples.first,
+            chapter: const Chapter('/m6/', 'Six pages'),
+            initialPage: 4,
+            library: library,
+            source: source,
+            web: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('4–5 / 6'), findsOneWidget);
+      await tester.tap(find.byTooltip('下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('6 / 6'), findsOneWidget);
+      await tester.tap(find.byTooltip('上一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('4–5 / 6'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      source.close();
+    },
+  );
+  testWidgets(
     'the final two-page spread shows its range and disables next page',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
