@@ -91,7 +91,7 @@ class _BookObjectState extends State<BookObject> {
 
   Future<void> _load() async {
     final current = ++generation;
-    if (listener != null) stream?.removeListener(listener!);
+    _unsubscribe();
     final ImageProvider provider;
     try {
       provider = await comicImageProvider(widget.comic.cover, widget.web);
@@ -112,6 +112,16 @@ class _BookObjectState extends State<BookObject> {
       if (widget.onColor != null) _color(info.image);
     }, onError: (_, _) {});
     stream!.addListener(listener!);
+  }
+
+  void _unsubscribe() {
+    final previousStream = stream;
+    final previousListener = listener;
+    stream = null;
+    listener = null;
+    if (previousListener != null) {
+      previousStream?.removeListener(previousListener);
+    }
   }
 
   Future<void> _color(ui.Image image) async {
@@ -142,7 +152,7 @@ class _BookObjectState extends State<BookObject> {
   @override
   void dispose() {
     generation++;
-    if (listener != null) stream?.removeListener(listener!);
+    _unsubscribe();
     frame?.dispose();
     super.dispose();
   }

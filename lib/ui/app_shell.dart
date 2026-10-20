@@ -1,5 +1,6 @@
 import 'localized_text.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
@@ -12,7 +13,7 @@ import 'detail_page.dart';
 import 'reader_page.dart';
 import 'living_shelf.dart';
 import 'discovery_page.dart';
-import 'materials.dart';
+import 'glass_navigation.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
 
@@ -32,45 +33,67 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int tab = 0;
+  int direction = 1;
+  (String, Rect)? openingOrigin;
+  late final atmosphere = ValueNotifier<Comic?>(
+    widget.library.books.isEmpty
+        ? null
+        : widget.library.books[math.min(3, widget.library.books.length - 1)],
+  );
   late final source = SourceHub(
     widget.library,
     gateway: widget.web ? Uri.base : null,
   );
   @override
   void dispose() {
+    atmosphere.dispose();
     source.close();
     super.dispose();
   }
 
   void navigate(int i) {
+    if (tab == i) return;
     setState(() {
+      direction = i > tab ? 1 : -1;
       tab = i;
     });
   }
 
-  void open(Comic c) => Navigator.of(context).push(
-    PageRouteBuilder(
-      transitionDuration: Duration(
-        milliseconds:
-            widget.library.motion && !MediaQuery.disableAnimationsOf(context)
-            ? 680
-            : 0,
+  void open(Comic c) {
+    final origin = openingOrigin?.$1 == c.path ? openingOrigin?.$2 : null;
+    openingOrigin = null;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        transitionDuration: Duration(
+          milliseconds:
+              widget.library.motion && !MediaQuery.disableAnimationsOf(context)
+              ? 760
+              : 0,
+        ),
+        reverseTransitionDuration: Duration(
+          milliseconds:
+              widget.library.motion && !MediaQuery.disableAnimationsOf(context)
+              ? 320
+              : 0,
+        ),
+        pageBuilder: (_, _, _) => DetailPage(
+          comic: c,
+          library: widget.library,
+          source: source,
+          web: widget.web,
+        ),
+        transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
+          animation: animation,
+          comic: c,
+          web: widget.web,
+          origin: origin,
+          child: child,
+        ),
       ),
-      reverseTransitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (_, _, _) => DetailPage(
-        comic: c,
-        library: widget.library,
-        source: source,
-        web: widget.web,
-      ),
-      transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
-        animation: animation,
-        comic: c,
-        web: widget.web,
-        child: child,
-      ),
-    ),
-  );
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.library,
@@ -80,112 +103,149 @@ class _AppShellState extends State<AppShell> {
         final compact = box.maxWidth < 600;
         return Scaffold(
           extendBody: true,
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1600),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (wide) _sidebar(),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              compact ? 22 : 44,
-                              compact ? 16 : 26,
-                              compact ? 18 : 44,
-                              0,
-                            ),
-                            child: _topbar(wide),
-                          ),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              key: ValueKey(tab),
-                              padding: EdgeInsets.fromLTRB(
-                                compact ? 22 : 44,
-                                compact ? 28 : 34,
-                                compact ? 22 : 44,
-                                110,
-                              ),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1100,
-                                  ),
-                                  child: switch (tab) {
-                                    0 => _shelf(compact),
-                                    1 => DiscoveryPage(
-                                      library: widget.library,
-                                      source: source,
-                                      web: widget.web,
-                                      onOpen: open,
-                                    ),
-                                    2 => _history(),
-                                    _ => _settings(),
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          bottomNavigationBar: wide
-              ? null
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: MilkGlass(
-                    radius: 22,
-                    high:
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: ValueListenableBuilder<Comic?>(
+                  valueListenable: atmosphere,
+                  builder: (_, comic, _) => ReadingAtmosphere(
+                    comic: comic,
+                    web: widget.web,
+                    highQuality:
                         widget.library.option<String>('quality', 'high') ==
                         'high',
-                    child: NavigationBar(
-                      height: 70,
-                      backgroundColor: Colors.transparent,
-                      selectedIndex: tab,
-                      onDestinationSelected: navigate,
-                      indicatorColor: green.withValues(alpha: .12),
-                      destinations: [
-                        NavigationDestination(
-                          icon: const Icon(Icons.auto_stories_outlined),
-                          selectedIcon: const Icon(Icons.auto_stories),
-                          label: translate(
-                            '书架',
-                            Localizations.localeOf(context),
-                          ),
-                        ),
-                        NavigationDestination(
-                          icon: const Icon(Icons.explore_outlined),
-                          selectedIcon: const Icon(Icons.explore),
-                          label: translate(
-                            '发现',
-                            Localizations.localeOf(context),
-                          ),
-                        ),
-                        NavigationDestination(
-                          icon: const Icon(Icons.history),
-                          label: translate(
-                            '足迹',
-                            Localizations.localeOf(context),
-                          ),
-                        ),
-                        NavigationDestination(
-                          icon: const Icon(Icons.tune),
-                          label: translate(
-                            '设置',
-                            Localizations.localeOf(context),
+                  ),
+                ),
+              ),
+              SafeArea(
+                bottom: false,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1600),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (wide) _sidebar(),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  compact ? 22 : 44,
+                                  compact ? 16 : 26,
+                                  compact ? 18 : 44,
+                                  0,
+                                ),
+                                child: _topbar(wide),
+                              ),
+                              Expanded(
+                                child: AnimatedSwitcher(
+                                  duration: Duration(
+                                    milliseconds:
+                                        MediaQuery.disableAnimationsOf(context)
+                                        ? 0
+                                        : 310,
+                                  ),
+                                  reverseDuration: Duration(
+                                    milliseconds:
+                                        MediaQuery.disableAnimationsOf(context)
+                                        ? 0
+                                        : 210,
+                                  ),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, a) =>
+                                      AnimatedBuilder(
+                                        animation: a,
+                                        builder: (_, content) {
+                                          final entering =
+                                              child.key == ValueKey(tab);
+                                          final t = a.value;
+                                          final transformed =
+                                              Transform.translate(
+                                                offset: Offset(
+                                                  (1 - t) *
+                                                      30 *
+                                                      direction *
+                                                      (entering ? 1 : -1),
+                                                  0,
+                                                ),
+                                                child: Opacity(
+                                                  opacity: t,
+                                                  child: content,
+                                                ),
+                                              );
+                                          return IgnorePointer(
+                                            ignoring: !entering,
+                                            child: ImageFiltered(
+                                              enabled:
+                                                  t < .99 &&
+                                                  widget.library.option<String>(
+                                                        'quality',
+                                                        'high',
+                                                      ) ==
+                                                      'high',
+                                              imageFilter: ui.ImageFilter.blur(
+                                                sigmaX: (1 - t) * 3,
+                                                sigmaY: (1 - t) * 3,
+                                              ),
+                                              child: transformed,
+                                            ),
+                                          );
+                                        },
+                                        child: child,
+                                      ),
+                                  child: KeyedSubtree(
+                                    key: ValueKey(tab),
+                                    child: SingleChildScrollView(
+                                      key: PageStorageKey('reading-room-$tab'),
+                                      padding: EdgeInsets.fromLTRB(
+                                        compact ? 22 : 44,
+                                        compact ? 28 : 34,
+                                        compact ? 22 : 44,
+                                        140,
+                                      ),
+                                      child: Center(
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 1100,
+                                          ),
+                                          child: switch (tab) {
+                                            0 => _shelf(compact),
+                                            1 => DiscoveryPage(
+                                              library: widget.library,
+                                              source: source,
+                                              web: widget.web,
+                                              onOpen: open,
+                                            ),
+                                            2 => _history(),
+                                            _ => _settings(),
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: wide
+              ? null
+              : FrostedNavigation(
+                  selectedIndex: tab,
+                  onSelected: navigate,
+                  highQuality:
+                      widget.library.option<String>('quality', 'high') ==
+                      'high',
+                  haptics: widget.library.option<bool>('haptics', true),
                 ),
         );
       },
@@ -472,6 +532,10 @@ class _AppShellState extends State<AppShell> {
             library: widget.library,
             web: widget.web,
             onOpen: open,
+            onFocus: (comic) {
+              if (mounted) atmosphere.value = comic;
+            },
+            onBookOrigin: (comic, rect) => openingOrigin = (comic.path, rect),
           ),
         const SizedBox(height: 34),
         Row(

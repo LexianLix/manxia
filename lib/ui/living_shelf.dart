@@ -1,6 +1,7 @@
 import 'localized_text.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -19,17 +20,21 @@ class LivingShelf extends StatefulWidget {
     required this.library,
     required this.web,
     required this.onOpen,
+    this.onFocus,
+    this.onBookOrigin,
   });
   final List<Comic> books;
   final Library library;
   final bool web;
   final ValueChanged<Comic> onOpen;
+  final ValueChanged<Comic>? onFocus;
+  final void Function(Comic, Rect)? onBookOrigin;
   @override
   State<LivingShelf> createState() => _LivingShelfState();
 }
 
 class _LivingShelfState extends State<LivingShelf>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final position = AnimationController.unbounded(
     vsync: this,
     value:
@@ -37,6 +42,13 @@ class _LivingShelfState extends State<LivingShelf>
         math.min(3, widget.books.length - 1).toDouble(),
   )..addListener(_detent);
   final pointer = ValueNotifier(Offset.zero);
+  final bookKeys = <int, GlobalKey>{};
+  late final entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 640),
+  );
+  late final lean = AnimationController.unbounded(vsync: this);
+  bool entered = false;
   Color ambient = const Color(0xff8baf99);
   StreamSubscription<AccelerometerEvent>? tilt;
   double gap = 50;
@@ -61,11 +73,43 @@ class _LivingShelfState extends State<LivingShelf>
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!entered) {
+      entered = true;
+      if (animate) {
+        entrance.forward();
+      } else {
+        entrance.value = 1;
+      }
+    } else if (!animate) {
+      entrance.value = 1;
+      lean.value = 0;
+    }
+  }
+
+  void openBook(Comic comic) {
+    final object = bookKeys[position.value.round()]?.currentContext
+        ?.findRenderObject();
+    if (object is RenderBox && object.hasSize) {
+      widget.onBookOrigin?.call(
+        comic,
+        object.localToGlobal(Offset.zero) & object.size,
+      );
+    }
+    widget.onOpen(comic);
+  }
+
   void _detent() {
     final current = position.value.round();
     if (current != last) {
       last = current;
       if (mounted) setState(() {});
+      final focused = widget.books[selected];
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onFocus?.call(focused);
+      });
       if (widget.library.option<bool>('haptics', true)) {
         HapticFeedback.selectionClick();
       }
@@ -80,7 +124,7 @@ class _LivingShelfState extends State<LivingShelf>
     }
     position.animateWith(
       SpringSimulation(
-        const SpringDescription(mass: 1, stiffness: 180, damping: 25),
+        const SpringDescription(mass: 1, stiffness: 210, damping: 22),
         position.value,
         target,
         velocity,
@@ -93,6 +137,8 @@ class _LivingShelfState extends State<LivingShelf>
     tilt?.cancel();
     position.dispose();
     pointer.dispose();
+    entrance.dispose();
+    lean.dispose();
     super.dispose();
   }
 
@@ -123,20 +169,45 @@ class _LivingShelfState extends State<LivingShelf>
                 onExit: (_) => pointer.value = Offset.zero,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onHorizontalDragStart: (_) => position.stop(),
-                  onHorizontalDragUpdate: (d) =>
-                      position.value -= d.delta.dx / (gap * 1.35),
+                  onHorizontalDragStart: (_) {
+                    position.stop();
+                    lean.stop();
+                  },
+                  onHorizontalDragUpdate: (d) {
+                    position.value -= d.delta.dx / (gap * 1.35);
+                    lean.value = animate ? (d.delta.dx / 16).clamp(-1, 1) : 0;
+                  },
                   onHorizontalDragEnd: (d) {
+                    lean.animateTo(
+                      0,
+                      duration: Duration(milliseconds: animate ? 320 : 0),
+                      curve: Curves.easeOutCubic,
+                    );
                     final velocity = -(d.primaryVelocity ?? 0) / (gap * 1.35);
                     final target =
-                        (position.value + (velocity * .14).clamp(-3, 3))
+                        (position.value + (velocity * .18).clamp(-4, 4))
                             .roundToDouble();
                     snap(target, velocity: velocity);
                   },
+                  onHorizontalDragCancel: () {
+                    lean.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 200),
+                    );
+                    snap(position.value.roundToDouble());
+                  },
                   child: AnimatedBuilder(
-                    animation: Listenable.merge([position, pointer]),
+                    animation: Listenable.merge([
+                      position,
+                      pointer,
+                      entrance,
+                      lean,
+                    ]),
                     builder: (context, _) {
                       final center = position.value.round();
+                      bookKeys.removeWhere(
+                        (logical, _) => (logical - center).abs() > 7,
+                      );
                       final order = List.generate(11, (i) => center + i - 5)
                         ..sort(
                           (a, b) => (b - position.value).abs().compareTo(
@@ -197,64 +268,80 @@ class _LivingShelfState extends State<LivingShelf>
                                         : 0) +
                                     pointer.value.dx * 4;
                                 final y =
-                                    65 -
-                                    focus * 58 +
+                                    70 -
+                                    focus * 64 +
                                     distance.abs() * 2 +
                                     pointer.value.dy * 3;
                                 final item = widget.books[index(logical)];
+                                final delay = distance.abs().clamp(0, 5) * .055;
+                                final arrival = animate
+                                    ? Curves.easeOutCubic.transform(
+                                        ((entrance.value - delay) / (1 - delay))
+                                            .clamp(0.0, 1.0),
+                                      )
+                                    : 1.0;
                                 return Positioned(
                                   key: ValueKey('paint-$logical'),
-                                  left: x,
-                                  top: y,
+                                  left: x + (1 - arrival) * distance * 7,
+                                  top: y + (1 - arrival) * 48,
                                   width: 200 * scale,
                                   height: 280 * scale,
                                   child: IgnorePointer(
-                                    child: Transform(
-                                      alignment: Alignment.center,
-                                      transform: Matrix4.identity()
-                                        ..setEntry(3, 2, .0012)
-                                        ..rotateY(
-                                          distance.clamp(-2, 2) * .035 +
-                                              pointer.value.dx * .045,
-                                        )
-                                        ..rotateX(pointer.value.dy * .025),
-                                      child: AnimatedSlide(
-                                        offset: Offset(
-                                          0,
-                                          widget.library.updates[item
-                                                      .path]?['changed'] ==
-                                                  true
-                                              ? -.03
-                                              : 0,
-                                        ),
-                                        duration: Duration(
-                                          milliseconds: animate ? 280 : 0,
-                                        ),
-                                        curve: Curves.easeOutBack,
-                                        child: BookObject(
-                                          item,
-                                          web: widget.web,
-                                          number: index(logical) + 1,
-                                          exposure: focus,
-                                          light: pointer.value.dx,
-                                          bookmark:
-                                              widget.library.record(item) !=
-                                              null,
-                                          onColor:
-                                              logical == center &&
-                                                  widget.library.option<bool>(
-                                                    'coverColor',
-                                                    true,
-                                                  )
-                                              ? (color) {
-                                                  if (mounted &&
-                                                      ambient != color) {
-                                                    setState(
-                                                      () => ambient = color,
-                                                    );
+                                    child: Opacity(
+                                      opacity: arrival,
+                                      child: Transform(
+                                        alignment: Alignment.center,
+                                        transform: Matrix4.identity()
+                                          ..setEntry(3, 2, .0012)
+                                          ..rotateY(
+                                            distance.clamp(-2, 2) * .075 +
+                                                pointer.value.dx * .06 +
+                                                lean.value * .13 * focus,
+                                          )
+                                          ..rotateX(pointer.value.dy * .04)
+                                          ..rotateZ(-lean.value * .045 * focus),
+                                        child: AnimatedSlide(
+                                          offset: Offset(
+                                            0,
+                                            widget.library.updates[item
+                                                        .path]?['changed'] ==
+                                                    true
+                                                ? -.03
+                                                : 0,
+                                          ),
+                                          duration: Duration(
+                                            milliseconds: animate ? 280 : 0,
+                                          ),
+                                          curve: Curves.easeOutBack,
+                                          child: BookObject(
+                                            item,
+                                            key: bookKeys.putIfAbsent(
+                                              logical,
+                                              GlobalKey.new,
+                                            ),
+                                            web: widget.web,
+                                            number: index(logical) + 1,
+                                            exposure: focus,
+                                            light: pointer.value.dx,
+                                            bookmark:
+                                                widget.library.record(item) !=
+                                                null,
+                                            onColor:
+                                                logical == center &&
+                                                    widget.library.option<bool>(
+                                                      'coverColor',
+                                                      true,
+                                                    )
+                                                ? (color) {
+                                                    if (mounted &&
+                                                        ambient != color) {
+                                                      setState(
+                                                        () => ambient = color,
+                                                      );
+                                                    }
                                                   }
-                                                }
-                                              : null,
+                                                : null,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -276,7 +363,7 @@ class _LivingShelfState extends State<LivingShelf>
                                       78 * scale +
                                       d * gap +
                                       (d > 0 ? 108 * scale * (1 - focus) : 0),
-                                  top: 90 - focus * 58 + d.abs() * 2,
+                                  top: 95 - focus * 64 + d.abs() * 2,
                                   width: (34 + 129 * focus) * scale,
                                   height: 210 * scale,
                                   child: Semantics(
@@ -289,7 +376,7 @@ class _LivingShelfState extends State<LivingShelf>
                                       child: GestureDetector(
                                         onTap: () {
                                           if (focus > .8) {
-                                            widget.onOpen(item);
+                                            openBook(item);
                                           } else {
                                             snap(logical.toDouble());
                                           }
@@ -321,6 +408,22 @@ class _LivingShelfState extends State<LivingShelf>
             Expanded(
               child: AnimatedSwitcher(
                 duration: Duration(milliseconds: animate ? 180 : 0),
+                transitionBuilder: (child, a) => FadeTransition(
+                  opacity: a,
+                  child: SlideTransition(
+                    position:
+                        Tween(
+                          begin: const Offset(0, .16),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: a,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                    child: child,
+                  ),
+                ),
                 layoutBuilder: (current, previous) => Stack(
                   alignment: Alignment.centerLeft,
                   children: [...previous, ?current],
@@ -364,7 +467,7 @@ class _LivingShelfState extends State<LivingShelf>
         Row(
           children: [
             FilledButton.icon(
-              onPressed: () => widget.onOpen(comic),
+              onPressed: () => openBook(comic),
               icon: const Icon(Icons.menu_book_outlined, size: 17),
               label: const LocalizedText(
                 '翻开这本漫画',
@@ -422,101 +525,157 @@ class OpenBookTransition extends StatelessWidget {
     required this.comic,
     required this.web,
     required this.child,
+    this.origin,
   });
   final Animation<double> animation;
   final Comic comic;
   final bool web;
   final Widget child;
+  final Rect? origin;
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: animation,
     builder: (context, _) {
-      final t = Curves.easeInOutCubic.transform(animation.value);
-      if (t > .995) return child;
-      final opening = ((t - .18) / .58).clamp(0.0, 1.0);
-      final fade = ((t - .67) / .33).clamp(0.0, 1.0);
-      final book = SizedBox(
-        width: 190,
+      final progress = animation.value;
+      final screen = MediaQuery.sizeOf(context);
+      final move = Curves.easeInOutCubic.transform(
+        (progress / .66).clamp(0.0, 1.0),
+      );
+      final target = Rect.fromCenter(
+        center: Offset(screen.width / 2, screen.height * .43),
+        width: 200,
         height: 280,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xfff9faf1),
-                  border: Border.all(color: const Color(0xffd8ddcc)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .16),
-                      blurRadius: 25,
-                      offset: const Offset(12, 20),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: LocalizedText(
-                      comic.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xff667660),
-                        fontSize: 23,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: Transform(
-                alignment: Alignment.centerLeft,
-                transform: Matrix4.identity()
-                  ..setEntry(3, 2, .0017)
-                  ..rotateY(-math.pi * .72 * opening),
-                child: Container(
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: .12),
-                        blurRadius: 5 + opening * 12,
-                      ),
-                    ],
-                  ),
-                  child: ComicCover(comic, web: web),
-                ),
-              ),
-            ),
-          ],
-        ),
       );
-      final transform = Matrix4.identity()
-        ..setEntry(3, 2, .0012)
-        ..rotateY(-.22 * (1 - t))
-        ..scaleByDouble(.85 + .15 * t, .85 + .15 * t, 1, 1);
-      final object = Transform.translate(
-        offset: Offset(0, 45 * (1 - t)),
-        child: Transform(
-          alignment: Alignment.center,
-          transform: transform,
-          child: book,
-        ),
+      final rect = Rect.lerp(origin ?? target.translate(0, 35), target, move)!;
+      final opening = Curves.easeInOutCubic.transform(
+        ((progress - .30) / .52).clamp(0.0, 1.0),
       );
+      final flatten = ((progress - .17) / .23).clamp(0.0, 1.0);
+      final reveal = Curves.easeOutCubic.transform(
+        ((progress - .60) / .40).clamp(0.0, 1.0),
+      );
+      final veil = ((progress - .08) / .55).clamp(0.0, 1.0);
       return Stack(
         children: [
-          Opacity(opacity: fade, child: child),
-          if (fade < 1)
-            Positioned.fill(
-              child: ColoredBox(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surface.withValues(alpha: 1 - fade),
-                child: Center(
-                  child: Opacity(opacity: 1 - fade, child: object),
+          Positioned.fill(
+            child: ClipRect(
+              child: BackdropFilter(
+                enabled: progress < .999,
+                filter: ui.ImageFilter.blur(sigmaX: 4 * veil, sigmaY: 4 * veil),
+                child: ColoredBox(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surface.withValues(alpha: veil),
                 ),
               ),
             ),
+          ),
+          Positioned.fill(
+            child: Opacity(
+              opacity: reveal,
+              child: Transform.translate(
+                offset: Offset(0, 18 * (1 - reveal)),
+                child: child,
+              ),
+            ),
+          ),
+          Positioned.fromRect(
+            rect: rect,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 1 - reveal,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (flatten < 1)
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: 1 - flatten,
+                          child: BookObject(comic, web: web),
+                        ),
+                      ),
+                    if (flatten > 0)
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: flatten,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 12, 20, 6),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Positioned.fill(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xfffafbf5),
+                                      border: Border.all(
+                                        color: const Color(0xffd6ddcf),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: .18,
+                                          ),
+                                          blurRadius: 26,
+                                          offset: const Offset(10, 18),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(20),
+                                        child: LocalizedText(
+                                          comic.title,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            color: Color(0xff526d60),
+                                            fontSize: 23,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned.fill(
+                                  child: Transform(
+                                    alignment: Alignment.centerLeft,
+                                    transform: Matrix4.identity()
+                                      ..setEntry(3, 2, .002)
+                                      ..rotateY(-math.pi * .83 * opening),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        ComicCover(comic, web: web),
+                                        DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.black.withValues(
+                                                  alpha: .22 * opening,
+                                                ),
+                                                Colors.white.withValues(
+                                                  alpha: .15 * opening,
+                                                ),
+                                                Colors.transparent,
+                                              ],
+                                              stops: const [0, .13, 1],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       );
     },

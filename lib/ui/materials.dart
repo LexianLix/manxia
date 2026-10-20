@@ -8,11 +8,16 @@ class MilkGlass extends StatefulWidget {
     this.radius = 14,
     this.high = true,
     this.padding = EdgeInsets.zero,
+    this.tintOpacity,
+    this.blurSigma,
+    this.shadow = false,
   });
   final Widget child;
   final double radius;
   final bool high;
   final EdgeInsetsGeometry padding;
+  final double? tintOpacity, blurSigma;
+  final bool shadow;
   @override
   State<MilkGlass> createState() => _MilkGlassState();
 }
@@ -43,9 +48,10 @@ class _MilkGlassState extends State<MilkGlass> {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final contrast = MediaQuery.highContrastOf(context);
     ui.ImageFilter filter = ui.ImageFilter.blur(
-      sigmaX: widget.high ? 18 : 4,
-      sigmaY: widget.high ? 18 : 4,
+      sigmaX: widget.high ? (widget.blurSigma ?? 22) : 4,
+      sigmaY: widget.high ? (widget.blurSigma ?? 22) : 4,
     );
     if (widget.high && shader != null) {
       filter = ui.ImageFilter.compose(
@@ -53,7 +59,7 @@ class _MilkGlassState extends State<MilkGlass> {
         inner: ui.ImageFilter.shader(shader!),
       );
     }
-    return ClipRRect(
+    final glass = ClipRRect(
       borderRadius: BorderRadius.circular(widget.radius),
       child: BackdropFilter(
         filter: filter,
@@ -61,17 +67,22 @@ class _MilkGlassState extends State<MilkGlass> {
           padding: widget.padding,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radius),
-            color: (dark ? const Color(0xff25342b) : const Color(0xfffdfef7))
-                .withValues(alpha: widget.high ? .68 : .95),
+            color: (dark ? const Color(0xff182a25) : const Color(0xfff6fbfa))
+                .withValues(
+                  alpha: contrast
+                      ? .96
+                      : widget.tintOpacity ??
+                            (widget.high ? (dark ? .46 : .30) : .90),
+                ),
             border: Border.all(
-              color: Colors.white.withValues(alpha: dark ? .12 : .72),
+              color: Colors.white.withValues(alpha: dark ? .22 : .82),
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withValues(alpha: dark ? .08 : .5),
-                Colors.white.withValues(alpha: .015),
+                Colors.white.withValues(alpha: dark ? .12 : .34),
+                Colors.white.withValues(alpha: dark ? .025 : .055),
               ],
             ),
           ),
@@ -79,6 +90,28 @@ class _MilkGlassState extends State<MilkGlass> {
         ),
       ),
     );
+    return widget.shadow
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(
+                    0xff183d32,
+                  ).withValues(alpha: dark ? .28 : .12),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: dark ? .03 : .65),
+                  blurRadius: 1,
+                  offset: const Offset(0, -1),
+                ),
+              ],
+            ),
+            child: glass,
+          )
+        : glass;
   }
 }
 
