@@ -43,6 +43,15 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script type="module">
+    import * as pdfjsLib from './pdfjs/pdf.mjs';
+    window.pdfjsLib = pdfjsLib;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './pdfjs/pdf.worker.mjs';
+    window.pdfRenderOptions = { cMapUrl: './pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: './pdfjs/standard_fonts/' };
+    const bootstrap = document.createElement('script');
+    bootstrap.src = 'flutter_bootstrap.js';
+    document.body.appendChild(bootstrap);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  </script>
 </body>
 </html>

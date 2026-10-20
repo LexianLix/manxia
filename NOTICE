@@ -19,3 +19,5 @@ The DM5 adapter reads public pages and decodes embedded image-list data through
 string substitution. It does not execute remote JavaScript or include account
 credentials. Login-gated or otherwise unavailable chapters may require the
 original website. This project is not affiliated with DM5.
+
+Browser PDF rendering uses PDF.js (Apache-2.0); its upstream LICENSE is copied into the built pdfjs directory by tools/prepare-web.mjs. PDF.js source: https://github.com/mozilla/pdf.js

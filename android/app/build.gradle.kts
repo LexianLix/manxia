@@ -1,8 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val signingProperties = Properties()
+val signingFile = rootProject.file("key.properties")
+if (signingFile.exists()) signingFile.inputStream().use { signingProperties.load(it) }
 
 android {
     namespace = "io.manxia.manxia"
@@ -29,12 +35,25 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (signingFile.exists()) create("manxiaRelease") {
+            keyAlias = signingProperties.getProperty("keyAlias")
+            keyPassword = signingProperties.getProperty("keyPassword")
+            storeFile = file(signingProperties.getProperty("storeFile"))
+            storePassword = signingProperties.getProperty("storePassword")
+        }
+    }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("manxiaRelease")
         }
+    }
+}
+
+// Never silently sign a production build with Flutter's disposable debug key.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.name.contains("Release") } && !signingFile.exists()) {
+        throw GradleException("Run tools/Create-Signing.ps1 first. Keep the keystore and key.properties private.")
     }
 }
 

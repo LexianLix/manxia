@@ -1,11 +1,16 @@
+import 'localized_text.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/source_hub.dart';
 import 'app_shell.dart';
 import 'book_object.dart';
+import 'collection_motion.dart';
 import 'reader_page.dart';
+import 'offline_page.dart';
+import 'library_manager.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -27,6 +32,18 @@ class _DetailPageState extends State<DetailPage> {
   late Future<ComicDetail> detail = widget.source.detail(widget.comic);
   String group = '连载';
   bool ascending = true;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final update = widget.library.updates[widget.comic.path];
+      if (mounted && update?['changed'] == true) {
+        update!['changed'] = false;
+        widget.library.persistFeatures();
+      }
+    });
+  }
+
   Future<void> read(
     Comic comic,
     Chapter chapter,
@@ -83,12 +100,12 @@ class _DetailPageState extends State<DetailPage> {
           Widget info() => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              LocalizedText(
                 'MANGA / 动漫屋',
                 style: small(context).copyWith(letterSpacing: 2, fontSize: 10),
               ),
               const SizedBox(height: 16),
-              Text(
+              LocalizedText(
                 comic.title,
                 style: TextStyle(
                   fontSize: compact ? 31 : 40,
@@ -97,7 +114,7 @@ class _DetailPageState extends State<DetailPage> {
                 ),
               ),
               const SizedBox(height: 13),
-              Text(
+              LocalizedText(
                 comic.author.isEmpty ? '漫画详情' : comic.author,
                 style: TextStyle(fontSize: 13, color: quiet(context)),
               ),
@@ -119,18 +136,18 @@ class _DetailPageState extends State<DetailPage> {
                             ),
                             borderRadius: BorderRadius.circular(3),
                           ),
-                          child: Text(t, style: small(context)),
+                          child: LocalizedText(t, style: small(context)),
                         ),
                       )
                       .toList(),
                 ),
               if (comic.latest.isNotEmpty) ...[
                 const SizedBox(height: 18),
-                Text('最新章节 · ${comic.latest}', style: small(context)),
+                LocalizedText('最新章节 · ${comic.latest}', style: small(context)),
               ],
               if (comic.description.isNotEmpty) ...[
                 const SizedBox(height: 18),
-                Text(
+                LocalizedText(
                   comic.description,
                   maxLines: 5,
                   overflow: TextOverflow.ellipsis,
@@ -151,22 +168,47 @@ class _DetailPageState extends State<DetailPage> {
                         ? start
                         : null,
                     icon: const Icon(Icons.menu_book_outlined, size: 17),
-                    label: Text(
+                    label: LocalizedText(
                       history == null ? '开始阅读' : '继续阅读',
                       style: const TextStyle(fontSize: 13),
                     ),
                   ),
+                  if (comic.sourceId != 'local')
+                    OutlinedButton.icon(
+                      onPressed: chapters.isEmpty
+                          ? null
+                          : () => selectDownloads(
+                              context,
+                              comic,
+                              chapters.reversed.toList(),
+                            ),
+                      icon: const Icon(Icons.download_outlined, size: 17),
+                      label: const LocalizedText(
+                        '下载章节',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: '分组、标签与系列',
+                    onPressed: () => editBook(context, widget.library, comic),
+                    icon: const Icon(Icons.more_horiz, size: 20),
+                  ),
                   ListenableBuilder(
                     listenable: widget.library,
                     builder: (context, _) => OutlinedButton.icon(
-                      onPressed: () => widget.library.toggle(comic),
+                      onPressed: () => collectWithMotion(
+                        context,
+                        comic,
+                        widget.library,
+                        widget.web,
+                      ),
                       icon: Icon(
                         widget.library.contains(comic)
                             ? Icons.bookmark
                             : Icons.bookmark_border,
                         size: 17,
                       ),
-                      label: Text(
+                      label: LocalizedText(
                         widget.library.contains(comic) ? '已收藏' : '加入书架',
                         style: const TextStyle(fontSize: 13),
                       ),
@@ -176,7 +218,7 @@ class _DetailPageState extends State<DetailPage> {
               ),
               if (history != null) ...[
                 const SizedBox(height: 14),
-                Text(
+                LocalizedText(
                   '上次读到 ${history.chapterTitle} · 第 ${history.page + 1} 页',
                   style: small(context),
                 ),
@@ -204,16 +246,24 @@ class _DetailPageState extends State<DetailPage> {
                             icon: const Icon(Icons.arrow_back, size: 21),
                           ),
                           const SizedBox(width: 8),
-                          Text('回到阅读室', style: small(context)),
+                          LocalizedText('回到阅读室', style: small(context)),
                           const Spacer(),
-                          IconButton(
-                            tooltip: '在动漫屋打开',
-                            onPressed: () => launchUrl(
-                              Uri.parse('${Dm5Source.origin}${comic.path}'),
-                              mode: LaunchMode.externalApplication,
+                          if (comic.sourceId != 'local')
+                            IconButton(
+                              tooltip: '在原站打开',
+                              onPressed: () => launchUrl(
+                                comic.path.startsWith('custom:') &&
+                                        widget.source is SourceHub
+                                    ? (widget.source as SourceHub)
+                                          .profile(comic.path)
+                                          .decode(comic.path)
+                                    : Uri.parse(
+                                        '${Dm5Source.origin}${comic.path}',
+                                      ),
+                                mode: LaunchMode.externalApplication,
+                              ),
+                              icon: const Icon(Icons.open_in_new, size: 19),
                             ),
-                            icon: const Icon(Icons.open_in_new, size: 19),
-                          ),
                         ],
                       ),
                     ),
@@ -284,13 +334,13 @@ class _DetailPageState extends State<DetailPage> {
                           const SizedBox(height: 26),
                           Row(
                             children: [
-                              const Text(
+                              const LocalizedText(
                                 '章节目录',
                                 style: TextStyle(fontSize: 24),
                               ),
                               const SizedBox(width: 12),
                               if (chapters.isNotEmpty)
-                                Text(
+                                LocalizedText(
                                   '${chapters.length} 章',
                                   style: small(context),
                                 ),
@@ -315,7 +365,7 @@ class _DetailPageState extends State<DetailPage> {
                                 children: groups
                                     .map(
                                       (g) => ChoiceChip(
-                                        label: Text(
+                                        label: LocalizedText(
                                           g,
                                           style: const TextStyle(fontSize: 12),
                                         ),
@@ -394,7 +444,7 @@ class _DetailPageState extends State<DetailPage> {
                               child: Row(
                                 children: [
                                   Expanded(
-                                    child: Text(
+                                    child: LocalizedText(
                                       chapter.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,

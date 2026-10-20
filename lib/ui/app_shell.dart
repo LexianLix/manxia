@@ -1,12 +1,20 @@
+import 'localized_text.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
+import '../data/source_hub.dart';
+import 'advanced_settings.dart';
+import 'history_page.dart';
 import '../data/library.dart';
 import 'book_object.dart';
 import 'detail_page.dart';
 import 'reader_page.dart';
+import 'living_shelf.dart';
+import 'discovery_page.dart';
+import 'materials.dart';
+import 'offline_page.dart';
+import 'library_manager.dart';
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -24,14 +32,12 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int tab = 0;
-  late final source = Dm5Source(gateway: widget.web ? Uri.base : null);
-  final search = TextEditingController();
-  Future<List<Comic>>? results;
-  String query = '';
-  int visibleResults = 24;
+  late final source = SourceHub(
+    widget.library,
+    gateway: widget.web ? Uri.base : null,
+  );
   @override
   void dispose() {
-    search.dispose();
     source.close();
     super.dispose();
   }
@@ -39,7 +45,6 @@ class _AppShellState extends State<AppShell> {
   void navigate(int i) {
     setState(() {
       tab = i;
-      if (i == 1) results ??= source.home();
     });
   }
 
@@ -48,7 +53,7 @@ class _AppShellState extends State<AppShell> {
       transitionDuration: Duration(
         milliseconds:
             widget.library.motion && !MediaQuery.disableAnimationsOf(context)
-            ? 440
+            ? 680
             : 0,
       ),
       reverseTransitionDuration: const Duration(milliseconds: 280),
@@ -58,8 +63,10 @@ class _AppShellState extends State<AppShell> {
         source: source,
         web: widget.web,
       ),
-      transitionsBuilder: (_, animation, _, child) => FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+      transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
+        animation: animation,
+        comic: c,
+        web: widget.web,
         child: child,
       ),
     ),
@@ -72,6 +79,7 @@ class _AppShellState extends State<AppShell> {
         final wide = box.maxWidth >= 1000;
         final compact = box.maxWidth < 600;
         return Scaffold(
+          extendBody: true,
           body: SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -99,7 +107,7 @@ class _AppShellState extends State<AppShell> {
                                 compact ? 22 : 44,
                                 compact ? 28 : 34,
                                 compact ? 22 : 44,
-                                36,
+                                110,
                               ),
                               child: Center(
                                 child: ConstrainedBox(
@@ -108,7 +116,12 @@ class _AppShellState extends State<AppShell> {
                                   ),
                                   child: switch (tab) {
                                     0 => _shelf(compact),
-                                    1 => _discover(compact),
+                                    1 => DiscoveryPage(
+                                      library: widget.library,
+                                      source: source,
+                                      web: widget.web,
+                                      onOpen: open,
+                                    ),
                                     2 => _history(),
                                     _ => _settings(),
                                   },
@@ -126,29 +139,53 @@ class _AppShellState extends State<AppShell> {
           ),
           bottomNavigationBar: wide
               ? null
-              : NavigationBar(
-                  height: 70,
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  selectedIndex: tab,
-                  onDestinationSelected: navigate,
-                  indicatorColor: green.withValues(alpha: .12),
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.auto_stories_outlined),
-                      selectedIcon: Icon(Icons.auto_stories),
-                      label: '书架',
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: MilkGlass(
+                    radius: 22,
+                    high:
+                        widget.library.option<String>('quality', 'high') ==
+                        'high',
+                    child: NavigationBar(
+                      height: 70,
+                      backgroundColor: Colors.transparent,
+                      selectedIndex: tab,
+                      onDestinationSelected: navigate,
+                      indicatorColor: green.withValues(alpha: .12),
+                      destinations: [
+                        NavigationDestination(
+                          icon: const Icon(Icons.auto_stories_outlined),
+                          selectedIcon: const Icon(Icons.auto_stories),
+                          label: translate(
+                            '书架',
+                            Localizations.localeOf(context),
+                          ),
+                        ),
+                        NavigationDestination(
+                          icon: const Icon(Icons.explore_outlined),
+                          selectedIcon: const Icon(Icons.explore),
+                          label: translate(
+                            '发现',
+                            Localizations.localeOf(context),
+                          ),
+                        ),
+                        NavigationDestination(
+                          icon: const Icon(Icons.history),
+                          label: translate(
+                            '足迹',
+                            Localizations.localeOf(context),
+                          ),
+                        ),
+                        NavigationDestination(
+                          icon: const Icon(Icons.tune),
+                          label: translate(
+                            '设置',
+                            Localizations.localeOf(context),
+                          ),
+                        ),
+                      ],
                     ),
-                    NavigationDestination(
-                      icon: Icon(Icons.explore_outlined),
-                      selectedIcon: Icon(Icons.explore),
-                      label: '发现',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.history),
-                      label: '足迹',
-                    ),
-                    NavigationDestination(icon: Icon(Icons.tune), label: '设置'),
-                  ],
+                  ),
                 ),
         );
       },
@@ -165,7 +202,7 @@ class _AppShellState extends State<AppShell> {
           borderRadius: BorderRadius.circular(2),
         ),
         child: Center(
-          child: Text(
+          child: LocalizedText(
             '匣',
             style: TextStyle(
               color: Theme.of(context).colorScheme.surface,
@@ -176,7 +213,7 @@ class _AppShellState extends State<AppShell> {
         ),
       ),
       const SizedBox(width: 11),
-      const Text(
+      const LocalizedText(
         '漫匣',
         style: TextStyle(
           fontSize: 25,
@@ -197,7 +234,7 @@ class _AppShellState extends State<AppShell> {
       children: [
         _brand(),
         const SizedBox(height: 10),
-        Text(
+        LocalizedText(
           'M A N X I A  /  漫画阅读',
           style: small(context).copyWith(fontSize: 9),
         ),
@@ -233,7 +270,7 @@ class _AppShellState extends State<AppShell> {
                             : quiet(context),
                       ),
                       const SizedBox(width: 13),
-                      Text(
+                      LocalizedText(
                         item.$2.$2,
                         style: TextStyle(
                           fontSize: 14,
@@ -251,12 +288,12 @@ class _AppShellState extends State<AppShell> {
         const Spacer(),
         Container(width: 25, height: 1, color: Theme.of(context).dividerColor),
         const SizedBox(height: 18),
-        Text(
+        LocalizedText(
           '一册漫画，\n一段自己的时间。',
           style: TextStyle(fontSize: 12, height: 1.9, color: quiet(context)),
         ),
         const SizedBox(height: 22),
-        Text(
+        LocalizedText(
           'MANXIA · YOUR READING ROOM',
           style: small(context).copyWith(fontSize: 8, letterSpacing: .4),
         ),
@@ -265,11 +302,12 @@ class _AppShellState extends State<AppShell> {
   );
   Widget _topbar(bool wide) => Row(
     children: [
-      if (!wide) _brand() else Text('私人阅读室', style: small(context)),
+      if (!wide) _brand() else LocalizedText('私人阅读室', style: small(context)),
       const Spacer(),
       Semantics(
-        label: '默认漫画源动漫屋',
+        label: '默认漫画源 ${source.selected?.name ?? '动漫屋'}',
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 100),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
             border: Border.all(color: Theme.of(context).dividerColor),
@@ -280,15 +318,33 @@ class _AppShellState extends State<AppShell> {
             children: [
               Icon(Icons.public, size: 13, color: quiet(context)),
               const SizedBox(width: 6),
-              Text(
-                '动漫屋',
-                style: TextStyle(fontSize: 11, color: quiet(context)),
+              Flexible(
+                child: LocalizedText(
+                  source.selected?.name ?? '动漫屋',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: quiet(context)),
+                ),
               ),
             ],
           ),
         ),
       ),
       const SizedBox(width: 8),
+      IconButton(
+        tooltip: '下载与本地书库',
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OfflinePage(
+              library: widget.library,
+              source: source,
+              web: widget.web,
+            ),
+          ),
+        ),
+        icon: const Icon(Icons.download_outlined, size: 21),
+      ),
       IconButton(
         tooltip: '搜索漫画',
         onPressed: () {
@@ -308,7 +364,7 @@ class _AppShellState extends State<AppShell> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  LocalizedText(
                     title,
                     style: const TextStyle(
                       fontSize: 34,
@@ -317,7 +373,7 @@ class _AppShellState extends State<AppShell> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  LocalizedText(
                     description,
                     style: TextStyle(
                       fontSize: 12,
@@ -354,20 +410,42 @@ class _AppShellState extends State<AppShell> {
         ),
         Row(
           children: [
-            Text(
-              '全部收藏',
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.primary,
+            Expanded(
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  LocalizedText(
+                    '全部收藏',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  LocalizedText(
+                    '${books.length.toString().padLeft(2, '0')} 册',
+                    style: small(context),
+                  ),
+                  if (widget.library.demo)
+                    LocalizedText('演示书架', style: small(context)),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              '${books.length.toString().padLeft(2, '0')} 册',
-              style: small(context),
+            IconButton(
+              tooltip: '整理收藏',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LibraryManager(
+                    library: widget.library,
+                    web: widget.web,
+                    onOpen: open,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.tune, size: 18),
             ),
-            const Spacer(),
-            if (widget.library.demo) Text('演示书架', style: small(context)),
           ],
         ),
         const SizedBox(height: 10),
@@ -389,7 +467,7 @@ class _AppShellState extends State<AppShell> {
             child: ComicGrid(books: books, web: widget.web, onOpen: open),
           )
         else
-          ShelfScene(
+          LivingShelf(
             books: books,
             library: widget.library,
             web: widget.web,
@@ -398,11 +476,17 @@ class _AppShellState extends State<AppShell> {
         const SizedBox(height: 34),
         Row(
           children: [
-            const Text('留一枚书签', style: TextStyle(fontSize: 21)),
-            const Spacer(),
+            const Expanded(
+              child: LocalizedText('留一枚书签', style: TextStyle(fontSize: 21)),
+            ),
             TextButton(
               onPressed: () => navigate(2),
-              child: const Text('阅读足迹  ↗', style: TextStyle(fontSize: 11)),
+              child: const LocalizedText(
+                '阅读足迹  ↗',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11),
+              ),
             ),
           ],
         ),
@@ -411,17 +495,21 @@ class _AppShellState extends State<AppShell> {
         const SizedBox(height: 32),
         Row(
           children: [
-            const Text('下一段故事', style: TextStyle(fontSize: 21)),
-            const Spacer(),
+            const Expanded(
+              child: LocalizedText('下一段故事', style: TextStyle(fontSize: 21)),
+            ),
             TextButton(
               onPressed: () => navigate(1),
-              child: const Text('去发现  ↗', style: TextStyle(fontSize: 11)),
+              child: const LocalizedText(
+                '去发现  ↗',
+                style: TextStyle(fontSize: 11),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 100,
+          height: 100 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.5),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: widget.library.samples.length,
@@ -448,14 +536,19 @@ class _AppShellState extends State<AppShell> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            LocalizedText(
                               c.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 14),
                             ),
                             const SizedBox(height: 10),
-                            Text('查看漫画  ↗', style: small(context)),
+                            LocalizedText(
+                              '查看漫画  ↗',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: small(context),
+                            ),
                           ],
                         ),
                       ),
@@ -468,7 +561,7 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
         const SizedBox(height: 32),
-        Center(child: Text('故事很长，慢慢读。', style: small(context))),
+        Center(child: LocalizedText('故事很长，慢慢读。', style: small(context))),
       ],
     );
   }
@@ -499,12 +592,12 @@ class _AppShellState extends State<AppShell> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                LocalizedText(
                   record?.comic.title ?? '还没有翻开的故事',
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                LocalizedText(
                   record == null
                       ? '开始阅读后，书签会替你记住这一页。'
                       : '${record.chapterTitle} · 第 ${record.page + 1} / ${record.total} 页',
@@ -539,159 +632,8 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _discover(bool compact) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _heading('发现漫画', '从动漫屋，遇见下一段故事。'),
-      TextField(
-        controller: search,
-        textInputAction: TextInputAction.search,
-        onSubmitted: _search,
-        decoration: InputDecoration(
-          hintText: '搜索漫画名称或作者',
-          prefixIcon: const Icon(Icons.search, size: 21),
-          suffixIcon: IconButton(
-            tooltip: '开始搜索',
-            onPressed: () => _search(search.text),
-            icon: const Icon(Icons.arrow_forward, size: 20),
-          ),
-        ),
-      ),
-      const SizedBox(height: 20),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final label in ['海贼王', '冰之城壁', '青之芦苇', '蓝箱'])
-            ActionChip(
-              label: Text(label, style: const TextStyle(fontSize: 11)),
-              side: BorderSide(color: Theme.of(context).dividerColor),
-              onPressed: () {
-                search.text = label;
-                _search(label);
-              },
-            ),
-        ],
-      ),
-      const SizedBox(height: 30),
-      Row(
-        children: [
-          Text(
-            query.isEmpty ? '来自动漫屋' : '“$query”的搜索结果',
-            style: const TextStyle(fontSize: 20),
-          ),
-          const Spacer(),
-          IconButton(
-            tooltip: '刷新列表',
-            onPressed: () => _search(query),
-            icon: const Icon(Icons.refresh, size: 19),
-          ),
-        ],
-      ),
-      const SizedBox(height: 18),
-      FutureBuilder<List<Comic>>(
-        future: results,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Padding(
-              padding: EdgeInsets.all(70),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-          if (snapshot.hasError) {
-            return EmptyState(
-              icon: Icons.cloud_off_outlined,
-              title: '暂时没能打开动漫屋',
-              message: friendlyError(snapshot.error),
-              action: () => _search(query),
-              actionLabel: '重新加载',
-            );
-          }
-          if (snapshot.data?.isEmpty ?? true) {
-            return const EmptyState(
-              icon: Icons.search_off,
-              title: '没有找到这部漫画',
-              message: '试试更短的名称，或换一个关键词。',
-            );
-          }
-          return Column(
-            children: [
-              ComicGrid(
-                books: snapshot.data!.take(visibleResults).toList(),
-                web: widget.web,
-                onOpen: open,
-              ),
-              if (snapshot.data!.length > visibleResults)
-                Padding(
-                  padding: const EdgeInsets.only(top: 28),
-                  child: OutlinedButton(
-                    onPressed: () => setState(() => visibleResults += 24),
-                    child: Text(
-                      '显示更多 · 还有 ${snapshot.data!.length - visibleResults} 部漫画',
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    ],
-  );
-  void _search(String value) {
-    setState(() {
-      query = value.trim();
-      visibleResults = 24;
-      results = query.isEmpty ? source.home() : source.search(query);
-    });
-  }
-
-  Widget _history() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _heading('阅读足迹', '书签记得，你曾在哪一页停留。'),
-      if (widget.library.history.isEmpty)
-        EmptyState(
-          icon: Icons.bookmark_border,
-          title: '第一枚书签，等你翻开',
-          message: '阅读过的漫画会显示在这里。',
-          action: () => navigate(1),
-          actionLabel: '去发现',
-        )
-      else
-        for (final record in widget.library.history)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 8,
-                horizontal: 0,
-              ),
-              leading: SizedBox(
-                width: 46,
-                height: 64,
-                child: ComicCover(record.comic, web: widget.web),
-              ),
-              title: Text(record.comic.title),
-              subtitle: Text(
-                '${record.chapterTitle} · 第 ${record.page + 1} / ${record.total} 页',
-                style: small(context),
-              ),
-              trailing: const Icon(Icons.arrow_forward, size: 19),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ReaderPage(
-                    comic: record.comic,
-                    chapter: Chapter(record.chapterPath, record.chapterTitle),
-                    library: widget.library,
-                    source: source,
-                    web: widget.web,
-                  ),
-                ),
-              ),
-            ),
-          ),
-    ],
-  );
+  Widget _history() =>
+      HistoryPage(library: widget.library, source: source, web: widget.web);
   Widget _settings() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -699,22 +641,22 @@ class _AppShellState extends State<AppShell> {
       _settingGroup('外观与交互', [
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('夜间阅读室', style: TextStyle(fontSize: 15)),
-          subtitle: Text('柔和深色背景，适合夜晚阅读', style: small(context)),
+          title: const LocalizedText('夜间阅读室', style: TextStyle(fontSize: 15)),
+          subtitle: LocalizedText('柔和深色背景，适合夜晚阅读', style: small(context)),
           value: widget.library.dark,
           onChanged: (v) => widget.library.setting('dark', v),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('书架动效', style: TextStyle(fontSize: 15)),
-          subtitle: Text('抽书与页面转场；跟随系统减少动画偏好', style: small(context)),
+          title: const LocalizedText('书架动效', style: TextStyle(fontSize: 15)),
+          subtitle: LocalizedText('抽书与页面转场；跟随系统减少动画偏好', style: small(context)),
           value: widget.library.motion,
           onChanged: (v) => widget.library.setting('motion', v),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('封面网格', style: TextStyle(fontSize: 15)),
-          subtitle: Text('使用平面书架浏览收藏', style: small(context)),
+          title: const LocalizedText('封面网格', style: TextStyle(fontSize: 15)),
+          subtitle: LocalizedText('使用平面书架浏览收藏', style: small(context)),
           value: widget.library.grid,
           onChanged: (v) => widget.library.setting('grid', v),
         ),
@@ -723,36 +665,36 @@ class _AppShellState extends State<AppShell> {
       _settingGroup('阅读与数据', [
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('默认漫画源', style: TextStyle(fontSize: 15)),
-          subtitle: Text('动漫屋 · m.dm5.com', style: small(context)),
+          title: const LocalizedText('默认漫画源', style: TextStyle(fontSize: 15)),
+          subtitle: LocalizedText('动漫屋 · m.dm5.com', style: small(context)),
           trailing: const Icon(Icons.public, size: 20),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('显示演示书架', style: TextStyle(fontSize: 15)),
-          subtitle: Text('个人收藏为空时，展示示例漫画', style: small(context)),
+          title: const LocalizedText('显示演示书架', style: TextStyle(fontSize: 15)),
+          subtitle: LocalizedText('个人收藏为空时，展示示例漫画', style: small(context)),
           value: widget.library.demo,
           onChanged: (v) => widget.library.setting('demo', v),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('清空阅读足迹', style: TextStyle(fontSize: 15)),
-          subtitle: Text('仅清除本机页码记录，保留收藏', style: small(context)),
+          title: const LocalizedText('清空阅读足迹', style: TextStyle(fontSize: 15)),
+          subtitle: LocalizedText('仅清除本机页码记录，保留收藏', style: small(context)),
           trailing: const Icon(Icons.delete_outline, size: 20),
           onTap: () async {
             final ok = await showDialog<bool>(
               context: context,
               builder: (c) => AlertDialog(
-                title: const Text('清空阅读足迹？'),
-                content: const Text('已保存的章节和页码记录将被清除。'),
+                title: const LocalizedText('清空阅读足迹？'),
+                content: const LocalizedText('已保存的章节和页码记录将被清除。'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(c, false),
-                    child: const Text('取消'),
+                    child: const LocalizedText('取消'),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(c, true),
-                    child: const Text('清空'),
+                    child: const LocalizedText('清空'),
                   ),
                 ],
               ),
@@ -761,10 +703,18 @@ class _AppShellState extends State<AppShell> {
           },
         ),
       ]),
+      AdvancedSettings(
+        library: widget.library,
+        source: source,
+        web: widget.web,
+      ),
       const SizedBox(height: 35),
-      const Text('漫匣 MANXIA', style: TextStyle(fontSize: 23, letterSpacing: 2)),
+      const LocalizedText(
+        '漫匣 MANXIA',
+        style: TextStyle(fontSize: 23, letterSpacing: 2),
+      ),
       const SizedBox(height: 10),
-      Text('为每一段故事，留一个位置。', style: small(context)),
+      LocalizedText('为每一段故事，留一个位置。', style: small(context)),
       const SizedBox(height: 22),
       TextButton(
         onPressed: () => showLicensePage(
@@ -772,14 +722,14 @@ class _AppShellState extends State<AppShell> {
           applicationName: '漫匣',
           applicationVersion: '0.1.0',
         ),
-        child: const Text('开源许可与字体声明', style: TextStyle(fontSize: 12)),
+        child: const LocalizedText('开源许可与字体声明', style: TextStyle(fontSize: 12)),
       ),
     ],
   );
   Widget _settingGroup(String label, List<Widget> children) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
+      LocalizedText(
         label,
         style: TextStyle(
           fontSize: 12,
@@ -796,229 +746,6 @@ class _AppShellState extends State<AppShell> {
 String friendlyError(Object? error) {
   if (error is SourceException) return error.message;
   return '网络连接暂时不可用，请检查网络后重试。';
-}
-
-class ShelfScene extends StatefulWidget {
-  const ShelfScene({
-    super.key,
-    required this.books,
-    required this.library,
-    required this.web,
-    required this.onOpen,
-  });
-  final List<Comic> books;
-  final Library library;
-  final bool web;
-  final ValueChanged<Comic> onOpen;
-  @override
-  State<ShelfScene> createState() => _ShelfSceneState();
-}
-
-class _ShelfSceneState extends State<ShelfScene> {
-  int selected = 3;
-  void choose(int value) {
-    if (value < 0 || value >= widget.books.length) return;
-    setState(() => selected = value);
-    HapticFeedback.selectionClick();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    selected = selected.clamp(0, widget.books.length - 1);
-    final comic = widget.books[selected];
-    final duration = Duration(
-      milliseconds:
-          widget.library.motion && !MediaQuery.disableAnimationsOf(context)
-          ? 480
-          : 0,
-    );
-    return Column(
-      children: [
-        SizedBox(
-          height: MediaQuery.sizeOf(context).width < 600 ? 325 : 360,
-          child: LayoutBuilder(
-            builder: (context, box) {
-              final scale = (box.maxWidth / 700).clamp(.73, 1.03);
-              final gap = box.maxWidth < 500 ? 36.0 : 59.0;
-              final center = box.maxWidth / 2 - 91 * scale;
-              final order = List<int>.generate(widget.books.length, (i) => i)
-                ..sort(
-                  (a, b) =>
-                      (b - selected).abs().compareTo((a - selected).abs()),
-                );
-              return GestureDetector(
-                onHorizontalDragEnd: (d) {
-                  if ((d.primaryVelocity ?? 0).abs() > 50) {
-                    choose(selected + ((d.primaryVelocity ?? 0) < 0 ? 1 : -1));
-                  }
-                },
-                child: Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 40,
-                      child: Container(
-                        height: 1,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              Theme.of(context).dividerColor,
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    for (final i in order) ...[
-                      AnimatedPositioned(
-                        key: ValueKey('volume-${widget.books[i].path}'),
-                        duration: duration,
-                        curve: Curves.easeOutCubic,
-                        left:
-                            center +
-                            (i - selected) * gap +
-                            (i > selected ? 105 * scale : 0),
-                        top: i == selected ? 13 : 70 + (i - selected).abs() * 3,
-                        width: 200 * scale,
-                        height: 280 * scale,
-                        child: IgnorePointer(
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween(begin: 0, end: i == selected ? 1 : 0),
-                            duration: duration,
-                            curve: Curves.easeOutCubic,
-                            builder: (context, exposure, _) => Hero(
-                              tag: 'book-${widget.books[i].path}',
-                              child: BookObject(
-                                widget.books[i],
-                                web: widget.web,
-                                exposure: exposure,
-                                number: i + 1,
-                                bookmark:
-                                    widget.library.record(widget.books[i]) !=
-                                    null,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      AnimatedPositioned(
-                        key: ValueKey('hit-${widget.books[i].path}'),
-                        duration: duration,
-                        curve: Curves.easeOutCubic,
-                        left:
-                            center +
-                            (i - selected) * gap +
-                            (i > selected ? 105 * scale : 0) +
-                            17 * scale,
-                        top: i == selected
-                            ? 50
-                            : 105 + (i - selected).abs() * 3,
-                        width: (i == selected ? 163 : 34) * scale,
-                        height: 208 * scale,
-                        child: Semantics(
-                          button: true,
-                          label: i == selected
-                              ? '查看${widget.books[i].title}'
-                              : '选择${widget.books[i].title}',
-                          child: Tooltip(
-                            message: widget.books[i].title,
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => i == selected
-                                    ? widget.onOpen(comic)
-                                    : choose(i),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: duration,
-                layoutBuilder: (current, previous) => Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [...previous, ?current],
-                ),
-                child: Column(
-                  key: ValueKey(comic.path),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      comic.title,
-                      style: const TextStyle(fontSize: 26, letterSpacing: 1),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.library.record(comic) == null
-                          ? '动漫屋 · 轻触封面，翻开故事'
-                          : '书签已停在 ${widget.library.record(comic)!.chapterTitle}',
-                      style: small(context),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: '上一本',
-              onPressed: selected > 0 ? () => choose(selected - 1) : null,
-              icon: const Icon(Icons.chevron_left, size: 21),
-            ),
-            Text(
-              '${(selected + 1).toString().padLeft(2, '0')} / ${widget.books.length.toString().padLeft(2, '0')}',
-              style: small(context),
-            ),
-            IconButton(
-              tooltip: '下一本',
-              onPressed: selected < widget.books.length - 1
-                  ? () => choose(selected + 1)
-                  : null,
-              icon: const Icon(Icons.chevron_right, size: 21),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            FilledButton.icon(
-              onPressed: () => widget.onOpen(comic),
-              icon: const Icon(Icons.menu_book_outlined, size: 17),
-              label: const Text('翻开这本漫画', style: TextStyle(fontSize: 12)),
-            ),
-            const SizedBox(width: 12),
-            Tooltip(
-              message: widget.library.contains(comic) ? '移出收藏' : '加入收藏',
-              child: OutlinedButton(
-                onPressed: () => widget.library.toggle(comic),
-                child: Icon(
-                  widget.library.contains(comic)
-                      ? Icons.bookmark
-                      : Icons.bookmark_border,
-                  size: 19,
-                ),
-              ),
-            ),
-            const Spacer(),
-            if (MediaQuery.sizeOf(context).width > 700)
-              Text('左右滑动，挑选一本', style: small(context)),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 class ComicGrid extends StatelessWidget {
@@ -1074,14 +801,14 @@ class ComicGrid extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 13),
-                Text(
+                LocalizedText(
                   comic.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14),
                 ),
                 const SizedBox(height: 5),
-                Text(
+                LocalizedText(
                   comic.latest.isEmpty ? '动漫屋' : comic.latest,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1116,7 +843,7 @@ class EmptyState extends StatelessWidget {
         children: [
           Icon(icon, size: 38, color: quiet(context)),
           const SizedBox(height: 22),
-          Text(
+          LocalizedText(
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 19),
@@ -1124,7 +851,7 @@ class EmptyState extends StatelessWidget {
           const SizedBox(height: 10),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: Text(
+            child: LocalizedText(
               message,
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -1136,7 +863,10 @@ class EmptyState extends StatelessWidget {
           ),
           if (action != null) ...[
             const SizedBox(height: 24),
-            OutlinedButton(onPressed: action, child: Text(actionLabel)),
+            OutlinedButton(
+              onPressed: action,
+              child: LocalizedText(actionLabel),
+            ),
           ],
         ],
       ),

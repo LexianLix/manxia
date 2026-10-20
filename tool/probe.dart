@@ -9,6 +9,14 @@ Future<void> main() async {
   try {
     final home = await source.home();
     result['catalogCount'] = home.length;
+    final categories = await source.categories();
+    result['categoryCount'] = categories.length;
+    final category = await source.catalog(categories.values.first);
+    result['categoryFirstPageCount'] = category.books.length;
+    result['categorySorts'] = category.sorts.keys.toList();
+    result['categoryStatuses'] = category.statuses.keys.toList();
+    final next = await source.catalogNext(category.parameters, 2);
+    result['categoryNextPageCount'] = next.length;
     final matches = await source.search('冰之城壁');
     result['searchCount'] = matches.length;
     final comic = matches.firstWhere((c) => c.title == '冰之城壁');

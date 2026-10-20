@@ -5,6 +5,32 @@ import 'package:manxia/main.dart';
 import 'package:manxia/data/library.dart';
 
 void main() {
+  testWidgets('English and larger type remain usable on a compact screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    late Library library;
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({});
+      library = Library(await SharedPreferences.getInstance());
+      await library.load();
+      await library.setOption('language', 'en');
+      await library.setOption('textScale', 1.5);
+      await library.setOption('highContrast', true);
+    });
+    await tester.pumpWidget(ManxiaApp(library: library));
+    await tester.pumpAndSettle();
+    expect(find.text('My library'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Preferences'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final width in [390.0, 754.0, 1440.0]) {
     testWidgets('shelf and preferences fit a $width pixel viewport', (
       tester,

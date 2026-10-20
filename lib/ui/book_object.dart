@@ -1,13 +1,9 @@
+import 'localized_text.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../data/comic.dart';
-
-String imageAddress(String original, bool web) => web
-    ? Uri.base
-          .resolve('/api/image')
-          .replace(queryParameters: {'url': original})
-          .toString()
-    : original;
+import 'comic_image.dart';
+export 'comic_image.dart' show imageAddress;
 
 class ComicCover extends StatelessWidget {
   const ComicCover(
@@ -20,16 +16,16 @@ class ComicCover extends StatelessWidget {
   final bool web;
   final BoxFit fit;
   @override
-  Widget build(BuildContext context) => Image.network(
-    imageAddress(comic.cover, web),
+  Widget build(BuildContext context) => ComicImage(
+    comic.cover,
+    web: web,
     fit: fit,
-    headers: web ? null : const {'Referer': 'https://m.dm5.com/'},
-    errorBuilder: (_, _, _) => ColoredBox(
+    fallback: ColoredBox(
       color: const Color(0xffe1e5dc),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(10),
-          child: Text(
+          child: LocalizedText(
             comic.title,
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -53,10 +49,14 @@ class BookObject extends StatefulWidget {
     this.exposure = 1,
     this.number = 1,
     this.bookmark = false,
+    this.light = 0,
+    this.onColor,
   });
   final Comic comic;
   final bool web, bookmark;
   final double exposure;
+  final double light;
+  final ValueChanged<Color>? onColor;
   final int number;
   @override
   State<BookObject> createState() => _BookObjectState();
@@ -66,6 +66,7 @@ class _BookObjectState extends State<BookObject> {
   ui.Image? bitmap;
   ImageStream? stream;
   ImageStreamListener? listener;
+  int generation = 0;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -75,24 +76,62 @@ class _BookObjectState extends State<BookObject> {
   @override
   void didUpdateWidget(BookObject old) {
     super.didUpdateWidget(old);
-    if (old.comic.cover != widget.comic.cover) _load();
+    if (old.comic.cover != widget.comic.cover) {
+      bitmap = null;
+      _load();
+    } else if (old.onColor == null &&
+        widget.onColor != null &&
+        bitmap != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && bitmap != null) _color(bitmap!);
+      });
+    }
   }
 
-  void _load() {
+  Future<void> _load() async {
+    final current = ++generation;
     if (listener != null) stream?.removeListener(listener!);
-    final provider = NetworkImage(
-      imageAddress(widget.comic.cover, widget.web),
-      headers: widget.web ? null : const {'Referer': 'https://m.dm5.com/'},
-    );
+    final ImageProvider provider;
+    try {
+      provider = await comicImageProvider(widget.comic.cover, widget.web);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || current != generation) return;
     stream = provider.resolve(createLocalImageConfiguration(context));
     listener = ImageStreamListener((info, _) {
+      if (!mounted || current != generation) return;
       if (mounted) setState(() => bitmap = info.image);
+      if (widget.onColor != null) _color(info.image);
     }, onError: (_, _) {});
     stream!.addListener(listener!);
   }
 
+  Future<void> _color(ui.Image image) async {
+    final data = await image.toByteData();
+    if (data == null || !mounted) return;
+    var r = 0, g = 0, b = 0, n = 0;
+    final bytes = data.buffer.asUint8List();
+    for (var y = 0; y < image.height; y += 12) {
+      for (var x = 0; x < image.width; x += 12) {
+        final k = (y * image.width + x) * 4;
+        final sum = bytes[k] + bytes[k + 1] + bytes[k + 2];
+        if (sum > 90 && sum < 680) {
+          r += bytes[k];
+          g += bytes[k + 1];
+          b += bytes[k + 2];
+          n++;
+        }
+      }
+    }
+    if (n > 0 && mounted) {
+      widget.onColor?.call(Color.fromARGB(255, r ~/ n, g ~/ n, b ~/ n));
+    }
+  }
+
   @override
   void dispose() {
+    generation++;
     if (listener != null) stream?.removeListener(listener!);
     super.dispose();
   }
@@ -105,6 +144,7 @@ class _BookObjectState extends State<BookObject> {
       exposure: widget.exposure,
       number: widget.number,
       bookmark: widget.bookmark,
+      light: widget.light,
     ),
     size: const Size(200, 300),
   );
@@ -117,10 +157,12 @@ class _BookPainter extends CustomPainter {
     required this.exposure,
     required this.number,
     required this.bookmark,
+    required this.light,
   });
   final ui.Image? image;
   final String title;
   final double exposure;
+  final double light;
   final int number;
   final bool bookmark;
   Path polygon(List<Offset> p) => Path()..addPolygon(p, true);
@@ -129,7 +171,8 @@ class _BookPainter extends CustomPainter {
     canvas.save();
     canvas.scale(size.width / 200, size.height / 300);
     final fw = 34 + exposure * 102;
-    const x = 22.0, y = 49.0, h = 226.0, spine = 23.0, dy = -34.0;
+    const x = 22.0, y = 49.0, h = 226.0, spine = 23.0;
+    final dy = -28.0 - 12 * exposure + light * 4;
     final shadow = polygon([
       const Offset(x, 277),
       Offset(x + spine + fw + 32, 250),
@@ -139,8 +182,10 @@ class _BookPainter extends CustomPainter {
     canvas.drawPath(
       shadow,
       Paint()
-        ..color = const Color(0xff243a29).withValues(alpha: .13)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        ..color = const Color(
+          0xff243a29,
+        ).withValues(alpha: .08 + exposure * .12)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 + exposure * 12),
     );
     final top = polygon([
       const Offset(x, y),
@@ -260,6 +305,20 @@ class _BookPainter extends CustomPainter {
     canvas.drawRect(
       face,
       Paint()
+        ..shader = LinearGradient(
+          begin: Alignment(-1 + light, -1),
+          end: Alignment(1 + light, 1),
+          colors: [
+            Colors.transparent,
+            Colors.white.withValues(alpha: .14 + exposure * .1),
+            Colors.transparent,
+          ],
+          stops: const [0, .45, 1],
+        ).createShader(face),
+    );
+    canvas.drawRect(
+      face,
+      Paint()
         ..color = const Color(0xffc6cbbd)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .6,
@@ -284,5 +343,6 @@ class _BookPainter extends CustomPainter {
       old.image != image ||
       old.exposure != exposure ||
       old.title != title ||
-      old.bookmark != bookmark;
+      old.bookmark != bookmark ||
+      old.light != light;
 }

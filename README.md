@@ -1,85 +1,88 @@
 # 漫匣 · Manxia
 
-[GitHub 源码](https://github.com/LexianLix/manxia) · [功能选择清单](docs/FEATURE_CHOICES.md) · [自动构建](https://github.com/LexianLix/manxia/actions)
+[源码](https://github.com/LexianLix/manxia) · [自动构建与 APK](https://github.com/LexianLix/manxia/actions) · [42 项实现状态](docs/IMPLEMENTATION.md) · [使用指南](docs/USER_GUIDE.md)
 
 把喜欢的故事，留在手边。
 
-一个以实体书质感为中心的 Flutter 漫画阅读器。默认漫画源为动漫屋，Android 为目标平台，同时提供可操作的浏览器预览。
+一个以实体书质感为中心的 Flutter 漫画阅读器。默认动漫屋，Android 为目标平台，提供手机与桌面布局的浏览器预览。当前为 **0.2 开发版**。
 
-## 当前可用
+## 已接入的主要功能
 
-当前为早期开发版本，动效与材质仅完成基础实现。完整待选范围见 [功能选择清单](docs/FEATURE_CHOICES.md)。
+- 惯性循环立体书架、弹簧吸附、抽书开封面、随指针变化的透视/光照、封面取色、收藏飞入；高档材质支持毛玻璃及 Impeller 折射，其他渲染器使用模糊回退。
+- 每日精选、原站四种榜单、收藏追更、26 种真实分类、连载状态/排序/翻页、完结与主题书单、个人推荐、搜索历史和本地候选提示。
+- 连续条漫及图片内位置续读、横/竖分页、宽屏双页、章节面板、多书签/笔记/页面收藏、图片预载、曲面纸页翻动、裁白边、缩放、自动滚动、亮度/暖色/背景、逐本偏好。
+- 分组、标签、状态、排序、拖动和批量整理，系列套装；按日期的阅读历史与检索。
+- 图片、文件夹（原生端）、ZIP/CBZ、PDF 导入；章节下载队列、并发控制、暂停后续传/重试、离线阅读、空间统计、CBZ 导出。
+- JSON 资料备份、带图片与校验清单的离线 ZIP 书库备份；合并较新记录并保留删除标记。
+- WebDAV 配置与带 ETag 的元数据合并、自定义静态 HTML 漫画源、来源诊断、GitHub 版本查询、大字号/高对比度及主要界面的中英/繁体切换。
 
-- 纸质立体书架基础版：固定投影的书脊/纸张厚度绘制、抽书位移与封面展开、Hero 和淡入转场。惯性循环书架、真实开书动作和玻璃折射尚未实现。
-- 立体 / 封面网格切换，手机底部导航与宽屏侧边导航。
-- 动漫屋真实首页、搜索、漫画详情、分组章节目录。
-- 公开章节图片阅读、横向 / 纵向逐页翻阅、左右阅读方向、双指缩放。
-- 收藏、阅读历史、页码续读，保存在当前设备。
-- 夜间外观、动效开关、系统减少动画偏好。
+首次收藏为空时显示标明“演示书架”的示例目录；真实收藏后切换为个人书架。每日推荐来自目录选取，榜单保持原站顺序，不生成虚构热度。源站不可达时显示有日期的缓存提示。
 
-首次打开是标明“演示书架”的目录快照；第一次真实收藏后切换为个人书架。演示收藏没有预设阅读记录。发现、搜索、详情与章节图片使用真实来源请求，失败会提示，不能直接读取的章节可打开原站。
+这是功能集成中的开发版，**不代表 42 项均已通过真机/实际网盘验收**。体感、折射性能、音量键、旋转、正式签名升级尚需 Android 真机；WebDAV 尚需实际服务账号。CBR 没有接入。完整边界见实现状态和验收记录。
 
-## 本地预览（Windows）
+## Windows 本地预览
 
-需要 Flutter **3.47.7**（Dart 3.13.5）与 Node.js 22 或更新版本。工程首次在此版本验证；SDK 的安装说明见 [Flutter 官方文档](https://docs.flutter.dev/install/manual)。
+需要 Flutter **3.47.7 / Dart 3.13.5**、Node.js 22+。本机已有 Flutter 时：
 
 ```powershell
 Set-Location 'D:\project\comic'
-& 'D:\tools\flutter\bin\flutter.bat' pub get
-& 'D:\tools\flutter\bin\flutter.bat' build web --no-web-resources-cdn --no-wasm-dry-run
+.\启动预览.ps1 -Rebuild
+```
+
+打开 <http://127.0.0.1:4173>，保留终端。之后无需重新编译可直接运行 `.\启动预览.ps1`。
+
+其他平台或手动构建：
+
+```sh
+flutter pub get
+npm ci --ignore-scripts
+node tools/prepare-web.mjs
+flutter build web --no-web-resources-cdn --no-wasm-dry-run
+node tools/offline-shell.mjs
 node tools/preview.mjs
 ```
 
-打开 <http://127.0.0.1:4173>。终端保持运行；按 Ctrl+C 停止。如果 Flutter 已加入 PATH，可直接用 `flutter` 替换完整路径。
+PDF.js 本地组件在构建前准备，应用资源离线缓存由独立的 `sw.js` 管理。首次成功加载资源后可离线打开应用和已下载/导入的漫画；浏览器清理站点数据会移除本机数据，先导出备份。浏览器存储、127.0.0.1 和 localhost 是不同空间。
 
-也可在项目目录运行 `./启动预览.ps1`；需要重新编译源码时运行 `./启动预览.ps1 -Rebuild`。
+预览服务只监听本机，负责浏览器跨域访问。Android 直接访问源站。GitHub Pages 或单纯 `flutter run -d chrome` 不提供这些 `/api` 接口。
 
-预览服务只绑定本机，负责提供编译产物和动漫屋跨域代理。不需要账号、数据库或第三方付费服务。Android 客户端直接访问动漫屋，不依赖这个预览服务。仅运行 `flutter run -d chrome` 或将静态文件直接放到 GitHub Pages，并不能提供浏览器版本需要的 `/api` 代理。
+## Android 构建与安装
 
-## Android
+GitHub Actions 检查成功后，进入该次运行底部 **Artifacts → manxia-android-debug**，解压得到调试 APK。下载步骤见 [GitHub 指南](docs/GITHUB.md)。调试包用于试用，跨运行的临时调试证书不保证可覆盖安装。
 
-安装 Android Studio、Android SDK 与 JDK 17，完成官方开发环境设置及许可证确认后：
+本机需安装 JDK 17 与 Android SDK，并完成 `flutter doctor` 中的开发环境配置：
 
 ```powershell
-flutter doctor
-flutter devices
-flutter run -d 你的设备ID
-flutter build apk --debug
+.\tools\Build-Android.ps1
 ```
 
-调试 APK：`build/app/outputs/flutter-apk/app-debug.apk`。
+正式签名需先运行 `.\tools\Create-Signing.ps1`，私下备份密钥和配置，再运行 `.\tools\Build-Android.ps1 -Release`。不会自动用临时调试证书生成 release。签名材料不进入 Git；详细升级和迁移说明见 [发布指南](docs/RELEASE.md)。
 
-当前默认 release 配置沿用 Flutter 的开发签名，仅供本机开发；正式发布前需要独立签名、密钥备份和升级安装测试。仓库不会存放签名密钥。CI 提供调试 APK 构建，不代表已经通过 Android 真机验收。
+## 验证
 
-## 检查
-
-```powershell
+```sh
 flutter analyze --no-pub
 flutter test --timeout 30s
 node --test tools/preview.test.mjs
 dart run tool/probe.dart
 ```
 
-前三项为本地离线检查；最后一项实际访问动漫屋，验证首页、搜索、目录与首张图片。结果保存在忽略提交的 `artifacts/source-probe.json`。站点内容、网络和页面结构会变化，单次通过不等于全部漫画或未来长期可用。
+前三项离线执行。最后一项访问动漫屋首页、分类筛选和翻页、搜索、目录、章节及首图，结果保存在不提交的 `artifacts/source-probe.json`。站点内容与网络会变化；单次通过只证明该次样本。
 
-## 工程
+## 目录
 
 ```text
-lib/data/          漫画模型、动漫屋适配、收藏与阅读记录
-lib/ui/            书架、实体书绘制、详情与阅读器
-assets/catalog.json  演示缩略图地址与标题，不包含漫画图片
-tools/preview.mjs  浏览器预览与受限来源代理
-tool/probe.dart    真实来源连通检查
-test/             解析、数据恢复、布局与阅读交互检查
-docs/             设计说明、GitHub 上传步骤与验收记录
+lib/data/       漫画来源、推荐、收藏、同步、下载与备份
+lib/platform/   原生文件存储 / 浏览器缓存存储
+lib/ui/         实体书绘制、界面与阅读器
+shaders/        支持的渲染器上的玻璃折射
+assets/         演示目录、来源元数据快照、字体及许可
+tools/          预览代理、Web 资源准备、Android 签名和构建脚本
+tool/           来源探测与快照工具
+test/           数据合并、来源解析、下载恢复、布局及阅读交互检查
+docs/           使用、状态、验收与发布说明
 ```
 
-## 后续迭代
+## 许可
 
-连续条漫滚动、本地 ZIP/CBZ 导入、离线章节下载管理、真实追更检测与正式签名发布尚未实现。当前重点是立体书架的视觉与在线阅读主流程。
-
-## GitHub 与许可
-
-上传说明见 [docs/GITHUB.md](docs/GITHUB.md)。提交后 GitHub Actions 会运行检查，构建 Web 产物与 Android 调试 APK，可在 Actions 的 Artifacts 中下载。
-
-本项目代码独立实现，使用 MIT 许可。视觉灵感来自 [mikufoxxx/Wenku8_Flutter](https://github.com/mikufoxxx/Wenku8_Flutter)，未复制其应用源码。思源宋体使用 SIL OFL 1.1；动漫屋漫画元数据与远程图片不属于本项目的 MIT 许可内容，详见 [NOTICE](NOTICE)。
+应用代码独立实现，使用 MIT。视觉灵感来自 [Wenku8_Flutter](https://github.com/mikufoxxx/Wenku8_Flutter)，未复制其应用代码。思源宋体使用 SIL OFL 1.1，浏览器 PDF.js 使用 Apache 2.0。远程漫画元数据和图片不属于应用代码许可，仓库不包含漫画正文图片。见 [NOTICE](NOTICE)。

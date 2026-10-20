@@ -4,10 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data/library.dart';
+import 'data/source_hub.dart';
+import 'data/offline_library.dart';
 import 'ui/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 96 * 1024 * 1024;
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
       'Source Han Serif CN',
@@ -15,6 +18,10 @@ Future<void> main() async {
   });
   final library = Library(await SharedPreferences.getInstance());
   await library.load();
+  await OfflineLibrary(
+    library,
+    SourceHub(library, gateway: kIsWeb ? Uri.base : null),
+  ).initialize();
   runApp(ManxiaApp(library: library));
 }
 
@@ -27,9 +34,26 @@ class ManxiaApp extends StatelessWidget {
     builder: (context, _) => MaterialApp(
       title: '漫匣 · 把故事留在手边',
       debugShowCheckedModeBanner: false,
-      locale: const Locale('zh', 'CN'),
-      supportedLocales: const [Locale('zh', 'CN')],
+      locale: switch (library.option<String>('language', 'zh_CN')) {
+        'en' => const Locale('en'),
+        'zh_TW' => const Locale('zh', 'TW'),
+        _ => const Locale('zh', 'CN'),
+      },
+      supportedLocales: const [
+        Locale('zh', 'CN'),
+        Locale('zh', 'TW'),
+        Locale('en'),
+      ],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(library.option<double>('textScale', 1)),
+          highContrast: library.option<bool>('highContrast', false),
+          disableAnimations:
+              MediaQuery.disableAnimationsOf(context) || !library.motion,
+        ),
+        child: child!,
+      ),
       themeMode: library.dark ? ThemeMode.dark : ThemeMode.light,
       theme: _theme(false),
       darkTheme: _theme(true),
@@ -38,6 +62,7 @@ class ManxiaApp extends StatelessWidget {
   );
   ThemeData _theme(bool dark) {
     final scheme = ColorScheme.fromSeed(
+      contrastLevel: library.option<bool>('highContrast', false) ? 1 : 0,
       seedColor: const Color(0xff47775e),
       brightness: dark ? Brightness.dark : Brightness.light,
       surface: dark ? const Color(0xff171d1a) : const Color(0xfff7f7f2),

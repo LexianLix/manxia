@@ -6,5 +6,10 @@
     "preview": "node tools/preview.mjs",
     "test:gateway": "node --test tools/preview.test.mjs"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^4.6.82"
+  }
 }

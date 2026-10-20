@@ -3,16 +3,31 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'comic.dart';
+import 'library_features.dart';
 
-class Library extends ChangeNotifier {
+class Library extends ChangeNotifier with LibraryFeatures {
   Library(this.prefs);
+  @override
   final SharedPreferences prefs;
+  @override
   List<Comic> favorites = [];
   List<Comic> samples = [];
+  @override
   List<ReadingRecord> history = [];
   bool demo = true, dark = false, motion = true, grid = false, rtl = false;
   String mode = 'page';
+  @override
+  Future<void> restore(
+    Map<String, dynamic> j, {
+    bool restoreOptions = false,
+  }) async {
+    await super.restore(j, restoreOptions: restoreOptions);
+    demo = false;
+    notifyListeners();
+  }
+
   Future<void> load() async {
+    loadFeatures();
     samples = Comic.decode(await rootBundle.loadString('assets/catalog.json'));
     demo = prefs.getBool('demo') ?? true;
     dark = prefs.getBool('dark') ?? false;
@@ -41,13 +56,19 @@ class Library extends ChangeNotifier {
       history.where((h) => h.comic.path == c.path).firstOrNull;
   Future<void> toggle(Comic c) async {
     if (contains(c)) {
+      tombstones['book:${c.path}'] = DateTime.now().millisecondsSinceEpoch;
       favorites.removeWhere((b) => b.path == c.path);
     } else {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      favoriteTimes[c.path] = now > (tombstones['book:${c.path}'] ?? -1)
+          ? now
+          : tombstones['book:${c.path}']! + 1;
       favorites.add(c);
     }
     demo = false;
     notifyListeners();
     await prefs.setBool('demo', demo);
+    await persistFeatures();
     await prefs.setString(
       'favorites',
       jsonEncode(favorites.map((b) => b.toJson()).toList()),
@@ -89,8 +110,13 @@ class Library extends ChangeNotifier {
   }
 
   Future<void> clearHistory() async {
+    for (final r in history) {
+      tombstones['history:${r.comic.path}'] =
+          DateTime.now().millisecondsSinceEpoch;
+    }
     history.clear();
     notifyListeners();
     await prefs.remove('history');
+    await persistFeatures();
   }
 }
