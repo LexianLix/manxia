@@ -9,11 +9,10 @@ async function walk(dir) {
   return files;
 }
 const files=(await walk(root.pathname.replace(/^\/([A-Za-z]:)/,'$1'))).filter(p=>!p.endsWith('.map') && !p.endsWith('sw.js'));
-const main=await readFile(new URL('main.dart.js',root));
-const version=createHash('sha256').update(main)
-  .update(await readFile(new URL('flutter_bootstrap.js',root)))
-  .update(await readFile(new URL('index.html',root))).digest('hex').slice(0,12);
 const base=root.pathname.replace(/^\/([A-Za-z]:)/,'$1');
+const digest=createHash('sha256');
+for(const file of [...files].sort())digest.update(relative(base,file)).update(await readFile(file));
+const version=digest.digest('hex').slice(0,12);
 const urls=files.map(p=>'./'+relative(base,p).replaceAll('\\','/'));
 const worker=`const CACHE='manxia-shell-${version}';
 const ASSETS=${JSON.stringify(urls)};
