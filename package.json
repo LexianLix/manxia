@@ -1,0 +1,10 @@
+{
+  "name": "manxia-preview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "node tools/preview.mjs",
+    "test:gateway": "node --test tools/preview.test.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

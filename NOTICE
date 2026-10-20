@@ -1,0 +1,21 @@
+Manxia / 漫匣
+
+The application code in this repository is independently implemented.
+Visual inspiration: https://github.com/mikufoxxx/Wenku8_Flutter
+The reference application's GPL-licensed source code is not incorporated here.
+
+Bundled font: Source Han Serif CN Regular, Copyright Adobe.
+Licensed under SIL Open Font License 1.1, retained in assets/fonts/OFL.txt.
+Upstream: https://github.com/adobe-fonts/source-han-serif
+Font file obtained from the reference repository's unmodified font assets.
+
+assets/catalog.json contains a small public DM5 metadata snapshot for the
+explicitly labelled sample shelf. The repository does not bundle comic cover
+or chapter image files. Images displayed by the client are fetched from DM5's
+CDN and remain the property of their respective rights holders. These images
+and source metadata are not covered by the application's MIT license.
+
+The DM5 adapter reads public pages and decodes embedded image-list data through
+string substitution. It does not execute remote JavaScript or include account
+credentials. Login-gated or otherwise unavailable chapters may require the
+original website. This project is not affiliated with DM5.
