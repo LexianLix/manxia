@@ -1,4 +1,5 @@
 import 'localized_text.dart';
+import 'room_motion.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -269,67 +270,10 @@ class _ReaderPageState extends State<ReaderPage> {
             },
             child: Focus(
               autofocus: true,
-              child: Column(
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  if (controls)
-                    Container(
-                      color: const Color(0xff1c231e),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            tooltip: '返回目录',
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.arrow_back, size: 21),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                LocalizedText(
-                                  widget.comic.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                LocalizedText(
-                                  chapter.title,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Color(0xff9cab9d),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '章节与书签',
-                            onPressed: catalog,
-                            icon: const Icon(
-                              Icons.format_list_bulleted,
-                              size: 20,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '添加书签',
-                            onPressed: total > 0 ? bookmark : null,
-                            icon: const Icon(
-                              Icons.bookmark_add_outlined,
-                              size: 20,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '阅读设置',
-                            onPressed: settings,
-                            icon: const Icon(Icons.tune, size: 20),
-                          ),
-                        ],
-                      ),
-                    ),
-                  Expanded(
+                  Positioned.fill(
                     child: FutureBuilder<List<String>>(
                       future: loading,
                       builder: (context, s) {
@@ -441,86 +385,159 @@ class _ReaderPageState extends State<ReaderPage> {
                       },
                     ),
                   ),
-                  if (controls)
-                    Container(
-                      color: const Color(0xff1c231e),
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Column(
-                        children: [
-                          if (total > 1)
-                            Slider(
-                              value: page.toDouble(),
-                              max: (total - 1).toDouble(),
-                              divisions: total - 1,
-                              onChanged: (v) => go(v.round()),
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: ReaderChrome(
+                      visible: controls,
+                      top: true,
+                      child: Container(
+                        color: const Color(0xff1c231e),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: '返回目录',
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.arrow_back, size: 21),
                             ),
-                          Row(
-                            children: [
-                              IconButton(
-                                tooltip: '上一页',
-                                onPressed: page > 0 ? () => turn(-1) : null,
-                                icon: const Icon(Icons.chevron_left),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    LocalizedText(
-                                      total == 0 ? '加载章节中' : pageLabel,
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    const LocalizedText(
-                                      '轻触中间收起工具栏 · 长按图片缩放',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: Color(0xff8b9a8c),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (total > 0 &&
-                                  lastVisiblePage >= total - 1 &&
-                                  chapters.indexWhere(
-                                        (c) => c.path == chapter.path,
-                                      ) <
-                                      chapters.length - 1 &&
-                                  chapters.any((c) => c.path == chapter.path))
-                                TextButton(
-                                  onPressed: () => changeChapter(
-                                    chapters[chapters.indexWhere(
-                                          (c) => c.path == chapter.path,
-                                        ) +
-                                        1],
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  LocalizedText(
+                                    widget.comic.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 13),
                                   ),
-                                  child: const LocalizedText('下一章'),
-                                )
-                              else
-                                IconButton(
-                                  tooltip: '下一页',
-                                  onPressed: lastVisiblePage < total - 1
-                                      ? () => turn(1)
-                                      : null,
-                                  icon: const Icon(Icons.chevron_right),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (!controls)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 2, 10, 4),
-                        child: LocalizedText(
-                          pageLabel,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Color(0xff8b9a8c),
-                          ),
+                                  LocalizedText(
+                                    chapter.title,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xff9cab9d),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '章节与书签',
+                              onPressed: catalog,
+                              icon: const Icon(
+                                Icons.format_list_bulleted,
+                                size: 20,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '添加书签',
+                              onPressed: total > 0 ? bookmark : null,
+                              icon: const Icon(
+                                Icons.bookmark_add_outlined,
+                                size: 20,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '阅读设置',
+                              onPressed: settings,
+                              icon: const Icon(Icons.tune, size: 20),
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ReaderChrome(
+                      visible: controls,
+                      top: false,
+                      child: Container(
+                        color: const Color(0xff1c231e),
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (total > 1)
+                              Slider(
+                                value: page.toDouble(),
+                                max: (total - 1).toDouble(),
+                                divisions: total - 1,
+                                onChanged: (v) => go(v.round()),
+                              ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: '上一页',
+                                  onPressed: page > 0 ? () => turn(-1) : null,
+                                  icon: const Icon(Icons.chevron_left),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      LocalizedText(
+                                        total == 0 ? '加载章节中' : pageLabel,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      const LocalizedText(
+                                        '轻触中间收起工具栏 · 长按图片缩放',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: Color(0xff8b9a8c),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (total > 0 &&
+                                    lastVisiblePage >= total - 1 &&
+                                    chapters.indexWhere(
+                                          (c) => c.path == chapter.path,
+                                        ) <
+                                        chapters.length - 1 &&
+                                    chapters.any((c) => c.path == chapter.path))
+                                  TextButton(
+                                    onPressed: () => changeChapter(
+                                      chapters[chapters.indexWhere(
+                                            (c) => c.path == chapter.path,
+                                          ) +
+                                          1],
+                                    ),
+                                    child: const LocalizedText('下一章'),
+                                  )
+                                else
+                                  IconButton(
+                                    tooltip: '下一页',
+                                    onPressed: lastVisiblePage < total - 1
+                                        ? () => turn(1)
+                                        : null,
+                                    icon: const Icon(Icons.chevron_right),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    bottom: 6,
+                    child: ReaderChrome(
+                      visible: !controls,
+                      top: false,
+                      child: LocalizedText(
+                        pageLabel,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xff8b9a8c),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

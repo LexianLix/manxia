@@ -3,6 +3,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'localized_text.dart';
 import 'materials.dart';
+import 'room_motion.dart';
 
 /// The lens previews a destination while dragging; the page changes on release.
 class FrostedNavigation extends StatefulWidget {
@@ -28,17 +29,23 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   );
   late final contact = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 110),
-    reverseDuration: const Duration(milliseconds: 230),
+    duration: RoomMotion.press,
+    reverseDuration: RoomMotion.feedback,
   );
   int? preview;
   bool cancelled = false;
   double slotWidth = 1;
   bool reduced = false;
+  double? settlingTo;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     reduced = MediaQuery.disableAnimationsOf(context);
+    if (reduced) {
+      lens.stop();
+      lens.value = widget.selectedIndex.toDouble();
+      contact.value = 0;
+    }
   }
 
   static const items = [
@@ -49,15 +56,17 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   ];
 
   void settle(double target) {
+    if (settlingTo == target && lens.isAnimating) return;
     final velocity = lens.velocity;
     lens.stop();
+    settlingTo = target;
     if (reduced) {
       lens.value = target;
       return;
     }
     lens.animateWith(
       SpringSimulation(
-        const SpringDescription(mass: 1, stiffness: 430, damping: 31),
+        RoomMotion.settle,
         lens.value,
         target,
         velocity.clamp(-12, 12),
@@ -80,6 +89,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   void scrub(double x) {
     final value = ((x - 6) / slotWidth - .5).clamp(0.0, 3.0);
     lens.stop();
+    settlingTo = null;
     lens.value = value;
     final index = value.round();
     if (preview != index) {
@@ -201,7 +211,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                     builder: (context, child) {
                                       final press = reduced
                                           ? 0.0
-                                          : Curves.easeOut.transform(
+                                          : RoomMotion.ease.transform(
                                               contact.value,
                                             );
                                       return Positioned(
@@ -294,20 +304,30 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                                                 scale:
                                                                     1 +
                                                                     .09 * focus,
-                                                                child: Icon(
-                                                                  active
-                                                                      ? items[index]
-                                                                            .$2
-                                                                      : items[index]
-                                                                            .$1,
-                                                                  size: 23,
-                                                                  color: Color.lerp(
-                                                                    ink.withValues(
-                                                                      alpha:
-                                                                          .60,
+                                                                child: AnimatedSwitcher(
+                                                                  duration: RoomMotion.duration(
+                                                                    context,
+                                                                    RoomMotion
+                                                                        .feedback,
+                                                                  ),
+                                                                  child: Icon(
+                                                                    key: ValueKey(
+                                                                      active,
                                                                     ),
-                                                                    accent,
-                                                                    focus,
+                                                                    active
+                                                                        ? items[index]
+                                                                              .$2
+                                                                        : items[index]
+                                                                              .$1,
+                                                                    size: 23,
+                                                                    color: Color.lerp(
+                                                                      ink.withValues(
+                                                                        alpha:
+                                                                            .60,
+                                                                      ),
+                                                                      accent,
+                                                                      focus,
+                                                                    ),
                                                                   ),
                                                                 ),
                                                               ),

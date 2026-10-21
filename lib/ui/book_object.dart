@@ -1,10 +1,59 @@
 import 'localized_text.dart';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import 'comic_image.dart';
 import 'cover_palette.dart';
+import 'room_motion.dart';
 export 'comic_image.dart' show imageAddress;
+
+/// One book travels between the real shelf and detail bounds in both directions.
+/// The same cover, numbering and material survive the flight.
+class BookFlight extends StatelessWidget {
+  const BookFlight({super.key, required this.child, this.enabled = true});
+  final BookObject child;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled || MediaQuery.disableAnimationsOf(context)) return child;
+    return Hero(
+      tag: 'book-${child.comic.path}',
+      curve: RoomMotion.travel,
+      reverseCurve: RoomMotion.travel.flipped,
+      createRectTween: (begin, end) => RectTween(begin: begin, end: end),
+      flightShuttleBuilder: (_, animation, direction, from, to) {
+        final start = (from.widget as Hero).child as BookObject;
+        final end = (to.widget as Hero).child as BookObject;
+        // The route's visual progress runs from one to zero on pop, while Hero
+        // reverses its geometric endpoints. Keep the cover progress reversible.
+        final source = direction == HeroFlightDirection.push ? start : end;
+        final target = direction == HeroFlightDirection.push ? end : start;
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (_, _) {
+            final t = animation.value;
+            final lift = math.sin(math.pi * t);
+            return Transform.rotate(
+              angle: -.025 * lift,
+              child: BookObject(
+                child.comic,
+                web: child.web,
+                number: t < .5 ? source.number : target.number,
+                bookmark: t < .5 ? source.bookmark : target.bookmark,
+                exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
+                light: ui.lerpDouble(source.light, target.light, t)!,
+                opening: .65 * lift,
+              ),
+            );
+          },
+        );
+      },
+      child: child,
+    );
+  }
+}
 
 class ComicCover extends StatelessWidget {
   const ComicCover(
@@ -54,12 +103,14 @@ class BookObject extends StatefulWidget {
     this.number = 1,
     this.bookmark = false,
     this.light = 0,
+    this.opening = 0,
     this.onColor,
   });
   final Comic comic;
   final bool web, bookmark;
   final double exposure;
   final double light;
+  final double opening;
   final ValueChanged<Color>? onColor;
   final int number;
   @override
@@ -190,6 +241,7 @@ class _BookObjectState extends State<BookObject> {
       ),
       exposure: widget.exposure,
       light: widget.light,
+      opening: widget.opening,
     ),
     size: const Size(200, 300),
   );
@@ -338,9 +390,10 @@ class _BookPainter extends CustomPainter {
     required this.artwork,
     required this.exposure,
     required this.light,
+    required this.opening,
   });
   final _BookArtwork artwork;
-  final double exposure, light;
+  final double exposure, light, opening;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
@@ -388,6 +441,25 @@ class _BookPainter extends CustomPainter {
     canvas.translate(x + spine, y);
     canvas.transform((Matrix4.identity()..setEntry(1, 0, dy / fw)).storage);
     canvas.scale(fw / 136, 1);
+    if (opening > .001) {
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 0, 136, h),
+        Paint()..color = const Color(0xffeeeede),
+      );
+      for (var line = 1; line < 5; line++) {
+        canvas.drawLine(
+          Offset(136 - line * 2, 4),
+          Offset(136 - line * 2, h - 4),
+          Paint()..color = const Color(0xffcdd2c3),
+        );
+      }
+      canvas.transform(
+        (Matrix4.identity()
+              ..setEntry(3, 2, .0018)
+              ..rotateY(-.65 * opening))
+            .storage,
+      );
+    }
     canvas.drawPicture(artwork.face);
     const face = Rect.fromLTWH(0, 0, 136, h);
     canvas.drawRect(
@@ -410,5 +482,8 @@ class _BookPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BookPainter old) =>
-      old.artwork != artwork || old.exposure != exposure || old.light != light;
+      old.artwork != artwork ||
+      old.exposure != exposure ||
+      old.light != light ||
+      old.opening != opening;
 }

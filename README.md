@@ -56,14 +56,14 @@
 
 ## 下载与更新
 
-当前发行版：**[v0.2.2](https://github.com/LexianLix/manxia/releases/tag/v0.2.2)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
+当前发行版：**[v0.2.3](https://github.com/LexianLix/manxia/releases/tag/v0.2.3)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
 
 | 设备 | 安装包 |
 | --- | --- |
-| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.2.2/Manxia-0.2.2-arm64-v8a.apk) |
-| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.2.2/Manxia-0.2.2-armeabi-v7a.apk) |
-| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.2.2/Manxia-0.2.2-x86_64.apk) |
-| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.2.2/SHA256SUMS.txt) |
+| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.2.3/Manxia-0.2.3-arm64-v8a.apk) |
+| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.2.3/Manxia-0.2.3-armeabi-v7a.apk) |
+| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.2.3/Manxia-0.2.3-x86_64.apk) |
+| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.2.3/SHA256SUMS.txt) |
 
 下载对应 APK 后安装即可。设置中的“检查更新”会查询 GitHub 最新发行版，并提供下载入口。历史版本、源码归档和发行说明见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 

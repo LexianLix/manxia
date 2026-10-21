@@ -1,7 +1,6 @@
 import 'localized_text.dart';
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -12,6 +11,7 @@ import '../data/library.dart';
 import 'book_object.dart';
 import 'collection_motion.dart';
 import 'materials.dart';
+import 'room_motion.dart';
 
 class LivingShelf extends StatefulWidget {
   const LivingShelf({
@@ -47,9 +47,20 @@ class _LivingShelfState extends State<LivingShelf>
   final bookKeys = <int, GlobalKey>{};
   late final entrance = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 640),
+    duration: RoomMotion.arrival,
   );
   late final lean = AnimationController.unbounded(vsync: this);
+  late final AnimationController parallax =
+      AnimationController(vsync: this, duration: RoomMotion.feedback)
+        ..addListener(() {
+          pointer.value = Offset.lerp(
+            pointerFrom,
+            pointerTo,
+            RoomMotion.ease.transform(parallax.value),
+          )!;
+        });
+  Offset pointerFrom = Offset.zero, pointerTo = Offset.zero;
+  double? intendedPosition;
   bool entered = false;
   Color ambient = const Color(0xff8baf99);
   StreamSubscription<AccelerometerEvent>? tilt;
@@ -66,10 +77,7 @@ class _LivingShelfState extends State<LivingShelf>
     if (!kIsWeb && widget.library.option<bool>('tilt', false)) {
       tilt = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval)
           .listen(
-            (e) => pointer.value = Offset(
-              (e.x / 6).clamp(-1, 1),
-              (e.y / 6).clamp(-1, 1),
-            ),
+            (e) => aim(Offset((e.x / 6).clamp(-1, 1), (e.y / 6).clamp(-1, 1))),
             onError: (_) {},
           );
     }
@@ -87,19 +95,60 @@ class _LivingShelfState extends State<LivingShelf>
       }
     } else if (!animate) {
       entrance.value = 1;
+      position.stop();
+      position.value = intendedPosition ?? position.value.roundToDouble();
       lean.value = 0;
+      parallax.stop();
+      pointer.value = Offset.zero;
     }
   }
 
-  void openBook(Comic comic) {
+  @override
+  void didUpdateWidget(LivingShelf old) {
+    super.didUpdateWidget(old);
+    if (!listEquals(
+      old.books.map((c) => c.path).toList(),
+      widget.books.map((c) => c.path).toList(),
+    )) {
+      final oldIndex =
+          ((position.value.round() % old.books.length) + old.books.length) %
+          old.books.length;
+      final path = old.books[oldIndex].path;
+      final found = widget.books.indexWhere((c) => c.path == path);
+      position.stop();
+      intendedPosition = null;
+      bookKeys.clear();
+      position.value =
+          widget.books.length * 1000 + (found < 0 ? 0 : found).toDouble();
+    }
+  }
+
+  void aim(Offset target) {
+    if (!mounted) return;
+    if (!animate) {
+      pointer.value = Offset.zero;
+      return;
+    }
+    pointerFrom = pointer.value;
+    pointerTo = target;
+    parallax.forward(from: 0);
+  }
+
+  Rect? bookBounds() {
     final object = bookKeys[position.value.round()]?.currentContext
         ?.findRenderObject();
-    if (object is RenderBox && object.hasSize) {
-      widget.onBookOrigin?.call(
-        comic,
-        object.localToGlobal(Offset.zero) & object.size,
-      );
-    }
+    return object is RenderBox && object.hasSize
+        ? object.localToGlobal(Offset.zero) & object.size
+        : null;
+  }
+
+  void openBook(Comic comic) {
+    position.stop();
+    lean.stop();
+    parallax.stop();
+    intendedPosition = null;
+    final bounds = bookBounds();
+    if (bounds != null) widget.onBookOrigin?.call(comic, bounds);
     widget.onOpen(comic);
   }
 
@@ -118,18 +167,28 @@ class _LivingShelfState extends State<LivingShelf>
     }
   }
 
-  void snap(double target, {double velocity = 0}) {
+  void step(int delta) => snap(
+    (position.isAnimating
+            ? intendedPosition ?? position.value.roundToDouble()
+            : position.value.roundToDouble()) +
+        delta,
+  );
+
+  void snap(double target, {double? velocity}) {
+    final carried =
+        velocity ?? (position.isAnimating ? position.velocity : 0.0);
     position.stop();
+    intendedPosition = target;
     if (!animate) {
       position.value = target;
       return;
     }
     position.animateWith(
       SpringSimulation(
-        const SpringDescription(mass: 1, stiffness: 210, damping: 22),
+        RoomMotion.settle,
         position.value,
         target,
-        velocity,
+        carried.clamp(-18, 18),
       ),
     );
   }
@@ -141,6 +200,7 @@ class _LivingShelfState extends State<LivingShelf>
     pointer.dispose();
     entrance.dispose();
     lean.dispose();
+    parallax.dispose();
     super.dispose();
   }
 
@@ -162,28 +222,39 @@ class _LivingShelfState extends State<LivingShelf>
               return MouseRegion(
                 onHover: (e) {
                   if (widget.library.option<bool>('parallax', true)) {
-                    pointer.value = Offset(
-                      (e.localPosition.dx / box.maxWidth - .5) * 2,
-                      (e.localPosition.dy / box.maxHeight - .5) * 2,
+                    aim(
+                      Offset(
+                        (e.localPosition.dx / box.maxWidth - .5) * 2,
+                        (e.localPosition.dy / box.maxHeight - .5) * 2,
+                      ),
                     );
                   }
                 },
-                onExit: (_) => pointer.value = Offset.zero,
+                onExit: (_) => aim(Offset.zero),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragStart: (_) {
                     position.stop();
+                    intendedPosition = null;
                     lean.stop();
                   },
                   onHorizontalDragUpdate: (d) {
                     position.value -= d.delta.dx / (gap * 1.35);
-                    lean.value = animate ? (d.delta.dx / 16).clamp(-1, 1) : 0;
+                    if (animate) {
+                      lean.animateTo(
+                        (d.delta.dx / 16).clamp(-1, 1),
+                        duration: RoomMotion.press,
+                        curve: RoomMotion.ease,
+                      );
+                    } else {
+                      lean.value = 0;
+                    }
                   },
                   onHorizontalDragEnd: (d) {
                     lean.animateTo(
                       0,
-                      duration: Duration(milliseconds: animate ? 320 : 0),
-                      curve: Curves.easeOutCubic,
+                      duration: animate ? RoomMotion.page : Duration.zero,
+                      curve: RoomMotion.ease,
                     );
                     final velocity = -(d.primaryVelocity ?? 0) / (gap * 1.35);
                     final target =
@@ -194,7 +265,8 @@ class _LivingShelfState extends State<LivingShelf>
                   onHorizontalDragCancel: () {
                     lean.animateTo(
                       0,
-                      duration: const Duration(milliseconds: 200),
+                      duration: animate ? RoomMotion.feedback : Duration.zero,
+                      curve: RoomMotion.ease,
                     );
                     snap(position.value.roundToDouble());
                   },
@@ -221,7 +293,9 @@ class _LivingShelfState extends State<LivingShelf>
                         children: [
                           Positioned.fill(
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 380),
+                              duration: animate
+                                  ? RoomMotion.page
+                                  : Duration.zero,
                               decoration: BoxDecoration(
                                 gradient: RadialGradient(
                                   center: const Alignment(0, .2),
@@ -277,7 +351,7 @@ class _LivingShelfState extends State<LivingShelf>
                                 final item = widget.books[index(logical)];
                                 final delay = distance.abs().clamp(0, 5) * .055;
                                 final arrival = animate
-                                    ? Curves.easeOutCubic.transform(
+                                    ? RoomMotion.ease.transform(
                                         ((entrance.value - delay) / (1 - delay))
                                             .clamp(0.0, 1.0),
                                       )
@@ -312,39 +386,45 @@ class _LivingShelfState extends State<LivingShelf>
                                                 : 0,
                                           ),
                                           duration: Duration(
-                                            milliseconds: animate ? 280 : 0,
+                                            milliseconds: animate
+                                                ? RoomMotion.page.inMilliseconds
+                                                : 0,
                                           ),
-                                          curve: Curves.easeOutBack,
-                                          child: BookObject(
-                                            item,
-                                            key: bookKeys.putIfAbsent(
-                                              logical,
-                                              GlobalKey.new,
-                                            ),
-                                            web: widget.web,
-                                            number: index(logical) + 1,
-                                            exposure: focus,
-                                            light: pointer.value.dx,
-                                            bookmark:
-                                                widget.library.record(item) !=
-                                                null,
-                                            onColor:
-                                                logical == center &&
-                                                    widget.library.option<bool>(
-                                                      'coverColor',
-                                                      true,
-                                                    )
-                                                ? (color) {
-                                                    if (mounted &&
-                                                        ambient != color) {
-                                                      setState(
-                                                        () => ambient = color,
-                                                      );
-                                                      widget.onAmbientColor
-                                                          ?.call(color);
+                                          curve: RoomMotion.ease,
+                                          child: BookFlight(
+                                            enabled: logical == center,
+                                            child: BookObject(
+                                              item,
+                                              key: bookKeys.putIfAbsent(
+                                                logical,
+                                                GlobalKey.new,
+                                              ),
+                                              web: widget.web,
+                                              number: index(logical) + 1,
+                                              exposure: focus,
+                                              light: pointer.value.dx,
+                                              bookmark:
+                                                  widget.library.record(item) !=
+                                                  null,
+                                              onColor:
+                                                  logical == center &&
+                                                      widget.library
+                                                          .option<bool>(
+                                                            'coverColor',
+                                                            true,
+                                                          )
+                                                  ? (color) {
+                                                      if (mounted &&
+                                                          ambient != color) {
+                                                        setState(
+                                                          () => ambient = color,
+                                                        );
+                                                        widget.onAmbientColor
+                                                            ?.call(color);
+                                                      }
                                                     }
-                                                  }
-                                                : null,
+                                                  : null,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -411,7 +491,7 @@ class _LivingShelfState extends State<LivingShelf>
           children: [
             Expanded(
               child: AnimatedSwitcher(
-                duration: Duration(milliseconds: animate ? 180 : 0),
+                duration: animate ? RoomMotion.feedback : Duration.zero,
                 transitionBuilder: (child, a) => FadeTransition(
                   opacity: a,
                   child: SlideTransition(
@@ -420,10 +500,7 @@ class _LivingShelfState extends State<LivingShelf>
                           begin: const Offset(0, .16),
                           end: Offset.zero,
                         ).animate(
-                          CurvedAnimation(
-                            parent: a,
-                            curve: Curves.easeOutCubic,
-                          ),
+                          CurvedAnimation(parent: a, curve: RoomMotion.ease),
                         ),
                     child: child,
                   ),
@@ -453,7 +530,7 @@ class _LivingShelfState extends State<LivingShelf>
             ),
             IconButton(
               tooltip: '上一本',
-              onPressed: () => snap(position.value.roundToDouble() - 1),
+              onPressed: () => step(-1),
               icon: const Icon(Icons.chevron_left, size: 21),
             ),
             LocalizedText(
@@ -462,7 +539,7 @@ class _LivingShelfState extends State<LivingShelf>
             ),
             IconButton(
               tooltip: '下一本',
-              onPressed: () => snap(position.value.roundToDouble() + 1),
+              onPressed: () => step(1),
               icon: const Icon(Icons.chevron_right, size: 21),
             ),
           ],
@@ -489,9 +566,10 @@ class _LivingShelfState extends State<LivingShelf>
                   comic,
                   widget.library,
                   widget.web,
+                  origin: bookBounds(),
                 ),
                 icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
+                  duration: RoomMotion.duration(context, RoomMotion.feedback),
                   transitionBuilder: (child, a) => ScaleTransition(
                     scale: CurvedAnimation(
                       parent: a,
@@ -522,6 +600,8 @@ class _LivingShelfState extends State<LivingShelf>
   }
 }
 
+/// The cover travels in the Hero layer; this layer reveals the reading room.
+/// A single reversible progress value also supports an early back action.
 class OpenBookTransition extends StatelessWidget {
   const OpenBookTransition({
     super.key,
@@ -540,147 +620,15 @@ class OpenBookTransition extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: animation,
-    builder: (context, _) {
-      final progress = animation.value;
-      final screen = MediaQuery.sizeOf(context);
-      final move = Curves.easeInOutCubic.transform(
-        (progress / .66).clamp(0.0, 1.0),
-      );
-      final target = Rect.fromCenter(
-        center: Offset(screen.width / 2, screen.height * .43),
-        width: 200,
-        height: 280,
-      );
-      final rect = Rect.lerp(origin ?? target.translate(0, 35), target, move)!;
-      final opening = Curves.easeInOutCubic.transform(
-        ((progress - .30) / .52).clamp(0.0, 1.0),
-      );
-      final flatten = ((progress - .17) / .23).clamp(0.0, 1.0);
-      final reveal = Curves.easeOutCubic.transform(
-        ((progress - .60) / .40).clamp(0.0, 1.0),
-      );
-      final veil = ((progress - .08) / .55).clamp(0.0, 1.0);
-      return Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRect(
-              child: BackdropFilter(
-                enabled: progress < .999,
-                filter: ui.ImageFilter.blur(sigmaX: 4 * veil, sigmaY: 4 * veil),
-                child: ColoredBox(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.surface.withValues(alpha: veil),
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: Opacity(
-              opacity: reveal,
-              child: Transform.translate(
-                offset: Offset(0, 18 * (1 - reveal)),
-                child: child,
-              ),
-            ),
-          ),
-          Positioned.fromRect(
-            rect: rect,
-            child: IgnorePointer(
-              child: Opacity(
-                opacity: 1 - reveal,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    if (flatten < 1)
-                      Positioned.fill(
-                        child: Opacity(
-                          opacity: 1 - flatten,
-                          child: BookObject(comic, web: web),
-                        ),
-                      ),
-                    if (flatten > 0)
-                      Positioned.fill(
-                        child: Opacity(
-                          opacity: flatten,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 12, 20, 6),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Positioned.fill(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xfffafbf5),
-                                      border: Border.all(
-                                        color: const Color(0xffd6ddcf),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: .18,
-                                          ),
-                                          blurRadius: 26,
-                                          offset: const Offset(10, 18),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: LocalizedText(
-                                          comic.title,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: Color(0xff526d60),
-                                            fontSize: 23,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Positioned.fill(
-                                  child: Transform(
-                                    alignment: Alignment.centerLeft,
-                                    transform: Matrix4.identity()
-                                      ..setEntry(3, 2, .002)
-                                      ..rotateY(-math.pi * .83 * opening),
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        ComicCover(comic, web: web),
-                                        DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                Colors.black.withValues(
-                                                  alpha: .22 * opening,
-                                                ),
-                                                Colors.white.withValues(
-                                                  alpha: .15 * opening,
-                                                ),
-                                                Colors.transparent,
-                                              ],
-                                              stops: const [0, .13, 1],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+    child: child,
+    builder: (context, child) {
+      final t = RoomMotion.travel.transform(animation.value);
+      return IgnorePointer(
+        ignoring: animation.value < .12,
+        child: ExcludeSemantics(
+          excluding: animation.value < .12,
+          child: Opacity(opacity: t, child: child),
+        ),
       );
     },
   );

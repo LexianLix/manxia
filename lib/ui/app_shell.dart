@@ -17,6 +17,7 @@ import 'glass_navigation.dart';
 import 'retained_pages.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
+import 'room_motion.dart';
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -34,6 +35,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int tab = 0;
+  bool opening = false;
   (String, Rect)? openingOrigin;
   final atmosphere = ValueNotifier<Color>(const Color(0xff8baf99));
   late final source = SourceHub(
@@ -54,39 +56,51 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
-  void open(Comic c) {
+  Future<void> open(Comic c) async {
+    if (opening) return;
+    opening = true;
     final origin = openingOrigin?.$1 == c.path ? openingOrigin?.$2 : null;
     openingOrigin = null;
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        transitionDuration: Duration(
-          milliseconds:
-              widget.library.motion && !MediaQuery.disableAnimationsOf(context)
-              ? 760
-              : 0,
+    try {
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: false,
+          transitionDuration: Duration(
+            milliseconds:
+                widget.library.motion &&
+                    !MediaQuery.disableAnimationsOf(context)
+                ? RoomMotion.book.inMilliseconds
+                : 0,
+          ),
+          reverseTransitionDuration: Duration(
+            milliseconds:
+                widget.library.motion &&
+                    !MediaQuery.disableAnimationsOf(context)
+                ? RoomMotion.bookReturn.inMilliseconds
+                : 0,
+          ),
+          pageBuilder: (_, _, _) => DetailPage(
+            comic: c,
+            library: widget.library,
+            source: source,
+            web: widget.web,
+            bookNumber: math.max(
+              1,
+              widget.library.books.indexWhere((b) => b.path == c.path) + 1,
+            ),
+          ),
+          transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
+            animation: animation,
+            comic: c,
+            web: widget.web,
+            origin: origin,
+            child: child,
+          ),
         ),
-        reverseTransitionDuration: Duration(
-          milliseconds:
-              widget.library.motion && !MediaQuery.disableAnimationsOf(context)
-              ? 320
-              : 0,
-        ),
-        pageBuilder: (_, _, _) => DetailPage(
-          comic: c,
-          library: widget.library,
-          source: source,
-          web: widget.web,
-        ),
-        transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
-          animation: animation,
-          comic: c,
-          web: widget.web,
-          origin: origin,
-          child: child,
-        ),
-      ),
-    );
+      );
+    } finally {
+      opening = false;
+    }
   }
 
   @override
@@ -797,7 +811,7 @@ class _AppShellState extends State<AppShell> {
             onPressed: () => showLicensePage(
               context: context,
               applicationName: '漫匣',
-              applicationVersion: '0.2.2',
+              applicationVersion: '0.2.3',
             ),
             child: const LocalizedText(
               '开源许可与字体声明',

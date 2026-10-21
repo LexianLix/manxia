@@ -19,11 +19,13 @@ class DetailPage extends StatefulWidget {
     required this.library,
     required this.source,
     required this.web,
+    this.bookNumber = 1,
   });
   final Comic comic;
   final Library library;
   final Dm5Source source;
   final bool web;
+  final int bookNumber;
   @override
   State<DetailPage> createState() => _DetailPageState();
 }
@@ -32,6 +34,16 @@ class _DetailPageState extends State<DetailPage> {
   late Future<ComicDetail> detail = widget.source.detail(widget.comic);
   String group = '连载';
   bool ascending = true;
+  bool enteringReader = false;
+  final coverKey = GlobalKey();
+
+  Rect? coverBounds() {
+    final object = coverKey.currentContext?.findRenderObject();
+    return object is RenderBox && object.hasSize
+        ? object.localToGlobal(Offset.zero) & object.size
+        : null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,18 +61,24 @@ class _DetailPageState extends State<DetailPage> {
     Chapter chapter,
     List<Chapter> chapters,
   ) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ReaderPage(
-          comic: comic,
-          chapter: chapter,
-          chapters: chapters,
-          library: widget.library,
-          source: widget.source,
-          web: widget.web,
+    if (enteringReader) return;
+    enteringReader = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ReaderPage(
+            comic: comic,
+            chapter: chapter,
+            chapters: chapters,
+            library: widget.library,
+            source: widget.source,
+            web: widget.web,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      enteringReader = false;
+    }
     if (mounted) setState(() {});
   }
 
@@ -201,6 +219,7 @@ class _DetailPageState extends State<DetailPage> {
                         comic,
                         widget.library,
                         widget.web,
+                        origin: coverBounds(),
                       ),
                       icon: Icon(
                         widget.library.contains(comic)
@@ -282,11 +301,12 @@ class _DetailPageState extends State<DetailPage> {
                                 SizedBox(
                                   height: 280,
                                   width: 200,
-                                  child: Hero(
-                                    tag: 'book-${comic.path}',
+                                  child: BookFlight(
+                                    key: coverKey,
                                     child: BookObject(
                                       comic,
                                       web: widget.web,
+                                      number: widget.bookNumber,
                                       bookmark: history != null,
                                     ),
                                   ),
@@ -296,7 +316,7 @@ class _DetailPageState extends State<DetailPage> {
                               ],
                             )
                           : Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 SizedBox(
                                   width: 300,
@@ -305,11 +325,12 @@ class _DetailPageState extends State<DetailPage> {
                                     child: SizedBox(
                                       width: 240,
                                       height: 336,
-                                      child: Hero(
-                                        tag: 'book-${comic.path}',
+                                      child: BookFlight(
+                                        key: coverKey,
                                         child: BookObject(
                                           comic,
                                           web: widget.web,
+                                          number: widget.bookNumber,
                                           bookmark: history != null,
                                         ),
                                       ),

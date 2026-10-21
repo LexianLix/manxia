@@ -7,6 +7,7 @@ import 'data/library.dart';
 import 'data/source_hub.dart';
 import 'data/offline_library.dart';
 import 'ui/app_shell.dart';
+import 'ui/room_motion.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,6 +71,15 @@ class ManxiaApp extends StatelessWidget {
     );
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: RoomPageTransitions(),
+          TargetPlatform.windows: RoomPageTransitions(),
+          TargetPlatform.linux: RoomPageTransitions(),
+          TargetPlatform.macOS: RoomPageTransitions(),
+          TargetPlatform.iOS: RoomPageTransitions(),
+        },
+      ),
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
       fontFamily: 'ArchiveSerif',

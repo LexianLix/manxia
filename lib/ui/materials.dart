@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'room_motion.dart';
 
 class MilkGlass extends StatefulWidget {
   const MilkGlass({
@@ -122,10 +123,8 @@ class EntryReveal extends StatelessWidget {
   @override
   Widget build(BuildContext c) => TweenAnimationBuilder<double>(
     tween: Tween(begin: 0, end: 1),
-    duration: Duration(
-      milliseconds: enabled && !MediaQuery.disableAnimationsOf(c) ? 360 : 0,
-    ),
-    curve: Curves.easeOutCubic,
+    duration: enabled ? RoomMotion.duration(c, RoomMotion.page) : Duration.zero,
+    curve: RoomMotion.ease,
     builder: (_, t, child) => Opacity(
       opacity: t,
       child: Transform.translate(offset: Offset(0, 14 * (1 - t)), child: child),

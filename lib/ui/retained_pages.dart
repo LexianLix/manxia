@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'room_motion.dart';
 
-/// Only visited pages are created. Inactive scenes retain state and images,
-/// but do not paint or tick; transitions animate their retained layer.
+/// Retarget from the rendered poses instead of replaying a transition at zero.
+/// Only visited pages are built; hidden scenes retain state without ticking.
 class RetainedPages extends StatefulWidget {
   const RetainedPages({
     super.key,
@@ -20,19 +21,52 @@ class _RetainedPagesState extends State<RetainedPages>
     with SingleTickerProviderStateMixin {
   late final clock = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 280),
+    duration: RoomMotion.page,
     value: 1,
   );
   late final visited = <int>{widget.index};
-  int? previous;
-  int direction = 1;
+  final starts = <int, (double, double)>{};
+  final ends = <int, (double, double)>{};
+
+  (double, double) pose(int index) {
+    final end = ends[index] ?? (index == widget.index ? 1.0 : 0.0, 0.0);
+    final start = starts[index] ?? end;
+    final t = RoomMotion.ease.transform(clock.value);
+    return (
+      start.$1 + (end.$1 - start.$1) * t,
+      start.$2 + (end.$2 - start.$2) * t,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!widget.animate || MediaQuery.disableAnimationsOf(context)) {
+      clock.value = 1;
+    }
+  }
+
   @override
   void didUpdateWidget(RetainedPages old) {
     super.didUpdateWidget(old);
     if (old.index != widget.index) {
+      final direction = widget.index > old.index ? 1.0 : -1.0;
+      // didUpdateWidget already has the new widget. The old page is still at
+      // rest when no prior transition has populated its endpoint.
+      ends.putIfAbsent(old.index, () => (1.0, 0.0));
+      final snapshots = {for (final index in visited) index: pose(index)};
       visited.add(widget.index);
-      previous = old.index;
-      direction = widget.index > old.index ? 1 : -1;
+      for (final index in visited) {
+        final snapshot = snapshots[index];
+        final start =
+            index == widget.index && (snapshot == null || snapshot.$1 < .001)
+            ? (0.0, 18 * direction)
+            : snapshot ?? (0.0, 18 * direction);
+        starts[index] = start;
+        ends[index] = index == widget.index
+            ? (1.0, 0.0)
+            : (0.0, index == old.index ? -18 * direction : start.$2);
+      }
       if (widget.animate && !MediaQuery.disableAnimationsOf(context)) {
         clock.forward(from: 0);
       } else {
@@ -60,27 +94,24 @@ class _RetainedPagesState extends State<RetainedPages>
           child: RepaintBoundary(child: widget.builder(index)),
           builder: (context, child) {
             final current = index == widget.index;
-            final visible =
-                current || (index == previous && !clock.isCompleted);
-            final t = Curves.easeOutCubic.transform(clock.value);
+            final (alpha, dx) = pose(index);
+            final visible = current || (!clock.isCompleted && alpha > .001);
             return Offstage(
               offstage: !visible,
-              child: TickerMode(
-                enabled: visible,
-                child: ExcludeSemantics(
-                  excluding: !current,
-                  child: IgnorePointer(
-                    ignoring: !current,
-                    child: Opacity(
-                      opacity: current ? t : 1 - t,
-                      child: Transform.translate(
-                        offset: Offset(
-                          current
-                              ? 24 * direction * (1 - t)
-                              : -16 * direction * t,
-                          0,
+              child: HeroMode(
+                enabled: current,
+                child: TickerMode(
+                  enabled: current,
+                  child: ExcludeSemantics(
+                    excluding: !current,
+                    child: IgnorePointer(
+                      ignoring: !current,
+                      child: Opacity(
+                        opacity: alpha.clamp(0, 1),
+                        child: Transform.translate(
+                          offset: Offset(dx, 0),
+                          child: child,
                         ),
-                        child: child,
                       ),
                     ),
                   ),
