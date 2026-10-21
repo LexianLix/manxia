@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/icon.png" width="96" alt="漫匣图标" />
+  <img src="web/icons/Icon-512.png" width="96" alt="漫匣图标" />
 </p>
 
 <h1 align="center">漫匣 · Manxia</h1>
@@ -8,7 +8,7 @@
 <p align="center">一个注重书籍质感与阅读体验的 Flutter 漫画阅读器</p>
 
 <p align="center">
-  <a href="https://github.com/LexianLix/manxia/releases/latest"><img src="https://img.shields.io/github/v/release/LexianLix/manxia?style=flat-square&color=47745e" alt="最新发行版" /></a>
+  <a href="https://github.com/LexianLix/manxia/releases/latest"><img src="https://img.shields.io/github/v/release/LexianLix/manxia?style=flat-square&color=47745e&cacheSeconds=300" alt="最新发行版" /></a>
   <a href="https://github.com/LexianLix/manxia/actions/workflows/ci.yml"><img src="https://github.com/LexianLix/manxia/actions/workflows/ci.yml/badge.svg?branch=main" alt="构建状态" /></a>
   <img src="https://img.shields.io/badge/Platform-Android-47745e?style=flat-square" alt="Android" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-47745e?style=flat-square" alt="MIT License" /></a>
