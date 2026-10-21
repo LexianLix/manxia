@@ -71,7 +71,11 @@ git remote set-url origin https://github.com/你的用户名/manxia.git
 git push -u origin main
 ```
 
-## 4. 下载自动构建产物
+## 4. 下载安装包与测试产物
+
+普通使用者请从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载固定签名的 Release APK。常见手机选择 ARM64；安装与迁移见 [发布指南](RELEASE.md)。
+
+以下 Actions 附件供开发和测试使用：
 
 打开仓库 → Actions → `Check and build` → 最近一次运行。构建成功后，页面底部 Artifacts 有：
 

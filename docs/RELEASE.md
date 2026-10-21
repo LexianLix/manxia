@@ -1,41 +1,94 @@
-# Android 发布与数据迁移
+# 构建、发行与数据迁移
 
-开发包从 GitHub Actions 下载。它使用构建环境的临时调试证书，不保证与另一次构建同签名。正式安装前先在应用中导出资料及离线书库。
+## 安装发行版
 
-## 私有正式签名
+从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.2.2 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
 
-本机配置 JDK 17、Android SDK、Flutter，完成 flutter doctor 所列条件后：
+发行包使用 Release 模式编译，并由项目固定密钥签名。发行页包含 `SHA256SUMS.txt` 与 `release-manifest.json`，后者记录构建提交、工作流、架构、版本码和签名证书指纹。GitHub 自动提供的 Source code 归档是源码，不是安装包。
+
+下载后可在 PowerShell 中检查文件哈希，并与发行页的校验文件比对：
+
+```powershell
+Get-FileHash .\Manxia-0.2.2-arm64-v8a.apk -Algorithm SHA256
+```
+
+项目签名证书 SHA-256：
+
+```text
+9618d4bb9b8ce8045c502c79fea0b8c2eb4d14f0a6ccb380cf22ac2bccdbc091
+```
+
+证书指纹用于区分签名身份，与某个 APK 文件的 SHA-256 不同。持有 Android Build Tools 时，也可运行 `apksigner verify --verbose --print-certs <APK>` 检查签名。
+
+## 升级与恢复
+
+旧 Debug／Profile 测试包使用构建环境的临时证书，与项目发行签名不同。换装前请依次：
+
+1. 在旧版“设置 → 备份与同步 → 导出完整离线书库”保存 ZIP，再导出一份资料 JSON。确认文件已保存在应用外可访问的位置。
+2. 卸载旧测试包，安装发行版。不要在尚未成功保存备份时清除应用数据。
+3. 在新版“恢复离线书库”导入 ZIP；需要时通过“导入并合并备份”补入 JSON。WebDAV 密码不包含在备份中，需重新填写。
+
+后续同架构发行包沿用相同 applicationId 和签名，并递增构建号。切换架构或降级可能受 Android 版本码限制，请优先沿用相同架构。真机覆盖安装与恢复仍需实际设备验证，备份应独立保留。
+
+0.2 保留旧 favorites/history 键，旧记录没有图片内位置时按 0 恢复；新分组、书签与删除标记使用 features.v2，离线索引使用 offline.v1。备份格式带 schema，遇到更新的不支持版本会拒绝导入。
+
+设置中的“检查更新”读取本仓库最新发行版，并打开 GitHub 下载入口，不在后台自行安装 APK。
+
+## 自行构建
+
+准备 Flutter 3.47.7、Dart 3.13.5、JDK 17 与 Android SDK，先运行 `flutter doctor` 完成环境配置。
+
+### Windows 签名与构建
 
 ```powershell
 .\tools\Create-Signing.ps1
 .\tools\Build-Android.ps1 -Release
 ```
 
-脚本生成随机签名密码，以环境变量传给 keytool，不把密码放入进程参数；私有材料放 `.private/manxia-release.jks` 和 `android/key.properties`，均被 Git 忽略。脚本拒绝覆盖已有密钥。正式 release 没有此配置时会构建失败，不会悄悄退回调试签名。
+签名脚本生成随机密码，以环境变量传给 keytool；密钥放在 `.private/manxia-release.jks`，配置放在 `android/key.properties`。两者都被 Git 忽略。脚本拒绝覆盖已有密钥，后续构建请继续使用原密钥。
 
-把密钥和配置一起放到自己的加密备份中。不要提交、发到聊天或放进公开仓库。后续更新必须使用相同 applicationId 和密钥，并递增 pubspec.yaml 的构建号。
+### 其他平台
 
-本机已生成并检查 Git 忽略的私有 RSA-3072 签名密钥，未上传到仓库。本机没有完整 Android SDK，本轮未生成自有正式签名安装包。CI 负责测试构建；没有自动上传私有密钥到 GitHub Secrets。
+使用 JDK 的 keytool 在仓库外生成自己的密钥，并在 `android/key.properties` 中写入以下字段，替换示例值。路径建议使用正斜杠；相对路径以 `android/app` 为基准。
 
-## 升级与恢复
+```properties
+storeFile=/private/path/manxia-release.jks
+storePassword=YOUR_PRIVATE_STORE_PASSWORD
+keyAlias=manxia
+keyPassword=YOUR_PRIVATE_KEY_PASSWORD
+```
 
-0.2 保留旧 favorites/history 键，旧记录没有图片内位置时按 0 恢复；新分组/书签/删除标记使用 features.v2，离线索引使用 offline.v1。导出格式带 schema，遇到更新的不支持版本拒绝导入。
+然后运行：
 
-正式发布前需在真机依次做：旧版本收藏/阅读/下载 → 导出备份 → 相同密钥覆盖安装新版 → 核对进度与离线页 → 再次导出/恢复。降级不强行覆盖不兼容数据库；使用对应版本和备份恢复。
+```sh
+flutter pub get
+flutter build apk --release --split-per-abi
+```
 
-设置中的更新按钮读取本仓库 latest release，展示当前版本与最新标签，用户前往 GitHub 选择下载，不在后台自行安装 APK。
+产物位于 `build/app/outputs/flutter-apk/`。自行构建使用自己的签名，不能覆盖项目官方签名的安装包。密钥与配置应一起保存在加密备份中；不要上传到 Issues、聊天、公开仓库或构建附件。
 
-## 当前未验证
+普通 Release 构建缺少签名配置时会失败，不会自动使用临时 Debug 证书。`tools/Build-Android.ps1` 不带参数时构建 Profile，`-Debug` 构建调试包，`-Release` 构建正式签名包。
 
-真机安装、同签名覆盖升级、正式签名 APK 构建和回滚。源码与模拟持久化测试不能代替以上验证。
-## 性能测试包补充（0.2.2）
+## 维护者发布流程
 
-Actions 默认产出 `manxia-android-profile/app-profile.apk`，用 Profile 模式 AOT 编译，以免把 Debug 模式开销带入流畅度试用。它仍是临时测试签名，保留性能分析能力；正式发行和稳定覆盖升级继续使用自己的固定 Release 密钥。默认执行 `tools/Build-Android.ps1` 也构建 Profile，`-Debug` 用于开发调试，`-Release` 用于正式签名构建。
+1. 更新 `pubspec.yaml` 的版本和构建号、`CHANGELOG.md`、README 下载链接。检查签名文件仍被 Git 忽略；提交源码与文档。
+2. 在待发布提交上创建 `vX.Y.Z` 标签，推送后手动运行 [Prepare Android release](https://github.com/LexianLix/manxia/actions/workflows/release-build.yml)，选择该标签。工作流通过代码分析、Flutter 与 Node 测试后，按架构构建 Release APK。
+3. 下载该次运行的 `manxia-unsigned-release` 附件并解压。它是**未签名的准备产物**，不要直接放到 Releases 供安装。`build-info.json` 记录确切提交、版本与文件哈希。
+4. 在保存项目密钥的 Windows 机器上，使用 Android SDK Build Tools 执行本地签名：
 
-已比较本机保存的 0.2.1 与 0.2.2 安装包，测试签名不同，不能直接覆盖。手动换装时：
+```powershell
+.\tools\Sign-Release.ps1 -InputDirectory .\artifacts\unsigned -BuildToolsDirectory 'C:\Android\Sdk\build-tools\36.0.0' -OutputDirectory .\artifacts\release
+```
 
-1. 在旧版“设置 → 备份与同步 → 导出完整离线书库”保存 ZIP，并另存一份“导出资料备份”JSON；确认导出成功且文件已保存到应用外的位置。
-2. 再卸载旧测试包，安装新包。
-3. 在新版“恢复离线书库”导入 ZIP；必要时通过“导入并合并备份”补入 JSON。重新填写 WebDAV 密码，备份不会包含密码。
+脚本核对输入哈希、版本、包名、架构与版本码，先执行 16 KB ZIP 对齐，再签名、验证签名和对齐。密码通过环境变量传递；输出包含 APK、`SHA256SUMS.txt`、`release-manifest.json` 及各架构的验证日志。已有 APK 不会被覆盖。
 
-本轮只提供安装文件和迁移说明，没有执行卸载、清除数据或安装到真机。
+5. 核对三包签名一致且与既往发行版相同。Flutter 分包会为构建号增加架构偏移，当前构建号 4 对应 ARMv7 `1004`、ARM64 `2004`、x86_64 `4004`，不要把这些值误认为版本不一致。
+6. 在 GitHub 创建关联标签的 Release 草稿，上传三个已签名 APK、哈希清单和发行清单。检查附件名称与 README 链接一致，再发布并确认公开下载可用。发布后不替换同名安装包；修订应用需增加构建号并发布新版本。
+
+签名密钥保留本机，没有上传到 GitHub Secrets。CI 通过显式环境变量 `MANXIA_UNSIGNED_RELEASE=true` 准备未签名产物；只有维护者签名、核对并发布后的附件才是发行包。
+
+签名工具使用方式参考 Android 官方的 [apksigner](https://developer.android.com/tools/apksigner) 与 [zipalign](https://developer.android.com/tools/zipalign) 文档。
+
+## 验证范围
+
+v0.2.2 已完成代码分析、自动测试、各架构 Release 编译、APK 签名与 ZIP 对齐检查；清单提供可核对的构建出处。签名和文件检查不能证明 Android 真机安装、持续阅读、体感、音量键、旋转、升级与回滚均通过，以上仍待实机验收。WebDAV 协议测试也不能代替真实网盘账号验收。

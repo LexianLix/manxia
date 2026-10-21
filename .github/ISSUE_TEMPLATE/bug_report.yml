@@ -1,0 +1,36 @@
+name: 缺陷反馈
+description: 报告阅读、界面、来源或同步中可复现的问题
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本与安装来源
+      placeholder: 例如 0.2.2，GitHub Releases ARM64
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 设备与系统
+      placeholder: 手机型号、Android 版本；Web 请填写浏览器与版本
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 请按顺序描述操作；来源问题可附公开页面地址与发生时间。
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期行为与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或日志（可选）
+      description: 请移除个人信息、账号、密码与私有地址，不要上传个人备份或漫画正文。

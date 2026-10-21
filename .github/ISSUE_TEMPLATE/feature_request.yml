@@ -1,0 +1,18 @@
+name: 功能建议
+description: 提出新的阅读体验或改进建议
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景
+      description: 你想完成什么，目前遇到了什么困难？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的改进
+      description: 可附交互参考、草图或替代方案。
+    validations:
+      required: true

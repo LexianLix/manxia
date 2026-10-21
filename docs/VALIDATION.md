@@ -1,4 +1,14 @@
-# 验收记录 · 2026-10-20 · 0.2 开发版
+# 验证记录 · 0.2.x
+
+## 0.2.2 公开发行 · 2026-10-21
+
+Release 准备工作流已通过代码分析、33 项 Flutter 测试、6 项 Node 测试和三种架构的 Release 编译。安装包使用本机项目固定密钥签名，apksigner 验证 v2/v3 签名通过，zipalign 的 16 KB 对齐检查通过。包名为 io.manxia.manxia，版本 0.2.2，最低 API 24；架构分包版本码为 ARMv7 1004、ARM64 2004、x86_64 4004。
+
+已核对 Release 包包含对应架构的 libapp.so，不包含 Debug 的 kernel_blob.bin。实际发布包的完整 SHA-256、签名证书指纹、源码提交和构建运行记录在 [发行页](https://github.com/LexianLix/manxia/releases/tag/v0.2.2) 的 release-manifest.json 与 SHA256SUMS.txt 中提供。上述检查不代替真机安装、流畅度、覆盖升级和实际 WebDAV 服务验收。
+
+README 的三张预览图采集于 0.2.2 Web release，视口 390 × 844；用于展示当前书架、排行榜与设置，不作为 Android 真机截图。
+
+以下保留各开发阶段的历史检查记录。
 
 ## 0.2.2 性能复核
 
