@@ -43,3 +43,12 @@ python tools/android-startup-smoke.py Manxia-0.2.4-x86_64.apk
 手机请替换为相应架构的 APK。本命令安装/替换测试应用并启动，不清除已有应用数据；请使用专用测试设备。脚本拒绝没有实际首屏内容的白屏、仅系统启动图，以及含未处理启动异常的结果。
 
 模拟器结果不能代替各厂商 ARM64 手机的实际验收。覆盖升级、完整阅读、设备按键与体感仍需对应设备测试。
+
+
+## v0.3.0 的 x86 模拟器兼容
+
+Flutter 3.47 的 Impeller OpenGLES 在 Linux x86 软件 AVD 上可能导致模拟器退出，见[上游报告](https://github.com/flutter/flutter/issues/192736)。本项目同 APK 对照中，默认后端第三次启动失联，而 Skia 三次通过；随后默认发行流程在 Android 11 / 15 各连续三次通过。
+
+`MainActivity.getFlutterShellArgs` 仅对 x86 / x86_64 且硬件标识为 ranchu / goldfish 的 AVD 关闭 Impeller，物理设备保持平台默认。常规发行检查不通过 Intent 指定后端，确认兼容处理来自安装包。`Diagnose Android emulator renderer` 工作流可对指定历史构建做同包对照；`--renderer skia` 仅用于诊断。
+
+检查同时核对标题的实际像素，保留原始截图与 RGB 预览。此前将 PNG 预览显示异常误认为缺绘的判断已通过原始像素复核更正，见验证记录。升级 Flutter 后应重新评估这项模拟器兼容处理。

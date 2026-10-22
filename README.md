@@ -32,6 +32,11 @@
 ## 界面预览
 
 <p align="center">
+  <img src="docs/images/book-motion.gif" width="320" alt="封面与书页沿书脊翻开，进入漫画详情" />
+</p>
+<p align="center"><sub>沿书脊翻开封面与书页 · 手机尺寸 Web 实录</sub></p>
+
+<p align="center">
   <img src="docs/images/shelf.png" width="30%" alt="立体书架与悬浮玻璃导航" />
   &nbsp;
   <img src="docs/images/plugins.png" width="30%" alt="插件商城与可组合的阅读室主题" />
@@ -65,16 +70,14 @@
 
 ## 下载与更新
 
-main 分支包含下一版本的交互与插件功能；正式安装请选择下方已发布版本。
-
-当前发行版：**[v0.2.4](https://github.com/LexianLix/manxia/releases/tag/v0.2.4)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
+当前发行版：**[v0.3.0](https://github.com/LexianLix/manxia/releases/tag/v0.3.0)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
 
 | 设备 | 安装包 |
 | --- | --- |
-| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.2.4/Manxia-0.2.4-arm64-v8a.apk) |
-| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.2.4/Manxia-0.2.4-armeabi-v7a.apk) |
-| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.2.4/Manxia-0.2.4-x86_64.apk) |
-| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.2.4/SHA256SUMS.txt) |
+| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.3.0/Manxia-0.3.0-arm64-v8a.apk) |
+| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.3.0/Manxia-0.3.0-armeabi-v7a.apk) |
+| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.3.0/Manxia-0.3.0-x86_64.apk) |
+| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.3.0/SHA256SUMS.txt) |
 
 下载对应 APK 后安装即可。设置中的“检查更新”会查询 GitHub 最新发行版，并提供下载入口。历史版本、源码归档和发行说明见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 

@@ -2,13 +2,17 @@
 
 ## 0.3.0 交互与插件 · 2026-10-22
 
-本地静态分析无问题，51 项 Flutter 测试、7 项 Node 测试通过。新增覆盖插件目录与字节哈希、生命周期与配置保存、来源解析停用、逐本偏好优先、损坏状态隔离、下载校验拒绝，以及页面取消手势、液滴连续反向和书本落位后展开状态。
+本地静态分析无问题，51 项 Flutter、7 项 Node 和 3 项 Python 校验测试通过。覆盖插件目录及字节哈希、生命周期与配置、源解析停用、逐本偏好优先、损坏状态隔离、下载校验拒绝，以及取消手势、导航重排后的过渡方向、液滴连续反向和书本落位展开。绘制校验会拒绝只有语义节点、没有可见标题的截图。
 
-390 × 844 Web 实际查看满幅封面、五栏导航、翻开与反向合书、插件商城和新增设置；录制为本机 `artifacts/v03-book-open.gif`。实际安装蓝调时刻后主题即时变化，卸载后恢复原主题。README 预览图来自这一轮 Web 检查，不代表 Android 真机。
+390 × 844 Web 实际查看满幅封面、五栏导航、翻开与反向合书、插件商城和新增设置；书架横向拖动进入发现、反向返回，以及插件→设置连续切换均实测。安装蓝调主题后即时变化，卸载后恢复原主题。README 动图和预览图来自 Web 实录；最终导航录屏在本机 `artifacts/v03-final-navigation.gif`。辅助功能语义层开启时鼠标拖动由该层接管。
 
-插件 API 1 支持声明式主题、阅读预设、静态源与导航，不执行第三方代码。最新 Web 已实测书架横向拖动进入发现、反向返回，底栏同步切换。辅助功能语义层开启时鼠标拖动由该层接管。
+源码 `9c91621795a0a5facd8e0475394ba6fe4d974598` 的三个架构 Release 包在[发行构建](https://github.com/LexianLix/manxia/actions/runs/39757903743)生成，版本 `0.3.0+9`。Android 11 / 15 的 x86_64 默认启动各连续三次通过，前台状态、书架控件、标题像素及日志均正常；没有测试 Intent 覆盖。日志确认 AVD 自行选用 Skia，实际 RGB 截图显示完整书架及五栏导航。CI 的临时测试签名不作为发行附件。
 
-源码 `4c346200fc3be2dfd7a73eeb6fb94a4f647dd2fc` 的三个架构 Release 包已在[发行构建](https://github.com/LexianLix/manxia/actions/runs/39753317409)生成，本地核对版本 `0.3.0+7`、来源哈希、ABI、最低 SDK 24 和固定证书后签名。API 35 x86_64 首次 / 再次启动均通过，实际截图可见书架标题、封面及五栏导航；CI 使用临时测试签名，尚未替代公开发行签名复测。API 30 首次启动检查通过；重开阶段 `uiautomator dump` 与随后 `logcat` 超时。第二次作业连截图和日志都超时，收尾连接模拟器端口被拒绝。原始 PNG 的像素及 RGB 预览复核确认标题完整，不能将预览工具显示的空白当作应用缺绘。已加入标题像素校验和单独的同 APK 渲染后端对照，尚在定位超时，v0.3.0 保留草稿。物理 iQOO 与 ARM64 转译不计入通过。
+三包在本机核对来源哈希、ABI、最低 SDK 24 后使用既有项目证书签名，版本码为 1009 / 2009 / 4009；证书 SHA-256 为 `9618d4bb9b8ce8045c502c79fea0b8c2eb4d14f0a6ccb380cf22ac2bccdbc091`。
+
+[公开签名包复测](https://github.com/LexianLix/manxia/actions/runs/39760422829)直接下载 GitHub v0.3.0 附件，不重新签名。Android 11 / 15 各首次启动及两次重开均通过，标题可见、书架控件齐全、启动异常与命令错误为空。五个公开附件 HTTP 200，GitHub SHA-256 与本机产物一致，发行清单公开下载后逐字节一致。
+
+插件 API 1 是声明式主题、阅读预设、静态 HTML 源和导航扩展，不执行第三方 JS / Dart 或替换渲染器。模拟器启动与 Web 验证不能代替物理 iQOO / ARM64、完整阅读、设备按键、帧率、功耗和发热验收；ARM64 转译的旧 SIGILL 不计入通过。
 
 ## 0.2.4 Android 启动 · 2026-10-22
 
@@ -99,10 +103,8 @@ README 的三张预览图采集于 0.2.2 Web release，视口 390 × 844；用�
 
 双页最终检查：在桌面宽度恢复到第三页时，实际显示相邻的第二、三页，页码为 2–3 / 3，下一页禁用，控制台无渲染错误；截图为 artifacts/double-page-reader-0.2.png。
 
-## Android 11 模拟器渲染对照
+## 模拟器渲染兼容的诊断证据
 
-[同 APK 对照](https://github.com/LexianLix/manxia/actions/runs/39755753262)仅通过启动 Intent 改变后端：默认 Impeller 在第三次冷启动时 UI 检测 / 日志超时、模拟器端口失联；Skia 连续三次通过，标题像素校验通过，无应用启动异常。结果与 [Flutter 上游软件模拟器报告](https://github.com/flutter/flutter/issues/192736)相近。默认后端在先前两轮也出现 ADB / 模拟器失联，但本次对照不代表物理 ARM64 设备存在同样问题。
+[同 APK 后端对照](https://github.com/LexianLix/manxia/actions/runs/39755753262)只改变启动 Intent：默认 Impeller OpenGLES 在第三次冷启动时 UI 检测、日志超时且模拟器失联；Skia 连续三次通过。与 [Flutter 上游 x86 软件模拟器报告](https://github.com/flutter/flutter/issues/192736)相近。仅覆盖旧系统时，API35 仍在[构建号 8 复测](https://github.com/LexianLix/manxia/actions/runs/39756414660)失联，因此最终策略限定为 x86 / x86_64 且硬件标识 ranchu / goldfish 的 AVD，覆盖所有系统版本；物理设备保留平台默认后端。
 
-候选构建号递增至 8，MainActivity 仅对 Android 11 及更早、x86 / x86_64、ranchu / goldfish AVD 使用 Skia；真机和较新系统保持平台默认。发行与公开安装工作流增加第三次冷启动，标题像素校验与诊断超时独立保存；三个 Python 校验测试通过。最终修复 APK 的默认启动复测待新构建。
-
-构建号 8 的[正常启动复测](https://github.com/LexianLix/manxia/actions/runs/39756414660)中，API30 在无 Intent 覆盖下连续三次通过，日志确认启用 Skia；API35 则在默认 OpenGLES 的第二次启动时再次失联，因此兼容策略扩展到全部 x86 / x86_64 ranchu / goldfish AVD。构建号递增到 9，物理设备仍保留默认后端；该最终策略等待新构建验证。
+模拟器启动检查会保存 PNG、RGB 预览、UI 树、日志、标题像素结果及命令超时。诊断命令失败不会覆盖前一项错误；正常发行检查不传渲染覆盖参数。后续升级 Flutter 时需复测该兼容策略。
