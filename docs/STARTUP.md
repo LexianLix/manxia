@@ -25,7 +25,11 @@ v0.2.4 同时将初始化移到可见启动界面之后。本地插件、目录�
 
 `Prepare Android release` 在构建各架构未签名 APK 后，将 x86_64 的副本用临时测试密钥签名，在 Android 11 / 15 模拟器安装并冷启动。临时签名包仅用于 CI，不作为发行附件；公开 APK 仍使用本机保存的固定项目密钥签名。
 
-`Verify installed Android startup` 可选择公开发行版本，下载并测试实际发布的签名 APK。两个工作流都保留截图、logcat、UI 树和判定 JSON。
+`Verify installed Android startup` 可选择公开发行版本，下载并测试实际发布的签名 APK。可选 `build_run` 用于发布前测试对应构建的副本；不填时始终下载公开发行附件。默认矩阵覆盖 Android 11 / 15 的 x86_64，两个工作流都保留截图、logcat、UI 树和判定 JSON。
+
+首屏通过条件包含应用处于前台、出现“我的书架 / 书架 / 设置”控件、实际截图非空，以及没有未处理启动异常。原先依据颜色数量和深色像素占比的检测，会把封面未联网时的浅色纸质书架误判为未加载，现已用实际控件取代该阈值；原版白屏仍被拒绝。v0.2.4 的[独立安装与重开检查](https://github.com/LexianLix/manxia/actions/runs/39723585901)使用新判定。
+
+该次 Android 11 / 15 的 x86_64 首次启动及重开均通过，日志无启动异常。额外尝试 Android 11 的 ARM64 转译时，`ndk_translation` 报 `Undefined instruction 0x5ea1b800` 并触发 SIGILL，未进入首屏；此项失败保留在同次运行中，不计入通过项。现在转译仅通过 `arm64_translation` 手动开启，不能代替物理 ARM64 或用户 iQOO 手机测试。
 
 本地连接专用测试设备或模拟器后，也可运行：
 
