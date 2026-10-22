@@ -30,7 +30,8 @@ def home_title_evidence(xml, screenshot):
     x1, y1, x2, y2 = bounds
     if not (0 <= x1 < x2 <= image.width and 0 <= y1 < y2 <= image.height):
         return {"painted": False, "reason": "home title outside screenshot"}
-    pixels = list(image.crop(tuple(bounds)).getdata())
+    crop = image.crop(tuple(bounds))
+    pixels = list(crop.get_flattened_data() if hasattr(crop, "get_flattened_data") else crop.getdata())
     paper = tuple(statistics.median(p[c] for p in pixels) for c in range(3))
     ink_fraction = sum(max(abs(p[c] - paper[c]) for c in range(3)) >= 50
                        for p in pixels) / len(pixels)

@@ -7,6 +7,47 @@ import 'package:manxia/ui/room_motion.dart';
 import 'package:manxia/data/comic.dart';
 
 void main() {
+  testWidgets('page direction follows destination order rather than IDs', (
+    tester,
+  ) async {
+    var selected = 5;
+    late StateSetter change;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, update) {
+            change = update;
+            return Scaffold(
+              body: RetainedPages(
+                index: selected,
+                order: const [0, 1, 4, 5, 3],
+                builder: (i) => ColoredBox(
+                  key: ValueKey('ordered-page-$i'),
+                  color: Colors.white,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    change(() => selected = 3);
+    await tester.pump();
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('ordered-page-3'))).dx,
+      greaterThan(0),
+    );
+    await tester.pumpAndSettle();
+    change(() => selected = 5);
+    await tester.pump();
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('ordered-page-5'))).dx,
+      lessThan(0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'page follows the finger, cancelled drag returns, and committed drag settles',
     (tester) async {

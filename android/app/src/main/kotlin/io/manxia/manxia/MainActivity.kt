@@ -2,10 +2,27 @@ package io.manxia.manxia
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterShellArgs
 import io.flutter.plugin.common.MethodChannel
 import android.view.KeyEvent
+import android.os.Build
 
 class MainActivity : FlutterActivity() {
+    @Suppress("DEPRECATION")
+    override fun getFlutterShellArgs(): FlutterShellArgs {
+        val args = super.getFlutterShellArgs()
+        // Flutter 3.47 GLES can terminate the old Linux software emulator.
+        // Scope the fallback to the reproduced x86 AVD, retaining hardware
+        // rendering defaults on real phones and newer Android versions.
+        val x86 = Build.SUPPORTED_ABIS.any { it == "x86" || it == "x86_64" }
+        val avd = Build.HARDWARE == "ranchu" || Build.HARDWARE == "goldfish"
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R && x86 && avd) {
+            args.remove(FlutterShellArgs.ARG_ENABLE_IMPELLER)
+            args.add(FlutterShellArgs.ARG_DISABLE_IMPELLER)
+        }
+        return args
+    }
+
     private var volumeKeys = false
     private var channel: MethodChannel? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

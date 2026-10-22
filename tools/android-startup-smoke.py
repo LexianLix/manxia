@@ -29,7 +29,8 @@ def surface_stats(data):
     w, h = image.size
     # Exclude Android's status/navigation bars and the launch icon at the center.
     crop = image.crop((int(w * .08), int(h * .16), int(w * .92), int(h * .84)))
-    pixels = list(crop.resize((160, 160)).getdata())
+    sample = crop.resize((160, 160))
+    pixels = list(sample.get_flattened_data() if hasattr(sample, "get_flattened_data") else sample.getdata())
     colors = {tuple(c // 16 for c in p) for p in pixels}
     dark = sum(max(p) < 185 for p in pixels) / len(pixels)
     return {"colors": len(colors), "dark_fraction": round(dark, 4)}

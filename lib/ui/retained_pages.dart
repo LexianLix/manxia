@@ -138,7 +138,11 @@ class _RetainedPagesState extends State<RetainedPages>
     super.didUpdateWidget(old);
     if (old.index != widget.index) {
       if (dragging) captureDrag();
-      final direction = widget.index > old.index ? 1.0 : -1.0;
+      final from = widget.order.indexOf(old.index);
+      final to = widget.order.indexOf(widget.index);
+      final direction = from >= 0 && to >= 0
+          ? (to > from ? 1.0 : -1.0)
+          : (widget.index > old.index ? 1.0 : -1.0);
       // didUpdateWidget already has the new widget. The old page is still at
       // rest when no prior transition has populated its endpoint.
       ends.putIfAbsent(old.index, () => (1.0, 0.0));
