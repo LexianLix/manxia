@@ -14,11 +14,12 @@ import time
 import xml.etree.ElementTree as ET
 
 from PIL import Image
+from android_surface import home_title_evidence
 
 
-def adb(*args, binary=False, check=True):
+def adb(*args, binary=False, check=True, timeout=30):
     result = subprocess.run(
-        ["adb", *args], capture_output=True, timeout=30, check=check
+        ["adb", *args], capture_output=True, timeout=timeout, check=check
     )
     return result.stdout if binary else result.stdout.decode("utf-8", "replace")
 
@@ -55,6 +56,8 @@ def main():
     parser.add_argument("apk", type=pathlib.Path)
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("startup-evidence"))
     parser.add_argument("--timeout", type=int, default=45)
+    parser.add_argument("--renderer", choices=("platform", "skia"), default="platform",
+                        help="Diagnostic override; normal release checks use platform defaults")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     package = "io.manxia.manxia"
@@ -62,10 +65,13 @@ def main():
     adb("shell", "am", "force-stop", package)
     adb("logcat", "-c")
     start = time.monotonic()
-    print(adb("shell", "am", "start", "-W", "-n", f"{package}/.MainActivity"), flush=True)
+    renderer_args = ("--ez", "enable-impeller", "false") if args.renderer == "skia" else ()
+    print(adb("shell", "am", "start", "-W", "-n", f"{package}/.MainActivity", *renderer_args), flush=True)
     frames = []
     passed = False
     xml = ""
+    command_errors = []
+    title = {"painted": False}
     try:
         while time.monotonic() - start < args.timeout:
             time.sleep(2)
@@ -84,16 +90,29 @@ def main():
                     if has_shelf(xml):
                         data = adb("exec-out", "screencap", "-p", binary=True)
                         (args.output / "screen.png").write_bytes(data)
-                        passed = surface_stats(data)["colors"] > 8
+                        title = home_title_evidence(xml, data)
+                        passed = surface_stats(data)["colors"] > 8 and title["painted"]
                         if passed:
                             break
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        command_errors.append(str(error))
     finally:
-        logs = adb("logcat", "-d", "-v", "threadtime")
+        def diagnostic(*command):
+            try:
+                return adb(*command, timeout=10)
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+                command_errors.append(str(error))
+                return ""
+
+        logs = diagnostic("logcat", "-d", "-v", "threadtime")
         (args.output / "logcat.txt").write_text(logs, encoding="utf-8")
-        focus = adb("shell", "dumpsys", "window", "windows")
+        focus = diagnostic("shell", "dumpsys", "window", "windows")
         (args.output / "window.txt").write_text(focus, encoding="utf-8")
         if not xml:
-            xml = read_ui()
+            try:
+                xml = read_ui()
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+                command_errors.append(str(error))
         (args.output / "ui.xml").write_text(xml, encoding="utf-8")
         errors = [line for line in logs.splitlines() if any(
             s in line for s in (
@@ -102,13 +121,19 @@ def main():
             )
         )]
         (args.output / "verdict.json").write_text(json.dumps({
-            "passed": passed and not errors,
+            "passed": passed and not errors and not command_errors,
             "shelf_controls_present": has_shelf(xml),
             "frames": frames, "startup_errors": errors,
+            "painted_home_title": title, "command_errors": command_errors,
+            "renderer_override": args.renderer,
         }, indent=2), encoding="utf-8")
         for line in errors:
             print(line, flush=True)
-    if not passed or errors:
+        screen = args.output / "screen.png"
+        if screen.exists():
+            # Keep the original PNG; RGB also provides a reliable image preview.
+            Image.open(screen).convert("RGB").save(args.output / "screen-rgb.jpg", quality=92)
+    if not passed or errors or command_errors:
         raise SystemExit("FAIL: release did not render its first screen, or startup threw. See startup-evidence.")
     print("PASS: installed release rendered content after a cold launch.")
 
