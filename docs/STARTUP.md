@@ -31,6 +31,8 @@ v0.2.4 同时将初始化移到可见启动界面之后。本地插件、目录�
 
 该次 Android 11 / 15 的 x86_64 首次启动及重开均通过，日志无启动异常。额外尝试 Android 11 的 ARM64 转译时，`ndk_translation` 报 `Undefined instruction 0x5ea1b800` 并触发 SIGILL，未进入首屏；此项失败保留在同次运行中，不计入通过项。现在转译仅通过 `arm64_translation` 手动开启，不能代替物理 ARM64 或用户 iQOO 手机测试。
 
+发布后直接下载 GitHub 上使用项目固定证书签名的 v0.2.4 APK，再次在 Android 11 / 15 的 x86_64 模拟器安装、首启和重开，[两组均通过](https://github.com/LexianLix/manxia/actions/runs/39724187144)，未重新签名或替换应用入口。公开附件的 GitHub SHA-256 与本机签名包一致，发行清单下载后逐字节一致。
+
 本地连接专用测试设备或模拟器后，也可运行：
 
 ```bash
