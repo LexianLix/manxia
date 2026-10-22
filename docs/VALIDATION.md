@@ -104,3 +104,5 @@ README 的三张预览图采集于 0.2.2 Web release，视口 390 × 844；用�
 [同 APK 对照](https://github.com/LexianLix/manxia/actions/runs/39755753262)仅通过启动 Intent 改变后端：默认 Impeller 在第三次冷启动时 UI 检测 / 日志超时、模拟器端口失联；Skia 连续三次通过，标题像素校验通过，无应用启动异常。结果与 [Flutter 上游软件模拟器报告](https://github.com/flutter/flutter/issues/192736)相近。默认后端在先前两轮也出现 ADB / 模拟器失联，但本次对照不代表物理 ARM64 设备存在同样问题。
 
 候选构建号递增至 8，MainActivity 仅对 Android 11 及更早、x86 / x86_64、ranchu / goldfish AVD 使用 Skia；真机和较新系统保持平台默认。发行与公开安装工作流增加第三次冷启动，标题像素校验与诊断超时独立保存；三个 Python 校验测试通过。最终修复 APK 的默认启动复测待新构建。
+
+构建号 8 的[正常启动复测](https://github.com/LexianLix/manxia/actions/runs/39756414660)中，API30 在无 Intent 覆盖下连续三次通过，日志确认启用 Skia；API35 则在默认 OpenGLES 的第二次启动时再次失联，因此兼容策略扩展到全部 x86 / x86_64 ranchu / goldfish AVD。构建号递增到 9，物理设备仍保留默认后端；该最终策略等待新构建验证。

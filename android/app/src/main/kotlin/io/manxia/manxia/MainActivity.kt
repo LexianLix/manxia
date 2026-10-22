@@ -11,12 +11,12 @@ class MainActivity : FlutterActivity() {
     @Suppress("DEPRECATION")
     override fun getFlutterShellArgs(): FlutterShellArgs {
         val args = super.getFlutterShellArgs()
-        // Flutter 3.47 GLES can terminate the old Linux software emulator.
-        // Scope the fallback to the reproduced x86 AVD, retaining hardware
-        // rendering defaults on real phones and newer Android versions.
+        // Flutter 3.47 GLES can terminate Linux x86 software emulators.
+        // https://github.com/flutter/flutter/issues/192736
+        // Retain hardware rendering defaults on physical devices.
         val x86 = Build.SUPPORTED_ABIS.any { it == "x86" || it == "x86_64" }
         val avd = Build.HARDWARE == "ranchu" || Build.HARDWARE == "goldfish"
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R && x86 && avd) {
+        if (x86 && avd) {
             args.remove(FlutterShellArgs.ARG_ENABLE_IMPELLER)
             args.add(FlutterShellArgs.ARG_DISABLE_IMPELLER)
         }
