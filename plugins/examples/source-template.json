@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1, "id": "yourname.static-library", "name": "自己的静态漫画站", "version": "1.0.0",
+  "author": "Your Name", "license": "MIT",
+  "description": "开发模板：请将地址、域名和 CSS 选择器改为自己有权接入的真实站点。此模板不在商城推荐列表。",
+  "contributes": {"source": {
+    "id": "your-static-library", "name": "自己的漫画站", "baseUrl": "https://your-library.example",
+    "imageHosts": ["your-library.example"], "home": "/", "search": "/search?q={query}",
+    "cards": ".comic", "title": ".title", "link": "a", "cover": "img", "chapters": ".chapters a", "pages": ".page img"
+  }}
+}

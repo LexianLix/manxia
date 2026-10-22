@@ -218,6 +218,14 @@ class _LivingShelfState extends State<LivingShelf>
           child: LayoutBuilder(
             builder: (context, box) {
               gap = box.maxWidth < 500 ? 33 : 53;
+              gap *= switch (widget.library.option<String>(
+                'shelfDensity',
+                'balanced',
+              )) {
+                'compact' => .82,
+                'airy' => 1.2,
+                _ => 1.0,
+              };
               final scale = (box.maxWidth / 700).clamp(.72, 1.04);
               return MouseRegion(
                 onHover: (e) {
@@ -622,7 +630,11 @@ class OpenBookTransition extends StatelessWidget {
     animation: animation,
     child: child,
     builder: (context, child) {
-      final t = RoomMotion.travel.transform(animation.value);
+      final t = const Interval(
+        .25,
+        1,
+        curve: RoomMotion.ease,
+      ).transform(animation.value);
       return IgnorePointer(
         ignoring: animation.value < .12,
         child: ExcludeSemantics(

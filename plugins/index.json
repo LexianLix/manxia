@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "manxia.blue-hour",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.blue-hour.json",
+      "sha256": "7cd14c9f8582dde9f51b6374d654bd5b83022b6c23d4ee338139b8b44206dcde"
+    },
+    {
+      "id": "manxia.local-room",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.local-room.json",
+      "sha256": "ed29952625bb60760cdf5adf8b728e1a7c19448a584aa6fab3f23fadc36b8da7"
+    },
+    {
+      "id": "manxia.manga-reader",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.manga-reader.json",
+      "sha256": "8d9134a4486bafb22b9c5d087817d42430e6625dd48a0c75d0625e3c2f59e482"
+    },
+    {
+      "id": "manxia.warm-paper",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.warm-paper.json",
+      "sha256": "106065be5ec89db421b0b609be1869cfd407b5be7a7f5746863ad61863cd9382"
+    },
+    {
+      "id": "manxia.webtoon-reader",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.webtoon-reader.json",
+      "sha256": "b8dfcc3a4de336bf55976300da7136dc8992abb0db42355c8adfadc438aa9aeb"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "apiVersion": 1, "id": "manxia.webtoon-reader", "name": "条漫长卷", "version": "1.0.0",
+  "author": "Manxia", "license": "MIT",
+  "description": "连续纵向阅读、单页排列与深色背景，适合长条漫画。关闭此插件即可恢复原来的全局偏好。",
+  "settings": [{"key": "background", "label": "长卷背景", "type": "choice", "choices": ["ink", "paper", "sepia"], "default": "ink"}],
+  "contributes": {"reader": {"mode": "strip", "rtl": false, "doublePage": false, "background": {"setting": "background"}}}
+}

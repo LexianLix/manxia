@@ -5,7 +5,7 @@ on:
     inputs:
       version:
         description: Published release version to install
-        default: '0.2.3'
+        default: '0.3.0'
         required: true
       build_run:
         description: Optional unsigned build run to verify before publishing

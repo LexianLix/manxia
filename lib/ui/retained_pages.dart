@@ -9,10 +9,14 @@ class RetainedPages extends StatefulWidget {
     required this.index,
     required this.builder,
     this.animate = true,
+    this.onSelected,
+    this.order = const [0, 1, 2, 3],
   });
   final int index;
   final Widget Function(int index) builder;
   final bool animate;
+  final ValueChanged<int>? onSelected;
+  final List<int> order;
   @override
   State<RetainedPages> createState() => _RetainedPagesState();
 }
@@ -27,8 +31,23 @@ class _RetainedPagesState extends State<RetainedPages>
   late final visited = <int>{widget.index};
   final starts = <int, (double, double)>{};
   final ends = <int, (double, double)>{};
+  bool dragging = false;
+  int dragFrom = 0;
+  int? dragTarget;
+  double dragDistance = 0, dragFraction = 0, width = 390, direction = 1;
+  final dragStarts = <int, (double, double)>{};
 
   (double, double) pose(int index) {
+    if (dragging) {
+      final start = dragStarts[index] ?? (0.0, direction * 48);
+      final end = index == dragTarget
+          ? (1.0, 0.0)
+          : (0.0, index == dragFrom ? -direction * 48 : start.$2);
+      return (
+        start.$1 + (end.$1 - start.$1) * dragFraction,
+        start.$2 + (end.$2 - start.$2) * dragFraction,
+      );
+    }
     final end = ends[index] ?? (index == widget.index ? 1.0 : 0.0, 0.0);
     final start = starts[index] ?? end;
     final t = RoomMotion.ease.transform(clock.value);
@@ -36,6 +55,74 @@ class _RetainedPagesState extends State<RetainedPages>
       start.$1 + (end.$1 - start.$1) * t,
       start.$2 + (end.$2 - start.$2) * t,
     );
+  }
+
+  void beginDrag(DragStartDetails details) {
+    dragStarts.clear();
+    for (final i in visited) {
+      dragStarts[i] = pose(i);
+    }
+    clock.stop();
+    dragFrom = widget.index;
+    dragDistance = dragFraction = 0;
+    dragTarget = null;
+    dragging = true;
+  }
+
+  void updateDrag(DragUpdateDetails details) {
+    dragDistance += details.delta.dx;
+    direction = dragDistance < 0 ? 1 : -1;
+    final at = widget.order.indexOf(dragFrom) + direction.toInt();
+    if (at < 0 || at >= widget.order.length) {
+      setState(() {
+        dragTarget = null;
+        dragFraction = 0;
+      });
+      return;
+    }
+    setState(() {
+      dragTarget = widget.order[at];
+      visited.add(dragTarget!);
+      if ((dragStarts[dragTarget]?.$1 ?? 0) < .001) {
+        dragStarts[dragTarget!] = (0, direction * 48);
+      }
+      dragFraction = (dragDistance.abs() / width).clamp(0.0, 1.0);
+    });
+  }
+
+  Map<int, (double, double)> captureDrag() {
+    final snapshot = {for (final i in visited) i: pose(i)};
+    dragging = false;
+    starts.addAll(snapshot);
+    ends.addAll(snapshot);
+    clock.value = 1;
+    return snapshot;
+  }
+
+  void endDrag([DragEndDetails? details]) {
+    if (!dragging) return;
+    final target = dragTarget;
+    final accept =
+        details != null &&
+        target != null &&
+        (dragFraction > .22 ||
+            ((details.primaryVelocity ?? 0) * -direction) > 450);
+    final snapshots = captureDrag();
+    if (accept) {
+      widget.onSelected!(target);
+    } else {
+      setState(() {
+        for (final i in visited) {
+          starts[i] = snapshots[i]!;
+          ends[i] = i == widget.index ? (1, 0) : (0, snapshots[i]!.$2);
+        }
+        if (widget.animate && !MediaQuery.disableAnimationsOf(context)) {
+          clock.forward(from: 0);
+        } else {
+          clock.value = 1;
+        }
+      });
+    }
   }
 
   @override
@@ -50,6 +137,7 @@ class _RetainedPagesState extends State<RetainedPages>
   void didUpdateWidget(RetainedPages old) {
     super.didUpdateWidget(old);
     if (old.index != widget.index) {
+      if (dragging) captureDrag();
       final direction = widget.index > old.index ? 1.0 : -1.0;
       // didUpdateWidget already has the new widget. The old page is still at
       // rest when no prior transition has populated its endpoint.
@@ -60,12 +148,12 @@ class _RetainedPagesState extends State<RetainedPages>
         final snapshot = snapshots[index];
         final start =
             index == widget.index && (snapshot == null || snapshot.$1 < .001)
-            ? (0.0, 18 * direction)
-            : snapshot ?? (0.0, 18 * direction);
+            ? (0.0, 48 * direction)
+            : snapshot ?? (0.0, 48 * direction);
         starts[index] = start;
         ends[index] = index == widget.index
             ? (1.0, 0.0)
-            : (0.0, index == old.index ? -18 * direction : start.$2);
+            : (0.0, index == old.index ? -48 * direction : start.$2);
       }
       if (widget.animate && !MediaQuery.disableAnimationsOf(context)) {
         clock.forward(from: 0);
@@ -84,42 +172,58 @@ class _RetainedPagesState extends State<RetainedPages>
   }
 
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: [
-      for (final index in visited)
-        AnimatedBuilder(
-          key: ValueKey(index),
-          animation: clock,
-          child: RepaintBoundary(child: widget.builder(index)),
-          builder: (context, child) {
-            final current = index == widget.index;
-            final (alpha, dx) = pose(index);
-            final visible = current || (!clock.isCompleted && alpha > .001);
-            return Offstage(
-              offstage: !visible,
-              child: HeroMode(
-                enabled: current,
-                child: TickerMode(
+  Widget build(BuildContext context) {
+    width = MediaQuery.sizeOf(context).width;
+    final stack = Stack(
+      fit: StackFit.expand,
+      children: [
+        for (final index in visited)
+          AnimatedBuilder(
+            key: ValueKey(index),
+            animation: clock,
+            child: RepaintBoundary(child: widget.builder(index)),
+            builder: (context, child) {
+              final current = index == widget.index;
+              final (alpha, dx) = pose(index);
+              final visible =
+                  current || ((dragging || !clock.isCompleted) && alpha > .001);
+              return Offstage(
+                offstage: !visible,
+                child: HeroMode(
                   enabled: current,
-                  child: ExcludeSemantics(
-                    excluding: !current,
-                    child: IgnorePointer(
-                      ignoring: !current,
-                      child: Opacity(
-                        opacity: alpha.clamp(0, 1),
-                        child: Transform.translate(
-                          offset: Offset(dx, 0),
-                          child: child,
+                  child: TickerMode(
+                    enabled: current,
+                    child: ExcludeSemantics(
+                      excluding: !current,
+                      child: IgnorePointer(
+                        ignoring: !current,
+                        child: Opacity(
+                          opacity: alpha.clamp(0, 1),
+                          child: Transform.translate(
+                            offset: Offset(dx, 0),
+                            child: child,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-    ],
-  );
+              );
+            },
+          ),
+      ],
+    );
+    return widget.onSelected == null
+        ? stack
+        : Listener(
+            onPointerCancel: (_) => endDrag(),
+            child: GestureDetector(
+              onHorizontalDragStart: beginDrag,
+              onHorizontalDragUpdate: updateDrag,
+              onHorizontalDragEnd: endDrag,
+              onHorizontalDragCancel: () => endDrag(),
+              child: stack,
+            ),
+          );
+  }
 }

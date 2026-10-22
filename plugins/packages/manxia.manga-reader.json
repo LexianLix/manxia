@@ -1,0 +1,7 @@
+{
+  "apiVersion": 1, "id": "manxia.manga-reader", "name": "日漫阅读习惯", "version": "1.0.0",
+  "author": "Manxia", "license": "MIT",
+  "description": "横向分页、从右向左与宽屏双页。纸张翻页和暖色底更适合分镜漫画；逐本设置仍然优先。",
+  "settings": [{"key": "warmth", "label": "暖色强度", "type": "number", "min": 0, "max": 0.6, "default": 0.12}],
+  "contributes": {"reader": {"mode": "page", "rtl": true, "doublePage": true, "background": "paper", "turn": "paper", "warmth": {"setting": "warmth"}}}
+}

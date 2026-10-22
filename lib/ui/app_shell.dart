@@ -18,6 +18,8 @@ import 'retained_pages.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
 import 'room_motion.dart';
+import 'plugins_page.dart';
+import 'personalization_settings.dart';
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -34,7 +36,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int tab = 0;
+  late int tab = widget.library.option<int>('startTab', 0).clamp(0, 5);
   bool opening = false;
   (String, Rect)? openingOrigin;
   final atmosphere = ValueNotifier<Color>(const Color(0xff8baf99));
@@ -110,6 +112,12 @@ class _AppShellState extends State<AppShell> {
       builder: (context, box) {
         final wide = box.maxWidth >= 1000;
         final compact = box.maxWidth < 600;
+        final ids = navigationIds(widget.library);
+        if (!wide && !ids.contains(tab)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) navigate(ids.first);
+          });
+        }
         return Scaffold(
           extendBody: true,
           body: Stack(
@@ -149,8 +157,27 @@ class _AppShellState extends State<AppShell> {
                               Expanded(
                                 child: RetainedPages(
                                   index: tab,
+                                  order: wide
+                                      ? roomDestinations
+                                            .map((d) => d.id)
+                                            .toList()
+                                      : ids,
+                                  onSelected: navigate,
                                   animate: widget.library.motion,
-                                  builder: (page) => page == 3
+                                  builder: (page) => page == 5
+                                      ? PluginsPage(library: widget.library)
+                                      : page == 4
+                                      ? Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 98,
+                                          ),
+                                          child: OfflinePage(
+                                            library: widget.library,
+                                            source: source,
+                                            web: widget.web,
+                                          ),
+                                        )
+                                      : page == 3
                                       ? CustomScrollView(
                                           key: const PageStorageKey(
                                             'reading-room-3',
@@ -236,8 +263,10 @@ class _AppShellState extends State<AppShell> {
           bottomNavigationBar: wide
               ? null
               : FrostedNavigation(
-                  selectedIndex: tab,
-                  onSelected: navigate,
+                  selectedIndex: math.max(0, ids.indexOf(tab)),
+                  destinations: ids.map((id) => roomDestinations[id]).toList(),
+                  onSelected: (index) => navigate(ids[index]),
+                  liquid: widget.library.option<bool>('liquidNavigation', true),
                   highQuality:
                       widget.library.option<String>('quality', 'high') ==
                       'high',
@@ -294,54 +323,61 @@ class _AppShellState extends State<AppShell> {
           'M A N X I A  /  漫画阅读',
           style: small(context).copyWith(fontSize: 9),
         ),
-        const SizedBox(height: 62),
-        for (final item in [
-          (Icons.auto_stories_outlined, '我的书架'),
-          (Icons.explore_outlined, '发现漫画'),
-          (Icons.history, '阅读足迹'),
-          (Icons.tune, '偏好设置'),
-        ].indexed)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 9),
-            child: Material(
-              color: tab == item.$1
-                  ? green.withValues(alpha: .1)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(6),
-                onTap: () => navigate(item.$1),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 13,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        item.$2.$1,
-                        size: 19,
-                        color: tab == item.$1
-                            ? Theme.of(context).colorScheme.primary
-                            : quiet(context),
-                      ),
-                      const SizedBox(width: 13),
-                      LocalizedText(
-                        item.$2.$2,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: tab == item.$1
-                              ? Theme.of(context).colorScheme.primary
-                              : quiet(context),
+        const SizedBox(height: 24),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final item in roomDestinations)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 9),
+                  child: Material(
+                    color: tab == item.id
+                        ? green.withValues(alpha: .1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => navigate(item.id),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 13,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              item.icon,
+                              size: 19,
+                              color: tab == item.id
+                                  ? Theme.of(context).colorScheme.primary
+                                  : quiet(context),
+                            ),
+                            const SizedBox(width: 13),
+                            LocalizedText(
+                              switch (item.id) {
+                                0 => '我的书架',
+                                1 => '发现漫画',
+                                2 => '阅读足迹',
+                                3 => '偏好设置',
+                                4 => '下载书库',
+                                _ => '插件商城',
+                              },
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: tab == item.id
+                                    ? Theme.of(context).colorScheme.primary
+                                    : quiet(context),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+            ],
           ),
-        const Spacer(),
+        ),
         Container(width: 25, height: 1, color: Theme.of(context).dividerColor),
         const SizedBox(height: 18),
         LocalizedText(
@@ -811,7 +847,7 @@ class _AppShellState extends State<AppShell> {
             onPressed: () => showLicensePage(
               context: context,
               applicationName: '漫匣',
-              applicationVersion: '0.2.4',
+              applicationVersion: '0.3.0',
             ),
             child: const LocalizedText(
               '开源许可与字体声明',

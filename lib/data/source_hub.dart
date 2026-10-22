@@ -5,6 +5,7 @@ import 'discovery.dart';
 import 'dm5_source.dart';
 import 'library.dart';
 import 'source_profile.dart';
+import 'plugin.dart';
 export 'source_profile.dart';
 
 class SourceHub extends Dm5Source {
@@ -14,8 +15,12 @@ class SourceHub extends Dm5Source {
   }
   final Library library;
   final http.Client transport;
+  List<Map<String, dynamic>> get profiles => [
+    ...library.sourceProfiles,
+    ...PluginSnapshot(library.options).sources,
+  ];
   void refreshImageOrigins() {
-    for (final json in library.sourceProfiles) {
+    for (final json in profiles) {
       final p = SourceProfile(json);
       for (final host in p.imageHosts) {
         Dm5Source.imageOrigins[host] = p.base.toString();
@@ -23,13 +28,13 @@ class SourceHub extends Dm5Source {
     }
   }
 
-  SourceProfile? get selected => library.sourceProfiles
+  SourceProfile? get selected => profiles
       .where((s) => s['id'] == library.option<String>('source', 'dm5'))
       .map(SourceProfile.new)
       .firstOrNull;
   SourceProfile profile(String path) {
     final id = path.split(':')[1];
-    return library.sourceProfiles
+    return profiles
             .where((p) => p['id'] == id)
             .map(SourceProfile.new)
             .firstOrNull ??
@@ -42,12 +47,13 @@ class SourceHub extends Dm5Source {
     final response = await transport.post(
       gateway!.resolve('/api/profiles'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(library.sourceProfiles),
+      body: jsonEncode(profiles),
     );
     if (response.statusCode != 200) throw SourceException('预览代理未接受漫画源配置。');
   }
 
   Future<String> customPage(SourceProfile p, Uri url) async {
+    refreshImageOrigins();
     if (gateway != null) await register();
     final target =
         gateway

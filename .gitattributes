@@ -1,0 +1,3 @@
+plugins/**/*.json text eol=lf
+plugins/index.json text eol=lf
+assets/plugins/*.json text eol=lf

@@ -1,0 +1,6 @@
+{
+  "apiVersion": 1, "id": "manxia.blue-hour", "name": "蓝调时刻", "version": "1.0.0",
+  "author": "Manxia", "license": "MIT",
+  "description": "带一点雾蓝的清爽阅读室。浅色与深色模式都有配套表面色，跟随应用外观切换。",
+  "contributes": {"theme": {"seed": "#476C87", "lightSurface": "#F0F4F7", "darkSurface": "#141E27"}}
+}

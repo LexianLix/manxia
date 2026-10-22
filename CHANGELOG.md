@@ -2,6 +2,24 @@
 
 版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
+## [0.3.0] - 2026-10-22
+
+### 修复
+
+- 修正封面像贴片、白色画框与书体材质割裂的问题。
+- 修正页面拖动被系统取消后仍可能提交切换的问题。
+
+### 改进
+
+- 封面与多层书页绕书脊展开，详情保留打开状态，返回时反向合书归位。
+- 导航加入液滴连接、拉伸及吸附回弹；页面支持跟手滑动、取消回位与连续切换。
+- 提供插件商城、启停配置与卸载、在线仓库和本地 JSON 安装，以及插件 API 1、模板、结构定义和开发工具。
+- 默认五个导航入口，支持增减排序、启动页面、书架疏密、亮屏和工具栏自动收起等偏好。
+
+### 删除
+
+- 移除封面装饰画框及 README 中逐次故障说明。
+
 ## [0.2.4] - 2026-10-22
 
 Android 启动修复，构建号 6，沿用固定项目发行签名。
@@ -58,5 +76,6 @@ v0.2.3 的公开 APK 已在模拟器复现启动故障，建议覆盖更新至�
 - 首次进入部分页面仍可能有绘制峰值，浏览器性能记录不能代替 Android 真机流畅度结论。
 
 [0.2.2]: https://github.com/LexianLix/manxia/releases/tag/v0.2.2
+[0.3.0]: https://github.com/LexianLix/manxia/releases/tag/v0.3.0
 [0.2.4]: https://github.com/LexianLix/manxia/releases/tag/v0.2.4
 [0.2.3]: https://github.com/LexianLix/manxia/releases/tag/v0.2.3

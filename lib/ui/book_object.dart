@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import 'comic_image.dart';
 import 'cover_palette.dart';
-import 'room_motion.dart';
 export 'comic_image.dart' show imageAddress;
 
 /// One book travels between the real shelf and detail bounds in both directions.
@@ -20,9 +19,9 @@ class BookFlight extends StatelessWidget {
     if (!enabled || MediaQuery.disableAnimationsOf(context)) return child;
     return Hero(
       tag: 'book-${child.comic.path}',
-      curve: RoomMotion.travel,
-      reverseCurve: RoomMotion.travel.flipped,
-      createRectTween: (begin, end) => RectTween(begin: begin, end: end),
+      curve: Curves.linear,
+      reverseCurve: Curves.linear,
+      createRectTween: (begin, end) => _BookRectTween(begin: begin, end: end),
       flightShuttleBuilder: (_, animation, direction, from, to) {
         final start = (from.widget as Hero).child as BookObject;
         final end = (to.widget as Hero).child as BookObject;
@@ -44,7 +43,15 @@ class BookFlight extends StatelessWidget {
                 bookmark: t < .5 ? source.bookmark : target.bookmark,
                 exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
                 light: ui.lerpDouble(source.light, target.light, t)!,
-                opening: .65 * lift,
+                opening: ui.lerpDouble(
+                  source.opening,
+                  target.opening,
+                  const Interval(
+                    .12,
+                    .96,
+                    curve: Curves.easeInOutCubic,
+                  ).transform(t),
+                )!,
               ),
             );
           },
@@ -53,6 +60,16 @@ class BookFlight extends StatelessWidget {
       child: child,
     );
   }
+}
+
+class _BookRectTween extends RectTween {
+  _BookRectTween({super.begin, super.end});
+  @override
+  Rect? lerp(double t) => Rect.lerp(
+    begin,
+    end,
+    const Interval(0, .82, curve: Curves.easeInOutCubic).transform(t),
+  );
 }
 
 class ComicCover extends StatelessWidget {
@@ -119,6 +136,7 @@ class BookObject extends StatefulWidget {
 
 class _BookObjectState extends State<BookObject> {
   ui.Image? bitmap;
+  Color? bindingColor;
   ImageInfo? frame;
   ImageStream? stream;
   ImageStreamListener? listener;
@@ -148,6 +166,7 @@ class _BookObjectState extends State<BookObject> {
     if (old.comic.cover != widget.comic.cover || old.web != widget.web) {
       _invalidateArtwork();
       bitmap = null;
+      bindingColor = null;
       _load();
     } else if (old.onColor == null &&
         widget.onColor != null &&
@@ -194,7 +213,7 @@ class _BookObjectState extends State<BookObject> {
           });
         }
         previous?.dispose();
-        if (widget.onColor != null) _color(info.image);
+        _color(info.image);
       },
       onError: (_, _) {
         if (current == generation) requestedCover = null;
@@ -217,6 +236,12 @@ class _BookObjectState extends State<BookObject> {
     final cover = widget.comic.cover;
     final color = await CoverPalette.average(cover, image);
     if (mounted && cover == widget.comic.cover && color != null) {
+      if (bindingColor != color) {
+        setState(() {
+          bindingColor = color;
+          _invalidateArtwork();
+        });
+      }
       widget.onColor?.call(color);
     }
   }
@@ -238,6 +263,7 @@ class _BookObjectState extends State<BookObject> {
         widget.comic.title,
         widget.number,
         widget.bookmark,
+        bindingColor,
       ),
       exposure: widget.exposure,
       light: widget.light,
@@ -250,15 +276,26 @@ class _BookObjectState extends State<BookObject> {
 /// Immutable pictures retain paragraph layout and cover draw commands. The
 /// animation only changes the projection and light; it does not lay out type.
 class _BookArtwork {
-  _BookArtwork(ui.Image? image, String title, int number, bool bookmark) {
+  _BookArtwork(
+    ui.Image? image,
+    String title,
+    int number,
+    bool bookmark,
+    Color? tone,
+  ) {
     final spineRecorder = ui.PictureRecorder();
+    tone ??= const Color(0xffe7e8db);
     final spineCanvas = Canvas(spineRecorder);
     final spineRect = const Rect.fromLTWH(0, 0, 23, 226);
     spineCanvas.drawRect(
       spineRect,
       Paint()
-        ..shader = const LinearGradient(
-          colors: [Color(0xffe7e8db), Color(0xfffcfcf6), Color(0xffdedfd1)],
+        ..shader = LinearGradient(
+          colors: [
+            Color.lerp(const Color(0xffe7e8db), tone, .24)!,
+            Color.lerp(const Color(0xfffcfcf6), tone, .18)!,
+            Color.lerp(const Color(0xffdedfd1), tone, .30)!,
+          ],
           stops: [0, .45, 1],
         ).createShader(spineRect),
     );
@@ -291,23 +328,15 @@ class _BookArtwork {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     const faceRect = Rect.fromLTWH(0, 0, 136, 226);
-    canvas.drawRect(faceRect, Paint()..color = const Color(0xfffafbf4));
-    _text(
-      canvas,
-      'MANGA / ${number.toString().padLeft(3, '0')}',
-      7,
-      11,
-      6.5,
-      const Color(0xff6f7a67),
-    );
-    const cover = Rect.fromLTWH(7, 29, 122, 161);
+    canvas.drawRect(faceRect, Paint()..color = const Color(0xffb4c6b4));
+    const cover = faceRect;
     if (image != null) {
       paintImage(
         canvas: canvas,
         rect: cover,
         image: image,
         fit: BoxFit.cover,
-        filterQuality: FilterQuality.low,
+        filterQuality: FilterQuality.medium,
       );
     } else {
       canvas.drawRect(cover, Paint()..color = const Color(0xffb4c6b4));
@@ -337,7 +366,7 @@ class _BookArtwork {
         ..style = PaintingStyle.stroke
         ..strokeWidth = .6,
     );
-    _text(canvas, title, 8, 202, 8, const Color(0xff4e5b46), max: 120);
+    // The cover is the entire binding, rather than a framed image pasted on it.
     if (bookmark) {
       canvas.drawPath(
         Path()..addPolygon(const [
@@ -351,8 +380,46 @@ class _BookArtwork {
       );
     }
     face = recorder.endRecording();
+    final innerRecorder = ui.PictureRecorder();
+    final paper = Canvas(innerRecorder);
+    paper.drawRect(faceRect, Paint()..color = const Color(0xfff5f1e6));
+    paper.drawRect(
+      faceRect,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0xffded9ca), Color(0xfffaf7ed), Color(0xffebe6d8)],
+          stops: [0, .16, 1],
+        ).createShader(faceRect),
+    );
+    _text(
+      paper,
+      'MANXIA / READING',
+      16,
+      32,
+      6,
+      const Color(0xff8a8c7d),
+      max: 108,
+    );
+    _text(paper, title, 16, 75, 15, const Color(0xff455345), max: 104);
+    paper.drawLine(
+      const Offset(16, 144),
+      const Offset(112, 144),
+      Paint()
+        ..color = const Color(0xffccc9ba)
+        ..strokeWidth = .5,
+    );
+    _text(paper, '把故事留在手边', 16, 158, 8, const Color(0xff898e7c), max: 108);
+    _text(
+      paper,
+      number.toString().padLeft(2, '0'),
+      60,
+      207,
+      7,
+      const Color(0xff898e7c),
+    );
+    inner = innerRecorder.endRecording();
   }
-  late final ui.Picture spine, face;
+  late final ui.Picture spine, face, inner;
   static void _text(
     Canvas canvas,
     String text,
@@ -382,6 +449,7 @@ class _BookArtwork {
   void dispose() {
     spine.dispose();
     face.dispose();
+    inner.dispose();
   }
 }
 
@@ -398,15 +466,18 @@ class _BookPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(size.width / 200, size.height / 300);
-    final fw = 34 + exposure * 102;
-    const x = 22.0, y = 49.0, h = 226.0, spine = 23.0;
-    final dy = -28.0 - 12 * exposure + light * 4;
+    final spread = Curves.easeInOut.transform(opening.clamp(0, 1));
+    final fw = ui.lerpDouble(34 + exposure * 102, 86, spread)!;
+    final x = ui.lerpDouble(22, 92, spread)!;
+    final spine = ui.lerpDouble(23, 5, spread)!;
+    const y = 49.0, h = 226.0;
+    final dy = ui.lerpDouble(-28 - 12 * exposure + light * 4, -8, spread)!;
     final shadow = Path()
       ..addPolygon([
-        const Offset(x, 277),
+        Offset(x, 277),
         Offset(x + spine + fw + 32, 250),
         Offset(x + spine + fw + 48, 264),
-        const Offset(x + 12, 293),
+        Offset(x + 12, 293),
       ], true);
     canvas.drawPath(
       shadow,
@@ -418,8 +489,8 @@ class _BookPainter extends CustomPainter {
     );
     final top = Path()
       ..addPolygon([
-        const Offset(x, y),
-        const Offset(x + spine, y),
+        Offset(x, y),
+        Offset(x + spine, y),
         Offset(x + spine + fw, y + dy),
         Offset(x + fw, y + dy - 3),
       ], true);
@@ -435,6 +506,7 @@ class _BookPainter extends CustomPainter {
     }
     canvas.save();
     canvas.translate(x, y);
+    canvas.scale(spine / 23, 1);
     canvas.drawPicture(artwork.spine);
     canvas.restore();
     canvas.save();
@@ -442,10 +514,7 @@ class _BookPainter extends CustomPainter {
     canvas.transform((Matrix4.identity()..setEntry(1, 0, dy / fw)).storage);
     canvas.scale(fw / 136, 1);
     if (opening > .001) {
-      canvas.drawRect(
-        const Rect.fromLTWH(0, 0, 136, h),
-        Paint()..color = const Color(0xffeeeede),
-      );
+      canvas.drawPicture(artwork.inner);
       for (var line = 1; line < 5; line++) {
         canvas.drawLine(
           Offset(136 - line * 2, 4),
@@ -453,14 +522,40 @@ class _BookPainter extends CustomPainter {
           Paint()..color = const Color(0xffcdd2c3),
         );
       }
-      canvas.transform(
-        (Matrix4.identity()
-              ..setEntry(3, 2, .0018)
-              ..rotateY(-.65 * opening))
-            .storage,
-      );
+      // Separate leaves lag behind the binding, all pivoting around the spine.
+      for (var leaf = 2; leaf >= 0; leaf--) {
+        final turn = ((opening - .12 - leaf * .07) / .76).clamp(0.0, 1.0);
+        final angle = -2.56 * turn;
+        canvas.save();
+        canvas.translate(0, -leaf * .65);
+        canvas.transform(
+          (Matrix4.identity()
+                ..setEntry(3, 2, .0012)
+                ..rotateY(angle))
+              .storage,
+        );
+        if (angle.abs() > math.pi / 2) {
+          canvas.translate(136, 0);
+          canvas.scale(-1, 1);
+        }
+        canvas.drawPicture(artwork.inner);
+        canvas.restore();
+      }
     }
-    canvas.drawPicture(artwork.face);
+    final angle = -2.75 * opening;
+    canvas.transform(
+      (Matrix4.identity()
+            ..setEntry(3, 2, .0012)
+            ..rotateY(angle))
+          .storage,
+    );
+    if (angle.abs() > math.pi / 2) {
+      canvas.translate(136, 0);
+      canvas.scale(-1, 1);
+      canvas.drawPicture(artwork.inner);
+    } else {
+      canvas.drawPicture(artwork.face);
+    }
     const face = Rect.fromLTWH(0, 0, 136, h);
     canvas.drawRect(
       face,
@@ -470,7 +565,7 @@ class _BookPainter extends CustomPainter {
           end: Alignment(1 + light, 1),
           colors: [
             Colors.transparent,
-            Colors.white.withValues(alpha: .14 + exposure * .1),
+            Colors.white.withValues(alpha: .04 + exposure * .035),
             Colors.transparent,
           ],
           stops: const [0, .45, 1],

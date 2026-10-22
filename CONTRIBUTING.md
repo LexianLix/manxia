@@ -35,3 +35,9 @@
 `android/key.properties`、`.private/`、密钥和环境变量文件不进入 Git。贡献者使用自己的开发密钥；官方发行由维护者使用项目固定密钥完成。请勿把未签名构建或 Profile 测试包当成 Release 安装包。详见 [发布指南](docs/RELEASE.md)。
 
 提交的代码需有明确来源，并与本项目 MIT 许可兼容。新增第三方资源时同步补充许可与 [NOTICE](NOTICE)。
+
+## 插件贡献
+
+接口与模板见 [插件开发指南](docs/PLUGINS.md)。包位于 `plugins/packages/`，修改后运行 `node tools/plugin-sdk.mjs build`，提交源码、在线哈希索引和内置目录。CI 校验生成结果没有漂移，并执行插件宿主和 SDK 测试。
+
+README 面向产品功能、使用、版权与致谢。Release 名称采用版本号，说明只按修复、改进、删除归纳实际变更；测试过程与已知验证边界放在开发文档。

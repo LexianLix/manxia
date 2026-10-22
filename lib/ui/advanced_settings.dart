@@ -11,6 +11,8 @@ import '../data/file_actions.dart';
 import '../data/source_hub.dart';
 import '../data/sync_service.dart';
 import '../data/offline_library.dart';
+import '../data/plugin.dart';
+import 'personalization_settings.dart';
 
 class AdvancedSettings extends StatefulWidget {
   const AdvancedSettings({
@@ -388,6 +390,7 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
           ),
   );
   List<Widget> _sections(BuildContext context) => [
+    PersonalizationSettings(library: library),
     group('质感与性能', [
       ListTile(
         contentPadding: EdgeInsets.zero,
@@ -564,7 +567,10 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
     group('漫画源与维护', [
       choice('source', '默认发现源', {
         'dm5': '动漫屋',
-        for (final p in library.sourceProfiles)
+        for (final p in [
+          ...library.sourceProfiles,
+          ...PluginSnapshot(library.options).sources,
+        ])
           p['id'] as String: p['name'] as String,
       }, 'dm5'),
       for (final p in library.sourceProfiles)

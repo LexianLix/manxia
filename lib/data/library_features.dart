@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'comic.dart';
 import 'source_profile.dart';
+import 'plugin.dart';
 
 mixin LibraryFeatures on ChangeNotifier {
   SharedPreferences get prefs;
@@ -32,6 +33,8 @@ mixin LibraryFeatures on ChangeNotifier {
     'background': 'ink',
     'autoScroll': 0.0,
     'tapZones': true,
+    ...option<Map<String, dynamic>>('readerDefaults', {}),
+    ...PluginSnapshot(options).reader,
     ...Map<String, dynamic>.from(meta(comic)['reader'] as Map? ?? {}),
   };
   void loadFeatures() {

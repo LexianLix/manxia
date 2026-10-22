@@ -6,8 +6,8 @@ abstract final class RoomMotion {
   static const feedback = Duration(milliseconds: 180);
   static const page = Duration(milliseconds: 260);
   static const arrival = Duration(milliseconds: 420);
-  static const book = Duration(milliseconds: 520);
-  static const bookReturn = Duration(milliseconds: 400);
+  static const book = Duration(milliseconds: 760);
+  static const bookReturn = Duration(milliseconds: 580);
   static const flight = Duration(milliseconds: 440);
   static const settle = SpringDescription(mass: 1, stiffness: 360, damping: 32);
   static const ease = Cubic(.22, 1, .36, 1);

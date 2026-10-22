@@ -1,0 +1,6 @@
+{
+  "apiVersion": 1, "id": "manxia.local-room", "name": "本地收藏室", "version": "1.0.0",
+  "author": "Manxia", "license": "MIT",
+  "description": "把书架、下载、足迹、插件和设置留在手边，适合主要阅读本地漫画的人。手动定制的导航优先于插件布局。",
+  "contributes": {"navigation": [0, 4, 2, 5, 3]}
+}

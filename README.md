@@ -18,6 +18,7 @@
   <a href="https://github.com/LexianLix/manxia/releases/latest">下载安装</a> ·
   <a href="CHANGELOG.md">更新日志</a> ·
   <a href="docs/USER_GUIDE.md">使用指南</a> ·
+  <a href="docs/PLUGINS.md">插件开发</a> ·
   <a href="https://github.com/LexianLix/manxia/issues">问题反馈</a> ·
   <a href="docs/RELEASE.md">构建与发布</a>
 </p>
@@ -33,17 +34,19 @@
 <p align="center">
   <img src="docs/images/shelf.png" width="30%" alt="立体书架与悬浮玻璃导航" />
   &nbsp;
-  <img src="docs/images/discovery.png" width="30%" alt="发现页与人气排行榜" />
+  <img src="docs/images/plugins.png" width="30%" alt="插件商城与可组合的阅读室主题" />
   &nbsp;
   <img src="docs/images/settings.png" width="30%" alt="阅读与外观设置" />
 </p>
 
-<p align="center"><sub>立体书架 · 发现与排行 · 个性设置。截图来自当前版本的手机尺寸 Web 预览，Android 系统栏与渲染细节可能有所不同。</sub></p>
+<p align="center"><sub>立体书架 · 插件阅读室 · 个性设置。截图来自手机尺寸 Web 预览，可包含已启用的主题；Android 系统栏与渲染细节可能有所不同。</sub></p>
 
 ## 功能特性
 
-- **立体书架**：循环轮播、惯性滚动与弹簧吸附，随指针变化的透视和光照；支持抽书、开封面、收藏飞入，以及列表展示。
-- **玻璃界面**：悬浮毛玻璃底栏、可拖动的选中滑块、封面取色与页面过渡；可调整材质质量、减少动效和高对比度。
+- **立体书架**：漫画封面满幅装订，书脊随封面取色；封面和书页沿书脊展开，返回时合书归位。支持惯性滚动、弹簧吸附、疏密调整与列表展示。
+- **玻璃界面**：悬浮毛玻璃底栏、水滴连接与吸附回弹；页面随手势过渡，快速切换承接当前画面。支持减少动效与材质质量调整。
+- **插件阅读室**：插件商城支持安装、启停、更新、配置和卸载；可组合主题、阅读预设、漫画源与导航布局，支持本地插件文件和自定义在线仓库。
+- **个性化入口**：默认书架、发现、下载、插件和设置五个入口；可添加足迹、调整顺序与启动页面。阅读可设置亮屏、双页默认值、背景及工具栏自动收起。
 - **漫画发现**：每日精选、人气／新番／收藏／吐槽榜单，分类、连载状态、排序与翻页；支持书名和作者搜索、搜索历史及收藏追更。
 - **沉浸阅读**：连续条漫、横向或竖向分页、左右阅读方向与宽屏双页；支持曲面翻页、缩放、裁白边、自动滚动、图片内位置续读和逐本偏好。
 - **阅读工具**：章节目录、多书签、笔记、页面收藏、图片预载，以及亮度、暖色和背景调整。
@@ -54,18 +57,22 @@
 
 首次打开时会显示标明“演示书架”的示例目录，收藏漫画后切换为个人书架。榜单沿用原站顺序；每日精选与个人推荐从目录选取，不生成虚构热度。
 
+## 插件与创作
+
+内置暖纸书房、蓝调时刻、日漫阅读习惯、条漫长卷和本地收藏室等插件。也可以制作自己的插件，通过 JSON 清单定义主题、阅读参数、静态 HTML 漫画源和导航布局，无需重新编译应用。
+
+插件 API 1、清单结构、完整模板及仓库格式见 [插件开发指南](docs/PLUGINS.md)，示例位于 [`plugins/`](plugins/)。开发工具提供清单校验和目录生成；在线插件安装核对 SHA-256，个人书库与逐本设置独立保留。
+
 ## 下载与更新
 
-当前发行版：**[v0.2.4](https://github.com/LexianLix/manxia/releases/tag/v0.2.4)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
-
-v0.2.4 修复 Android Release 启动白屏；已安装 v0.2.3 的用户请下载相同架构的新包覆盖更新。[故障原因及启动验证](docs/STARTUP.md)。
+当前发行版：**[v0.3.0](https://github.com/LexianLix/manxia/releases/tag/v0.3.0)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
 
 | 设备 | 安装包 |
 | --- | --- |
-| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.2.4/Manxia-0.2.4-arm64-v8a.apk) |
-| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.2.4/Manxia-0.2.4-armeabi-v7a.apk) |
-| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.2.4/Manxia-0.2.4-x86_64.apk) |
-| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.2.4/SHA256SUMS.txt) |
+| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.3.0/Manxia-0.3.0-arm64-v8a.apk) |
+| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.3.0/Manxia-0.3.0-armeabi-v7a.apk) |
+| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.3.0/Manxia-0.3.0-x86_64.apk) |
+| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.3.0/SHA256SUMS.txt) |
 
 下载对应 APK 后安装即可。设置中的“检查更新”会查询 GitHub 最新发行版，并提供下载入口。历史版本、源码归档和发行说明见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
@@ -81,7 +88,7 @@ v0.2.4 修复 Android Release 启动白屏；已安装 v0.2.3 的用户请下载
 | 调整玻璃、动画和性能 | [界面动效](docs/MOTION.md) · [性能说明](docs/PERFORMANCE.md) |
 | 了解功能支持范围 | [功能实现状态](docs/IMPLEMENTATION.md) · [验证记录](docs/VALIDATION.md) |
 
-0.2.x 仍在持续完善：WebDAV 尚待真实服务账号验收，体感、音量键、旋转和覆盖升级尚待 Android 真机验证；CBR 暂不支持。在线内容的可用性取决于来源站点与网络。浏览器清理站点数据会移除本地书库，请定期导出备份。
+功能支持范围见 [实现说明](docs/IMPLEMENTATION.md)。在线内容的可用性取决于来源站点与网络；浏览器清理站点数据会移除本地书库，请定期导出备份。
 
 ## 从源码构建
 
@@ -115,6 +122,7 @@ flutter build apk --release --split-per-abi
 ```sh
 npm ci --ignore-scripts
 node tools/prepare-web.mjs
+node tools/plugin-sdk.mjs build
 flutter build web --no-web-resources-cdn --no-wasm-dry-run
 node tools/offline-shell.mjs
 node tools/preview.mjs
@@ -129,7 +137,7 @@ node tools/preview.mjs
 ```sh
 flutter analyze --no-pub
 flutter test --timeout 30s
-node --test tools/preview.test.mjs
+node --test tools/preview.test.mjs tools/plugin-sdk.test.mjs
 ```
 
 - [Check and build](https://github.com/LexianLix/manxia/actions/workflows/ci.yml)：分析、测试、Web 构建与 Android Profile 测试包。

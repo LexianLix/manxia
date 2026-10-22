@@ -1,0 +1,7 @@
+{
+  "apiVersion": 1, "id": "manxia.warm-paper", "name": "暖纸书房", "version": "1.0.0",
+  "author": "Manxia", "license": "MIT",
+  "description": "奶油纸色与茶棕点缀，适合喜欢纸质书氛围的阅读室。强调色可在插件设置中调整。",
+  "settings": [{"key": "accent", "label": "书房强调色", "type": "color", "default": "#826246"}],
+  "contributes": {"theme": {"seed": {"setting": "accent"}, "lightSurface": "#F7F1E5", "darkSurface": "#211C17"}}
+}

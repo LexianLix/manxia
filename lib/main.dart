@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/library.dart';
+import 'data/plugin.dart';
 import 'ui/app_shell.dart';
 import 'ui/room_motion.dart';
 import 'ui/startup.dart';
@@ -54,12 +55,27 @@ class ManxiaApp extends StatelessWidget {
     ),
   );
   ThemeData _theme(bool dark) {
+    final theme = PluginSnapshot(library.options).theme;
+    Color color(String key, Color fallback) => theme[key] is String
+        ? Color(
+            0xff000000 |
+                int.parse((theme[key] as String).substring(1), radix: 16),
+          )
+        : fallback;
+    final seed = color('seed', const Color(0xff47775e));
+    final primary = dark ? Color.lerp(seed, Colors.white, .50)! : seed;
     final scheme = ColorScheme.fromSeed(
       contrastLevel: library.option<bool>('highContrast', false) ? 1 : 0,
-      seedColor: const Color(0xff47775e),
+      seedColor: seed,
       brightness: dark ? Brightness.dark : Brightness.light,
-      surface: dark ? const Color(0xff171d1a) : const Color(0xfff7f7f2),
-      primary: dark ? const Color(0xffa9c6ad) : const Color(0xff47775e),
+      surface: dark
+          ? color('darkSurface', const Color(0xff171d1a))
+          : color('lightSurface', const Color(0xfff7f7f2)),
+      primary: primary,
+      onPrimary:
+          ThemeData.estimateBrightnessForColor(primary) == Brightness.dark
+          ? Colors.white
+          : const Color(0xff18211d),
     );
     return ThemeData(
       useMaterial3: true,

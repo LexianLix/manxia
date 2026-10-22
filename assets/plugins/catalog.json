@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "apiVersion": 1,
+      "id": "manxia.blue-hour",
+      "name": "蓝调时刻",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "description": "带一点雾蓝的清爽阅读室。浅色与深色模式都有配套表面色，跟随应用外观切换。",
+      "contributes": {
+        "theme": {
+          "seed": "#476C87",
+          "lightSurface": "#F0F4F7",
+          "darkSurface": "#141E27"
+        }
+      }
+    },
+    {
+      "apiVersion": 1,
+      "id": "manxia.local-room",
+      "name": "本地收藏室",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "description": "把书架、下载、足迹、插件和设置留在手边，适合主要阅读本地漫画的人。手动定制的导航优先于插件布局。",
+      "contributes": {
+        "navigation": [
+          0,
+          4,
+          2,
+          5,
+          3
+        ]
+      }
+    },
+    {
+      "apiVersion": 1,
+      "id": "manxia.manga-reader",
+      "name": "日漫阅读习惯",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "description": "横向分页、从右向左与宽屏双页。纸张翻页和暖色底更适合分镜漫画；逐本设置仍然优先。",
+      "settings": [
+        {
+          "key": "warmth",
+          "label": "暖色强度",
+          "type": "number",
+          "min": 0,
+          "max": 0.6,
+          "default": 0.12
+        }
+      ],
+      "contributes": {
+        "reader": {
+          "mode": "page",
+          "rtl": true,
+          "doublePage": true,
+          "background": "paper",
+          "turn": "paper",
+          "warmth": {
+            "setting": "warmth"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": 1,
+      "id": "manxia.warm-paper",
+      "name": "暖纸书房",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "description": "奶油纸色与茶棕点缀，适合喜欢纸质书氛围的阅读室。强调色可在插件设置中调整。",
+      "settings": [
+        {
+          "key": "accent",
+          "label": "书房强调色",
+          "type": "color",
+          "default": "#826246"
+        }
+      ],
+      "contributes": {
+        "theme": {
+          "seed": {
+            "setting": "accent"
+          },
+          "lightSurface": "#F7F1E5",
+          "darkSurface": "#211C17"
+        }
+      }
+    },
+    {
+      "apiVersion": 1,
+      "id": "manxia.webtoon-reader",
+      "name": "条漫长卷",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "description": "连续纵向阅读、单页排列与深色背景，适合长条漫画。关闭此插件即可恢复原来的全局偏好。",
+      "settings": [
+        {
+          "key": "background",
+          "label": "长卷背景",
+          "type": "choice",
+          "choices": [
+            "ink",
+            "paper",
+            "sepia"
+          ],
+          "default": "ink"
+        }
+      ],
+      "contributes": {
+        "reader": {
+          "mode": "strip",
+          "rtl": false,
+          "doublePage": false,
+          "background": {
+            "setting": "background"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -61,3 +61,4 @@ android/key.properties
 node_modules/
 web/pdfjs/
 .private/
+WORK_START.md

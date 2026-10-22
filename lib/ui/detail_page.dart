@@ -307,6 +307,13 @@ class _DetailPageState extends State<DetailPage> {
                                       comic,
                                       web: widget.web,
                                       number: widget.bookNumber,
+                                      opening:
+                                          widget.library.option<bool>(
+                                            'bookOpening',
+                                            true,
+                                          )
+                                          ? 1
+                                          : 0,
                                       bookmark: history != null,
                                     ),
                                   ),
@@ -331,6 +338,13 @@ class _DetailPageState extends State<DetailPage> {
                                           comic,
                                           web: widget.web,
                                           number: widget.bookNumber,
+                                          opening:
+                                              widget.library.option<bool>(
+                                                'bookOpening',
+                                                true,
+                                              )
+                                              ? 1
+                                              : 0,
                                           bookmark: history != null,
                                         ),
                                       ),

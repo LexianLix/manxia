@@ -52,6 +52,28 @@ class _ReaderPageState extends State<ReaderPage> {
   int? pendingPage;
   double pendingFraction = 0;
   Timer? saveTimer;
+  Timer? chromeTimer;
+  void armChromeTimer() {
+    chromeTimer?.cancel();
+    final seconds = widget.library.option<int>('chromeTimeout', 0);
+    if (seconds <= 0 || !controls) return;
+    chromeTimer = Timer(Duration(seconds: seconds), () {
+      if (!mounted) return;
+      if (total == 0) {
+        armChromeTimer();
+        return;
+      }
+      if (ModalRoute.of(context)?.isCurrent == true) {
+        setState(() => controls = false);
+      }
+    });
+  }
+
+  void toggleChrome() {
+    setState(() => controls = !controls);
+    armChromeTimer();
+  }
+
   List<String> urls = [];
   String get mode => options['mode'] as String;
   bool get rtl => options['rtl'] == true;
@@ -98,6 +120,7 @@ class _ReaderPageState extends State<ReaderPage> {
       WakelockPlus.enable().catchError((Object _) {});
     }
     native('volumeKeys', options['volumeKeys'] == true);
+    armChromeTimer();
     device.setMethodCallHandler((call) async {
       if (call.method == 'volume') turn((call.arguments as int?) ?? 1);
     });
@@ -223,6 +246,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   void dispose() {
+    chromeTimer?.cancel();
     saveTimer?.cancel();
     if (total > 0) {
       final value = record();
@@ -266,7 +290,7 @@ class _ReaderPageState extends State<ReaderPage> {
               const SingleActivator(LogicalKeyboardKey.escape): () =>
                   Navigator.maybePop(context),
               const SingleActivator(LogicalKeyboardKey.space): () =>
-                  setState(() => controls = !controls),
+                  toggleChrome(),
             },
             child: Focus(
               autofocus: true,
@@ -323,7 +347,7 @@ class _ReaderPageState extends State<ReaderPage> {
                                     d.localPosition.dx > width * .76) {
                                   turn(rtl ? -1 : 1);
                                 } else {
-                                  setState(() => controls = !controls);
+                                  toggleChrome();
                                 }
                               },
                               child: mode == 'strip'
