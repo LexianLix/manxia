@@ -100,7 +100,9 @@ jobs:
           profile: pixel_2
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: python3 tools/android-startup-smoke.py startup.apk
+          script: |
+            python3 tools/android-startup-smoke.py startup.apk
+            python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -2,12 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'data/library.dart';
-import 'data/source_hub.dart';
-import 'data/offline_library.dart';
 import 'ui/app_shell.dart';
 import 'ui/room_motion.dart';
+import 'ui/startup.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,13 +15,7 @@ Future<void> main() async {
       'Source Han Serif CN',
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
-  final library = Library(await SharedPreferences.getInstance());
-  await library.load();
-  await OfflineLibrary(
-    library,
-    SourceHub(library, gateway: kIsWeb ? Uri.base : null),
-  ).initialize();
-  runApp(ManxiaApp(library: library));
+  runApp(ManxiaStartup(builder: (library) => ManxiaApp(library: library)));
 }
 
 class ManxiaApp extends StatelessWidget {

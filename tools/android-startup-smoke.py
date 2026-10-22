@@ -8,6 +8,7 @@ import argparse
 import io
 import json
 import pathlib
+import re
 import subprocess
 import time
 
@@ -58,8 +59,10 @@ def main():
             print(json.dumps(stats), flush=True)
             # A launch icon/spinner alone cannot satisfy this content threshold.
             if stats["colors"] > 70 and .06 < stats["dark_fraction"] < .95:
-                passed = True
-                break
+                activity = adb("shell", "dumpsys", "activity", "activities")
+                if re.search(r"(?:mResumedActivity|topResumedActivity)[^\n]*io\.manxia\.manxia/", activity):
+                    passed = True
+                    break
     finally:
         logs = adb("logcat", "-d", "-v", "threadtime")
         (args.output / "logcat.txt").write_text(logs, encoding="utf-8")
@@ -70,7 +73,10 @@ def main():
         xml = adb("shell", "cat", "/sdcard/startup.xml", check=False)
         (args.output / "ui.xml").write_text(xml, encoding="utf-8")
         errors = [line for line in logs.splitlines() if any(
-            s in line for s in ("Unhandled Exception", "FATAL EXCEPTION", "Error registering plugin")
+            s in line for s in (
+                "Unhandled Exception", "FATAL EXCEPTION", "Error registering plugin",
+                "Manxia startup", "Fatal signal",
+            )
         )]
         (args.output / "verdict.json").write_text(json.dumps({
             "passed": passed and not errors,

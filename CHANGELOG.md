@@ -2,6 +2,17 @@
 
 版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
+## [0.2.4] - 2026-10-22
+
+Android 启动修复，构建号 6，沿用固定项目发行签名。
+
+- 修复 Release 模式下 Kotlin 协程类型被 R8 改名，导致设置插件 JNI 调用抛出 `NoSuchMethodError`、应用停在白屏的问题。补上六个 Kotlin 运行时类型的保留规则，保留其余代码压缩。
+- 在调用本地插件之前显示启动界面，提供当前初始化阶段；设置、目录和存储调用有超时处理。失败时可重试、复制诊断信息，不自动清空书库。
+- 发布构建增加 Android 11 / 15 模拟器安装、冷启动、首屏截图和异常日志检查，覆盖真正的 Release 路径；另提供公开发行 APK 的复测工作流。
+- 新增启动等待与异常重试回归测试。
+
+v0.2.3 的公开 APK 已在模拟器复现启动故障，建议覆盖更新至本版。诊断及验证方法见 [启动故障记录](docs/STARTUP.md)。
+
 ## [0.2.3] - 2026-10-21
 
 动效衔接更新，构建号 5，沿用 0.2.2 的项目发行签名。
@@ -47,4 +58,5 @@
 - 首次进入部分页面仍可能有绘制峰值，浏览器性能记录不能代替 Android 真机流畅度结论。
 
 [0.2.2]: https://github.com/LexianLix/manxia/releases/tag/v0.2.2
+[0.2.4]: https://github.com/LexianLix/manxia/releases/tag/v0.2.4
 [0.2.3]: https://github.com/LexianLix/manxia/releases/tag/v0.2.3

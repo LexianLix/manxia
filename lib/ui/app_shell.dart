@@ -811,7 +811,7 @@ class _AppShellState extends State<AppShell> {
             onPressed: () => showLicensePage(
               context: context,
               applicationName: '漫匣',
-              applicationVersion: '0.2.3',
+              applicationVersion: '0.2.4',
             ),
             child: const LocalizedText(
               '开源许可与字体声明',
