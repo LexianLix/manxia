@@ -11,6 +11,7 @@ import pathlib
 import re
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 
 from PIL import Image
 
@@ -33,6 +34,22 @@ def surface_stats(data):
     return {"colors": len(colors), "dark_fraction": round(dark, 4)}
 
 
+def read_ui():
+    adb("shell", "rm", "-f", "/sdcard/startup.xml")
+    adb("shell", "uiautomator", "dump", "/sdcard/startup.xml")
+    return adb("shell", "cat", "/sdcard/startup.xml")
+
+
+def has_shelf(xml):
+    try:
+        nodes = ET.fromstring(xml).iter("node")
+        labels = {node.get("content-desc") or node.get("text") for node in nodes
+                  if node.get("package") == "io.manxia.manxia"}
+        return {"我的书架", "书架", "设置"}.issubset(labels)
+    except ET.ParseError:
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("apk", type=pathlib.Path)
@@ -48,6 +65,7 @@ def main():
     print(adb("shell", "am", "start", "-W", "-n", f"{package}/.MainActivity"), flush=True)
     frames = []
     passed = False
+    xml = ""
     try:
         while time.monotonic() - start < args.timeout:
             time.sleep(2)
@@ -57,20 +75,25 @@ def main():
             stats["seconds"] = round(time.monotonic() - start, 1)
             frames.append(stats)
             print(json.dumps(stats), flush=True)
-            # A launch icon/spinner alone cannot satisfy this content threshold.
-            if stats["colors"] > 70 and .06 < stats["dark_fraction"] < .95:
+            # Use actual home controls, not palette richness: the offline shelf
+            # deliberately uses pale paper/green and may have very few colors.
+            if stats["colors"] > 8:
                 activity = adb("shell", "dumpsys", "activity", "activities")
                 if re.search(r"(?:mResumedActivity|topResumedActivity)[^\n]*io\.manxia\.manxia/", activity):
-                    passed = True
-                    break
+                    xml = read_ui()
+                    if has_shelf(xml):
+                        data = adb("exec-out", "screencap", "-p", binary=True)
+                        (args.output / "screen.png").write_bytes(data)
+                        passed = surface_stats(data)["colors"] > 8
+                        if passed:
+                            break
     finally:
         logs = adb("logcat", "-d", "-v", "threadtime")
         (args.output / "logcat.txt").write_text(logs, encoding="utf-8")
         focus = adb("shell", "dumpsys", "window", "windows")
         (args.output / "window.txt").write_text(focus, encoding="utf-8")
-        # Collect semantics as additional evidence; not all Android images expose it.
-        adb("shell", "uiautomator", "dump", "/sdcard/startup.xml", check=False)
-        xml = adb("shell", "cat", "/sdcard/startup.xml", check=False)
+        if not xml:
+            xml = read_ui()
         (args.output / "ui.xml").write_text(xml, encoding="utf-8")
         errors = [line for line in logs.splitlines() if any(
             s in line for s in (
@@ -80,6 +103,7 @@ def main():
         )]
         (args.output / "verdict.json").write_text(json.dumps({
             "passed": passed and not errors,
+            "shelf_controls_present": has_shelf(xml),
             "frames": frames, "startup_errors": errors,
         }, indent=2), encoding="utf-8")
         for line in errors:
