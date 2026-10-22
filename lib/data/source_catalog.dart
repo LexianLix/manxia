@@ -10,6 +10,7 @@ class SourceCatalog {
   });
   final List<Comic> books;
   final Map<String, String> sorts, statuses, parameters;
+  bool get canPaginate => (int.tryParse(parameters['pagesize'] ?? '') ?? 0) > 0;
   static Map<String, String> categories(String input) {
     final result = <String, String>{};
     for (final a in html.parse(input).querySelectorAll('a[href]')) {

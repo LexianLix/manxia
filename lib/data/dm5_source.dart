@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:html/parser.dart' as html;
+import 'package:html/dom.dart' show Element;
 import 'package:http/http.dart' as http;
 import 'comic.dart';
 import 'discovery.dart';
@@ -125,6 +126,20 @@ class Dm5Source {
   static Discovery parseDiscovery(String input) {
     final doc = html.parse(input);
     final sections = <String, List<Comic>>{};
+    final sectionPaths = <String, String>{}, rankPaths = <String, String>{};
+    String? morePath(Element element) {
+      for (final a in element.querySelectorAll('a[href]')) {
+        if (!a.text.contains('更多') || a.querySelector('img') != null) continue;
+        final uri = Uri.tryParse(a.attributes['href'] ?? '');
+        if (uri != null &&
+            (!uri.hasAuthority || uri.host == 'm.dm5.com') &&
+            RegExp(r'^/manhua-[\w-]+/$').hasMatch(uri.path)) {
+          return uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+        }
+      }
+      return null;
+    }
+
     for (final section in doc.querySelectorAll('.manga-list')) {
       final header = section.querySelector('.manga-list-title');
       if (header == null) continue;
@@ -136,7 +151,11 @@ class Dm5Source {
       if (title.isEmpty || title == '排行榜') continue;
       try {
         final books = parseCatalog(section.outerHtml);
-        if (books.isNotEmpty) sections[title] = books;
+        if (books.isNotEmpty) {
+          sections[title] = books;
+          final path = morePath(header);
+          if (path != null) sectionPaths[title] = path;
+        }
       } catch (_) {}
     }
     final ranks = <String, List<Comic>>{};
@@ -153,6 +172,11 @@ class Dm5Source {
               : ['人气', '新番', '收藏', '吐槽'][i - 1]] = parseCatalog(
             section.outerHtml,
           );
+          final label = i <= labels.length
+              ? labels[i - 1]
+              : ['人气', '新番', '收藏', '吐槽'][i - 1];
+          final path = morePath(section);
+          if (path != null) rankPaths[label] = path;
         } catch (_) {}
       }
     }
@@ -161,6 +185,8 @@ class Dm5Source {
       sections: sections,
       ranks: ranks,
       capturedAt: DateTime.now().toUtc().toIso8601String(),
+      sectionPaths: sectionPaths,
+      rankPaths: rankPaths,
     );
   }
 
@@ -177,22 +203,32 @@ class Dm5Source {
           : image.parent?.parent;
       final href = anchor?.attributes['href'] ?? '';
       final parsed = Uri.tryParse(href);
-      final path = parsed?.hasAuthority == false ? parsed!.path : '';
+      final path =
+          parsed != null &&
+              (!parsed.hasAuthority ||
+                  parsed.host == 'm.dm5.com' ||
+                  parsed.host == 'www.dm5.com')
+          ? parsed.path
+          : '';
       var item = image.parent;
       while (item != null && item.localName != 'li') {
         item = item.parent;
       }
+      final anchorTitle = anchor?.attributes['title']?.trim() ?? '';
       final title =
-          (anchor?.attributes['title'] ??
-                  item
-                      ?.querySelector(
-                        '.manga-list-2-title, .manga-list-1-title, .rank-list-title',
-                      )
-                      ?.text ??
-                  '')
+          (anchorTitle.isNotEmpty
+                  ? anchorTitle
+                  : item
+                            ?.querySelector(
+                              '.manga-list-2-title, .manga-list-1-title, .rank-list-title, .book-list-info-title',
+                            )
+                            ?.text ??
+                        '')
               .trim();
-      final cover =
-          image.attributes['src'] ?? image.attributes['data-src'] ?? '';
+      final cover = ['data-src', 'data-original', 'data-lazy-src', 'src']
+          .map((key) => image.attributes[key] ?? '')
+          .map((url) => url.startsWith('//') ? 'https:$url' : url)
+          .firstWhere((url) => url.startsWith('https://'), orElse: () => '');
       if (!RegExp(r'^/manhua-[\w-]+/$').hasMatch(path) ||
           title.isEmpty ||
           !cover.startsWith('https://')) {

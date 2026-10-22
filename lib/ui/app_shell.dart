@@ -519,8 +519,6 @@ class _AppShellState extends State<AppShell> {
                     '${books.length.toString().padLeft(2, '0')} 册',
                     style: small(context),
                   ),
-                  if (widget.library.demo)
-                    LocalizedText('演示书架', style: small(context)),
                 ],
               ),
             ),
@@ -544,7 +542,7 @@ class _AppShellState extends State<AppShell> {
         Divider(color: Theme.of(context).dividerColor, height: 1),
         if (books.isEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 80),
+            padding: const EdgeInsets.symmetric(vertical: 36),
             child: EmptyState(
               icon: Icons.auto_stories_outlined,
               title: '书架，等你放上第一本漫画',
@@ -588,74 +586,6 @@ class _AppShellState extends State<AppShell> {
         ),
         const SizedBox(height: 14),
         _continueCard(),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            const Expanded(
-              child: LocalizedText('下一段故事', style: TextStyle(fontSize: 21)),
-            ),
-            TextButton(
-              onPressed: () => navigate(1),
-              child: const LocalizedText(
-                '去发现  ↗',
-                style: TextStyle(fontSize: 11),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 100 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.5),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: widget.library.samples.length,
-            itemBuilder: (_, i) {
-              final c = widget.library.samples[i];
-              return SizedBox(
-                width: compact ? 205 : 235,
-                child: InkWell(
-                  onTap: () => open(c),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: SizedBox(
-                          width: 62,
-                          height: 88,
-                          child: ComicCover(c, web: widget.web),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            LocalizedText(
-                              c.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                            const SizedBox(height: 10),
-                            LocalizedText(
-                              '查看漫画  ↗',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: small(context),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-            separatorBuilder: (_, _) => const SizedBox(width: 22),
-          ),
-        ),
         const SizedBox(height: 32),
         Center(child: LocalizedText('故事很长，慢慢读。', style: small(context))),
       ],
@@ -782,16 +712,6 @@ class _AppShellState extends State<AppShell> {
               subtitle: LocalizedText('动漫屋 · m.dm5.com', style: small(context)),
               trailing: const Icon(Icons.public, size: 20),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const LocalizedText(
-                '显示演示书架',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: LocalizedText('个人收藏为空时，展示示例漫画', style: small(context)),
-              value: widget.library.demo,
-              onChanged: (v) => widget.library.setting('demo', v),
-            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const LocalizedText(
@@ -847,7 +767,7 @@ class _AppShellState extends State<AppShell> {
             onPressed: () => showLicensePage(
               context: context,
               applicationName: '漫匣',
-              applicationVersion: '0.3.0',
+              applicationVersion: '0.3.1',
             ),
             child: const LocalizedText(
               '开源许可与字体声明',
@@ -886,73 +806,86 @@ class ComicGrid extends StatelessWidget {
     required this.books,
     required this.web,
     required this.onOpen,
+    this.minItemWidth = 170,
+    this.sliver = false,
   });
   final List<Comic> books;
-  final bool web;
+  final bool web, sliver;
+  final double minItemWidth;
   final ValueChanged<Comic> onOpen;
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      final columns = math.max(2, (box.maxWidth / 170).floor());
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: books.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          mainAxisSpacing: 24,
-          crossAxisSpacing: 20,
-          childAspectRatio: .59,
-        ),
-        itemBuilder: (context, i) {
-          final comic = books[i];
-          return InkWell(
-            onTap: () => onOpen(comic),
-            borderRadius: BorderRadius.circular(5),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: .1),
-                          blurRadius: 12,
-                          offset: const Offset(3, 7),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ComicCover(comic, web: web),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 13),
-                LocalizedText(
-                  comic.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 5),
-                LocalizedText(
-                  comic.latest.isEmpty ? '动漫屋' : comic.latest,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: small(context),
-                ),
-              ],
-            ),
-          );
-        },
+  SliverGridDelegateWithFixedCrossAxisCount delegate(double width) =>
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: math.max(2, (width / minItemWidth).floor()),
+        mainAxisSpacing: 24,
+        crossAxisSpacing: 20,
+        childAspectRatio: .59,
       );
-    },
-  );
+  @override
+  Widget build(BuildContext context) => sliver
+      ? SliverLayoutBuilder(
+          builder: (context, constraints) => SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              item,
+              childCount: books.length,
+            ),
+            gridDelegate: delegate(constraints.crossAxisExtent),
+          ),
+        )
+      : LayoutBuilder(
+          builder: (context, box) => GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: books.length,
+            gridDelegate: delegate(box.maxWidth),
+            itemBuilder: item,
+          ),
+        );
+  Widget item(BuildContext context, int i) {
+    final comic = books[i];
+    return InkWell(
+      onTap: () => onOpen(comic),
+      borderRadius: BorderRadius.circular(5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .1),
+                    blurRadius: 12,
+                    offset: const Offset(3, 7),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ComicCover(comic, web: web),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 13),
+          LocalizedText(
+            comic.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 5),
+          LocalizedText(
+            comic.latest.isEmpty ? '动漫屋' : comic.latest,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: small(context),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class EmptyState extends StatelessWidget {

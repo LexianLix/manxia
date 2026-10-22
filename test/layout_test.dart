@@ -44,10 +44,14 @@ void main() {
         SharedPreferences.setMockInitialValues({});
         library = Library(await SharedPreferences.getInstance());
         await library.load();
+        for (final book in library.samples) {
+          await library.toggle(book);
+        }
       });
       await tester.pumpWidget(ManxiaApp(library: library));
       await tester.pumpAndSettle();
-      expect(find.text('演示书架'), findsOneWidget);
+      expect(find.text('演示书架'), findsNothing);
+      expect(library.favorites, hasLength(7));
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip('下一本'));
       await tester.pumpAndSettle();

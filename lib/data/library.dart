@@ -14,7 +14,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
   List<Comic> samples = [];
   @override
   List<ReadingRecord> history = [];
-  bool demo = true, dark = false, motion = true, grid = false, rtl = false;
+  bool demo = false, dark = false, motion = true, grid = false, rtl = false;
   String mode = 'page';
   @override
   Future<void> restore(
@@ -29,7 +29,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
   Future<void> load() async {
     loadFeatures();
     samples = Comic.decode(await rootBundle.loadString('assets/catalog.json'));
-    demo = prefs.getBool('demo') ?? true;
+    // Old demo preferences must never populate the user's collection.
     dark = prefs.getBool('dark') ?? false;
     motion = prefs.getBool('motion') ?? true;
     grid = prefs.getBool('grid') ?? false;
@@ -50,7 +50,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
     notifyListeners();
   }
 
-  List<Comic> get books => demo && favorites.isEmpty ? samples : favorites;
+  List<Comic> get books => favorites;
   bool contains(Comic c) => favorites.any((b) => b.path == c.path);
   ReadingRecord? record(Comic c) =>
       history.where((h) => h.comic.path == c.path).firstOrNull;

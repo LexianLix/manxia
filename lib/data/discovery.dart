@@ -9,11 +9,14 @@ class Discovery {
     required this.ranks,
     required this.capturedAt,
     this.cached = false,
+    this.sectionPaths = const {},
+    this.rankPaths = const {},
   });
   final List<Comic> books;
   final Map<String, List<Comic>> sections, ranks;
   final String capturedAt;
   final bool cached;
+  final Map<String, String> sectionPaths, rankPaths;
   Map<String, dynamic> toJson() => {
     'books': books.map((b) => b.toJson()).toList(),
     'sections': sections.map(
@@ -23,6 +26,8 @@ class Discovery {
       (k, v) => MapEntry(k, v.map((b) => b.toJson()).toList()),
     ),
     'capturedAt': capturedAt,
+    'sectionPaths': sectionPaths,
+    'rankPaths': rankPaths,
   };
   factory Discovery.fromJson(Map<String, dynamic> j, {bool cached = false}) {
     List<Comic> list(dynamic v) => (v as List)
@@ -36,11 +41,13 @@ class Discovery {
       ranks: groups(j['ranks']),
       capturedAt: j['capturedAt'],
       cached: cached,
+      sectionPaths: Map<String, String>.from(j['sectionPaths'] ?? {}),
+      rankPaths: Map<String, String>.from(j['rankPaths'] ?? {}),
     );
   }
-  List<Comic> daily(DateTime day, {int edition = 0, int count = 6}) {
+  List<Comic> daily(DateTime day, {int edition = 0, int count = 12}) {
     final date = day.toIso8601String().substring(0, 10);
-    final sorted = [...books]
+    final sorted = {for (final book in books) book.path: book}.values.toList()
       ..sort((a, b) {
         String score(Comic c) =>
             sha256.convert(utf8.encode('$date/$edition/${c.path}')).toString();
@@ -66,7 +73,10 @@ class Discovery {
     }
     int score(Comic c) => features(c).fold(0, (s, t) => s + (weights[t] ?? 0));
     final candidates = books.where((c) => !seen.contains(c.path)).toList()
-      ..sort((a, b) => score(b).compareTo(score(a)));
+      ..sort((a, b) {
+        final compared = score(b).compareTo(score(a));
+        return compared == 0 ? a.path.compareTo(b.path) : compared;
+      });
     return candidates.take(count).toList();
   }
 }

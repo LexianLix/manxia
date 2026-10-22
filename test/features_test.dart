@@ -190,7 +190,7 @@ void main() {
       );
       final day = DateTime(2026, 10, 20);
       expect(d.daily(day).map((b) => b.path), d.daily(day).map((b) => b.path));
-      expect(d.daily(day).map((b) => b.path).toSet().length, 6);
+      expect(d.daily(day).map((b) => b.path).toSet().length, 12);
       expect(
         d.daily(day, edition: 1).map((b) => b.path),
         isNot(d.daily(day).map((b) => b.path)),

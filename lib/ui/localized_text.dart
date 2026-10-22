@@ -59,6 +59,28 @@ String translate(String text, Locale locale) {
 }
 
 const english = <String, String>{
+  '书架，等你放上第一本漫画': 'Your first comic belongs here',
+  '去发现页搜索喜欢的漫画，加入收藏。': 'Find a comic in Explore and add it to your library.',
+  '今天，读点什么': 'A story for today',
+  '今日主推': "Today's pick",
+  '查看全部': 'View all',
+  '搜索方式': 'Search mode',
+  '还想看更多？': 'Find your next story',
+  '按题材探索，继续加载更多漫画': 'Explore genres and load more comics',
+  '大家都在读': 'Popular stories',
+  '看榜单': 'Rankings',
+  '从人气榜开始，找到下一本': 'Find your next read in the rankings',
+  '从更多故事里，找到你的偏爱': 'Find something you love',
+  '沿着你喜欢的题材，继续发现': 'More from the genres you enjoy',
+  '离线目录 · 正在刷新': 'Offline catalog · refreshing',
+  '连接暂不可用 · 正在浏览离线目录': 'Offline · browsing the saved catalog',
+  '返回发现': 'Back to Explore',
+  '完整榜单': 'Full ranking',
+  '检查更新': 'Check updates',
+  '给自己一段读漫画的时间。': 'Take a little time for a story.',
+  '翻开故事  ↗': 'Open story  ↗',
+  '今天，也有值得翻开的故事。': 'A new story is waiting for you.',
+
   '书架': 'Library',
   '发现': 'Explore',
   '足迹': 'History',

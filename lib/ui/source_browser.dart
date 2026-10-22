@@ -15,11 +15,16 @@ class SourceBrowser extends StatefulWidget {
     required this.library,
     required this.web,
     required this.onOpen,
+    this.sliver = false,
+    this.initialPath,
+    this.initialBooks = const [],
   });
   final Dm5Source source;
   final Library library;
-  final bool web;
+  final bool web, sliver;
   final ValueChanged<Comic> onOpen;
+  final String? initialPath;
+  final List<Comic> initialBooks;
   @override
   State<SourceBrowser> createState() => _SourceBrowserState();
 }
@@ -30,15 +35,20 @@ class _SourceBrowserState extends State<SourceBrowser> {
   final List<Comic> books = [];
   String genre = '', path = '', order = '最热门', status = '全部';
   int page = 1, request = 0;
-  bool busy = false, more = true;
+  bool busy = false, more = true, retryNext = false;
   String? error;
   @override
   void initState() {
     super.initState();
+    books.addAll(widget.initialBooks);
     initialize();
   }
 
   Future<void> initialize() async {
+    if (widget.initialPath != null) {
+      await load(widget.initialPath!);
+      return;
+    }
     try {
       categories = await widget.source.categories();
     } catch (_) {
@@ -60,6 +70,7 @@ class _SourceBrowserState extends State<SourceBrowser> {
     setState(() {
       busy = true;
       error = null;
+      retryNext = false;
       path = selected;
       page = 1;
       more = true;
@@ -85,7 +96,7 @@ class _SourceBrowserState extends State<SourceBrowser> {
           final saved = widget.library.prefs.getString('catalog.$selected');
           books
             ..clear()
-            ..addAll(saved == null ? <Comic>[] : Comic.decode(saved));
+            ..addAll(saved == null ? widget.initialBooks : Comic.decode(saved));
           catalog = null;
         });
       }
@@ -97,7 +108,11 @@ class _SourceBrowserState extends State<SourceBrowser> {
   Future<void> next() async {
     if (catalog == null || busy) return;
     final generation = request;
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+      error = null;
+      retryNext = false;
+    });
     try {
       final result = await widget.source.catalogNext(
         catalog!.parameters,
@@ -106,50 +121,54 @@ class _SourceBrowserState extends State<SourceBrowser> {
       if (mounted && generation == request) {
         setState(() {
           final seen = books.map((b) => b.path).toSet();
-          books.addAll(result.where((c) => seen.add(c.path)));
-          more = result.isNotEmpty;
+          final added = result.where((c) => seen.add(c.path)).toList();
+          books.addAll(added);
+          more = added.isNotEmpty;
           page++;
         });
       }
     } catch (e) {
-      if (mounted && generation == request) setState(() => error = '$e');
+      if (mounted && generation == request) {
+        setState(() {
+          error = '$e';
+          retryNext = true;
+        });
+      }
     } finally {
       if (mounted && generation == request) setState(() => busy = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Column(
+  Widget controls(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const LocalizedText('按题材探索', style: TextStyle(fontSize: 23)),
-      const SizedBox(height: 8),
-      const LocalizedText(
-        '题材、状态与排序使用动漫屋实际筛选链接。',
-        style: TextStyle(fontSize: 12),
-      ),
-      const SizedBox(height: 18),
-      Wrap(
-        spacing: 7,
-        runSpacing: 7,
-        children: categories.entries
-            .map(
-              (e) => ChoiceChip(
-                label: LocalizedText(
-                  e.key,
-                  style: const TextStyle(fontSize: 12),
+      if (widget.initialPath == null) ...[
+        const LocalizedText('按题材探索', style: TextStyle(fontSize: 23)),
+        const SizedBox(height: 8),
+        const LocalizedText('选一个喜欢的题材，慢慢找。', style: TextStyle(fontSize: 12)),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: categories.entries
+              .map(
+                (e) => ChoiceChip(
+                  label: LocalizedText(
+                    e.key,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  selected: genre == e.key,
+                  onSelected: (_) {
+                    genre = e.key;
+                    order = '最热门';
+                    status = '全部';
+                    load(e.value);
+                  },
                 ),
-                selected: genre == e.key,
-                onSelected: (_) {
-                  genre = e.key;
-                  order = '最热门';
-                  status = '全部';
-                  load(e.value);
-                },
-              ),
-            )
-            .toList(),
-      ),
+              )
+              .toList(),
+        ),
+      ],
       const SizedBox(height: 14),
       if (catalog != null)
         Wrap(
@@ -193,24 +212,54 @@ class _SourceBrowserState extends State<SourceBrowser> {
                 ),
               ),
               TextButton(
-                onPressed: () => load(path),
+                key: const ValueKey('source-retry'),
+                onPressed: busy
+                    ? null
+                    : retryNext
+                    ? next
+                    : () => load(path),
                 child: const LocalizedText('重试'),
               ),
             ],
           ),
         ),
-      const SizedBox(height: 20),
-      ComicGrid(books: books, web: widget.web, onOpen: widget.onOpen),
-      if (catalog != null && more)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Center(
-            child: OutlinedButton(
-              onPressed: busy ? null : next,
-              child: const LocalizedText('加载更多'),
-            ),
-          ),
-        ),
     ],
   );
+  Widget loadMore() => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 24),
+    child: Center(
+      child: OutlinedButton(
+        onPressed: busy ? null : next,
+        child: const LocalizedText('加载更多'),
+      ),
+    ),
+  );
+  @override
+  Widget build(BuildContext context) {
+    if (widget.sliver) {
+      return SliverMainAxisGroup(
+        slivers: [
+          SliverToBoxAdapter(child: controls(context)),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          ComicGrid(
+            books: books,
+            web: widget.web,
+            onOpen: widget.onOpen,
+            sliver: true,
+          ),
+          if (catalog?.canPaginate == true && more)
+            SliverToBoxAdapter(child: loadMore()),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        controls(context),
+        const SizedBox(height: 20),
+        ComicGrid(books: books, web: widget.web, onOpen: widget.onOpen),
+        if (catalog?.canPaginate == true && more) loadMore(),
+      ],
+    );
+  }
 }

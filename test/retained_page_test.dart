@@ -17,6 +17,9 @@ void main() {
         SharedPreferences.setMockInitialValues({});
         library = Library(await SharedPreferences.getInstance());
         await library.load();
+        for (final book in library.samples) {
+          await library.toggle(book);
+        }
       });
       await tester.pumpWidget(ManxiaApp(library: library));
       await tester.pumpAndSettle();

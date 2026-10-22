@@ -12,8 +12,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final library = Library(prefs);
       await library.load();
-      expect(library.demo, true);
-      expect(library.books, isNotEmpty);
+      expect(library.books, isEmpty);
       final comic = library.samples.first;
       await library.toggle(comic);
       expect(library.demo, false);
@@ -34,6 +33,22 @@ void main() {
       expect(restored.record(comic)!.page, 4);
       await restored.toggle(comic);
       expect(restored.books, isEmpty);
+    },
+  );
+  test(
+    'legacy demo preference never injects books into real favorites',
+    () async {
+      SharedPreferences.setMockInitialValues({'demo': true});
+      final prefs = await SharedPreferences.getInstance();
+      final library = Library(prefs);
+      await library.load();
+      expect(library.books, isEmpty);
+      await library.toggle(library.samples.first);
+      await prefs.setBool('demo', true);
+      final restored = Library(prefs);
+      await restored.load();
+      expect(restored.books.map((b) => b.path), [library.samples.first.path]);
+      expect(restored.history, isEmpty);
     },
   );
   test('broken local records do not prevent the app opening', () async {
