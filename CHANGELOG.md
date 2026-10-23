@@ -2,7 +2,7 @@
 
 版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
-## [0.3.1] - 2026-10-22
+## [0.3.1] - 2026-10-23
 
 ### 修复
 
