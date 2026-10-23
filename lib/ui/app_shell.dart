@@ -8,7 +8,6 @@ import '../data/source_hub.dart';
 import 'advanced_settings.dart';
 import 'history_page.dart';
 import '../data/library.dart';
-import 'book_object.dart';
 import 'detail_page.dart';
 import 'reader_page.dart';
 import 'living_shelf.dart';
@@ -20,6 +19,7 @@ import 'library_manager.dart';
 import 'room_motion.dart';
 import 'plugins_page.dart';
 import 'personalization_settings.dart';
+import 'book_link.dart';
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -59,6 +59,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> open(Comic c) async {
+    final flightTag = BookLink.takeTag(context, c);
     if (opening) return;
     opening = true;
     final origin = openingOrigin?.$1 == c.path ? openingOrigin?.$2 : null;
@@ -86,6 +87,7 @@ class _AppShellState extends State<AppShell> {
             library: widget.library,
             source: source,
             web: widget.web,
+            flightTag: flightTag,
             bookNumber: math.max(
               1,
               widget.library.books.indexWhere((b) => b.path == c.path) + 1,
@@ -842,47 +844,50 @@ class ComicGrid extends StatelessWidget {
         );
   Widget item(BuildContext context, int i) {
     final comic = books[i];
-    return InkWell(
-      onTap: () => onOpen(comic),
-      borderRadius: BorderRadius.circular(5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .1),
-                    blurRadius: 12,
-                    offset: const Offset(3, 7),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ComicCover(comic, web: web),
+    return BookLink(
+      key: ValueKey('${comic.sourceId}/${comic.path}/$i'),
+      comic: comic,
+      web: web,
+      onOpen: onOpen,
+      builder: (cover, open) => InkWell(
+        onTap: open,
+        borderRadius: BorderRadius.circular(5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .1),
+                      blurRadius: 12,
+                      offset: const Offset(3, 7),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: SizedBox(width: double.infinity, child: cover),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 13),
-          LocalizedText(
-            comic.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14),
-          ),
-          const SizedBox(height: 5),
-          LocalizedText(
-            comic.latest.isEmpty ? '动漫屋' : comic.latest,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: small(context),
-          ),
-        ],
+            const SizedBox(height: 13),
+            LocalizedText(
+              comic.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 5),
+            LocalizedText(
+              comic.latest.isEmpty ? '动漫屋' : comic.latest,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: small(context),
+            ),
+          ],
+        ),
       ),
     );
   }

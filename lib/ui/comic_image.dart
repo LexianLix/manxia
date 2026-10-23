@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../data/offline_library.dart';
 import '../data/dm5_source.dart';
+import 'cover_arrival.dart';
 
 String imageAddress(String original, bool web) =>
     web && original.startsWith('https://')
@@ -34,9 +35,11 @@ class ComicImage extends StatefulWidget {
     this.fit = BoxFit.cover,
     this.cacheWidth,
     this.fallback,
+    this.animate = true,
   });
   final String url;
   final bool web;
+  final bool animate;
   final BoxFit fit;
   final int? cacheWidth;
   final Widget? fallback;
@@ -60,16 +63,18 @@ class _ComicImageState extends State<ComicImage> {
   Widget fallback() =>
       widget.fallback ??
       const Center(child: Icon(Icons.broken_image_outlined, size: 25));
+  Widget loading(BuildContext context) => ColoredBox(
+    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .04),
+    child: const Center(child: Icon(Icons.image_outlined, size: 20)),
+  );
   @override
   Widget build(BuildContext c) => FutureBuilder<ImageProvider>(
+    key: ValueKey(widget.url),
     future: provider,
     builder: (c, s) {
       if (s.hasError) return fallback();
       if (!s.hasData) {
-        return ColoredBox(
-          color: Theme.of(c).colorScheme.onSurface.withValues(alpha: .04),
-          child: const Center(child: Icon(Icons.image_outlined, size: 20)),
-        );
+        return loading(c);
       }
       return Image(
         image: widget.cacheWidth == null
@@ -77,11 +82,11 @@ class _ComicImageState extends State<ComicImage> {
             : ResizeImage.resizeIfNeeded(widget.cacheWidth, null, s.data!),
         fit: widget.fit,
         gaplessPlayback: true,
-        frameBuilder: (_, child, frame, sync) => AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
-          duration: Duration(
-            milliseconds: MediaQuery.disableAnimationsOf(c) ? 0 : 180,
-          ),
+        frameBuilder: (_, child, frame, sync) => CoverArrival(
+          identity: widget.url,
+          ready: frame != null,
+          immediate: sync || !widget.animate,
+          placeholder: loading(c),
           child: child,
         ),
         errorBuilder: (_, _, _) => fallback(),

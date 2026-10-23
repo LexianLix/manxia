@@ -10,7 +10,7 @@ Upstream: https://github.com/adobe-fonts/source-han-serif
 Font file obtained from the reference repository's unmodified font assets.
 
 assets/catalog.json contains a small public DM5 metadata snapshot for the
-explicitly labelled sample shelf. The repository does not bundle comic cover
+development and compatibility fixtures. The personal shelf displays actual favorites only. The repository does not bundle comic cover
 or chapter image files as reading resources. Project UI screenshots may show
 public covers for interface illustration. Images displayed by the client are fetched from DM5's
 CDN and remain the property of their respective rights holders. These images

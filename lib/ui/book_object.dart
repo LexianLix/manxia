@@ -5,61 +5,91 @@ import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import 'comic_image.dart';
 import 'cover_palette.dart';
+import 'room_motion.dart';
 export 'comic_image.dart' show imageAddress;
 
 /// One book travels between the real shelf and detail bounds in both directions.
 /// The same cover, numbering and material survive the flight.
 class BookFlight extends StatelessWidget {
-  const BookFlight({super.key, required this.child, this.enabled = true});
+  const BookFlight({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.tag,
+  });
   final BookObject child;
   final bool enabled;
+  final Object? tag;
 
   @override
   Widget build(BuildContext context) {
     if (!enabled || MediaQuery.disableAnimationsOf(context)) return child;
     return Hero(
-      tag: 'book-${child.comic.path}',
+      tag: tag ?? 'book-${child.comic.path}',
       curve: Curves.linear,
       reverseCurve: Curves.linear,
       createRectTween: (begin, end) => _BookRectTween(begin: begin, end: end),
-      flightShuttleBuilder: (_, animation, direction, from, to) {
-        final start = (from.widget as Hero).child as BookObject;
-        final end = (to.widget as Hero).child as BookObject;
-        // The route's visual progress runs from one to zero on pop, while Hero
-        // reverses its geometric endpoints. Keep the cover progress reversible.
-        final source = direction == HeroFlightDirection.push ? start : end;
-        final target = direction == HeroFlightDirection.push ? end : start;
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (_, _) {
-            final t = animation.value;
-            final lift = math.sin(math.pi * t);
-            return Transform.rotate(
-              angle: -.025 * lift,
-              child: BookObject(
-                child.comic,
-                web: child.web,
-                number: t < .5 ? source.number : target.number,
-                bookmark: t < .5 ? source.bookmark : target.bookmark,
-                exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
-                light: ui.lerpDouble(source.light, target.light, t)!,
-                opening: ui.lerpDouble(
-                  source.opening,
-                  target.opening,
-                  const Interval(
-                    .12,
-                    .96,
-                    curve: Curves.easeInOutCubic,
-                  ).transform(t),
-                )!,
-              ),
-            );
-          },
-        );
-      },
+      flightShuttleBuilder: shuttle(child.comic, child.web),
       child: child,
     );
   }
+
+  static HeroFlightShuttleBuilder shuttle(
+    Comic comic,
+    bool web,
+  ) => (_, animation, direction, from, to) {
+    final fromChild = (from.widget as Hero).child;
+    final toChild = (to.widget as Hero).child;
+    final start = fromChild is BookObject
+        ? fromChild
+        : BookObject(comic, web: web);
+    final end = toChild is BookObject ? toChild : BookObject(comic, web: web);
+    final flat =
+        (direction == HeroFlightDirection.push ? fromChild : toChild)
+            is! BookObject;
+    // The route's visual progress runs from one to zero on pop, while Hero
+    // reverses its geometric endpoints. Keep the cover progress reversible.
+    final source = direction == HeroFlightDirection.push ? start : end;
+    final target = direction == HeroFlightDirection.push ? end : start;
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (_, _) {
+        final t = animation.value;
+        final lift = math.sin(math.pi * t);
+        final book = BookObject(
+          comic,
+          web: web,
+          number: t < .5 ? source.number : target.number,
+          bookmark: t < .5 ? source.bookmark : target.bookmark,
+          exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
+          light: ui.lerpDouble(source.light, target.light, t)!,
+          opening: ui.lerpDouble(
+            source.opening,
+            target.opening,
+            const Interval(.12, .96, curve: Curves.easeInOutCubic).transform(t),
+          )!,
+        );
+        final binding = RoomMotion.ease.transform((t / .2).clamp(0, 1));
+        return Transform.rotate(
+          angle: -.025 * lift,
+          child: flat
+              ? Stack(
+                  fit: StackFit.expand,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Opacity(opacity: binding, child: book),
+                    if (binding < 1)
+                      Opacity(
+                        opacity: 1 - binding,
+                        child: ComicCover(comic, web: web, animate: false),
+                      ),
+                  ],
+                )
+              : book,
+        );
+      },
+    );
+  };
 }
 
 class _BookRectTween extends RectTween {
@@ -79,17 +109,20 @@ class ComicCover extends StatelessWidget {
     required this.web,
     this.fit = BoxFit.cover,
     this.cacheWidth = 512,
+    this.animate = true,
   });
   final Comic comic;
   final bool web;
   final BoxFit fit;
   final int cacheWidth;
+  final bool animate;
   @override
   Widget build(BuildContext context) => ComicImage(
     comic.cover,
     web: web,
     fit: fit,
     cacheWidth: cacheWidth,
+    animate: animate,
     fallback: ColoredBox(
       color: const Color(0xffe1e5dc),
       child: Center(

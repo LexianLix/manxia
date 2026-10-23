@@ -20,12 +20,14 @@ class DetailPage extends StatefulWidget {
     required this.source,
     required this.web,
     this.bookNumber = 1,
+    this.flightTag,
   });
   final Comic comic;
   final Library library;
   final Dm5Source source;
   final bool web;
   final int bookNumber;
+  final Object? flightTag;
   @override
   State<DetailPage> createState() => _DetailPageState();
 }
@@ -302,6 +304,7 @@ class _DetailPageState extends State<DetailPage> {
                                   height: 280,
                                   width: 200,
                                   child: BookFlight(
+                                    tag: widget.flightTag,
                                     key: coverKey,
                                     child: BookObject(
                                       comic,
@@ -333,6 +336,7 @@ class _DetailPageState extends State<DetailPage> {
                                       width: 240,
                                       height: 336,
                                       child: BookFlight(
+                                        tag: widget.flightTag,
                                         key: coverKey,
                                         child: BookObject(
                                           comic,

@@ -12,6 +12,7 @@ import 'book_object.dart';
 import 'materials.dart';
 import 'source_browser.dart';
 import 'discovery_collection.dart';
+import 'book_link.dart';
 
 class DiscoveryPage extends StatefulWidget {
   const DiscoveryPage({
@@ -777,166 +778,177 @@ class _DiscoveryPageState extends State<DiscoveryPage> {
   }) => LayoutBuilder(
     builder: (context, box) {
       final wide = box.maxWidth >= 650;
-      return MilkGlass(
-        radius: 18,
-        high: widget.library.option<String>('quality', 'high') == 'high',
-        tintOpacity: .52,
-        padding: EdgeInsets.symmetric(horizontal: wide ? 30 : 18, vertical: 24),
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: () => widget.onOpen(comic),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: wide ? 144 : 112,
-                      height: wide ? 208 : 172,
-                      child: BookObject(comic, web: widget.web),
-                    ),
-                    SizedBox(width: wide ? 30 : 22),
-                    Expanded(
-                      child: Column(
+      return BookLink(
+        comic: comic,
+        web: widget.web,
+        onOpen: widget.onOpen,
+        cover: BookObject(comic, web: widget.web),
+        builder: (cover, open) => MilkGlass(
+          radius: 18,
+          high: widget.library.option<String>('quality', 'high') == 'high',
+          tintOpacity: .52,
+          padding: EdgeInsets.symmetric(
+            horizontal: wide ? 30 : 18,
+            vertical: 24,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: open,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: wide ? 144 : 112,
+                        height: wide ? 208 : 172,
+                        child: cover,
+                      ),
+                      SizedBox(width: wide ? 30 : 22),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: LocalizedText(
+                                    '今日主推',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      letterSpacing: 2,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                LocalizedText(
+                                  day.replaceAll(' ', ''),
+                                  style: small(context),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            LocalizedText(
+                              comic.title,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: wide ? 28 : 23,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            LocalizedText(
+                              comic.latest.isEmpty
+                                  ? '给自己一段读漫画的时间。'
+                                  : comic.latest,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: small(context),
+                            ),
+                            const SizedBox(height: 18),
+                            LocalizedText(
+                              '翻开故事  ↗',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (wide && companions.isNotEmpty) ...[
+                const SizedBox(width: 28),
+                SizedBox(
+                  width: box.maxWidth * .30,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LocalizedText('也可以从这些开始', style: small(context)),
+                      const SizedBox(height: 18),
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: LocalizedText(
-                                  '今日主推',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    letterSpacing: 2,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
+                          for (final companion in companions)
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: InkWell(
+                                  onTap: () => widget.onOpen(companion),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      AspectRatio(
+                                        aspectRatio: .70,
+                                        child: ComicCover(
+                                          companion,
+                                          web: widget.web,
+                                          cacheWidth: 256,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      LocalizedText(
+                                        companion.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: small(context),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              LocalizedText(
-                                day.replaceAll(' ', ''),
-                                style: small(context),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          LocalizedText(
-                            comic.title,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: wide ? 28 : 23,
-                              height: 1.4,
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          LocalizedText(
-                            comic.latest.isEmpty
-                                ? '给自己一段读漫画的时间。'
-                                : comic.latest,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: small(context),
-                          ),
-                          const SizedBox(height: 18),
-                          LocalizedText(
-                            '翻开故事  ↗',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            if (wide && companions.isNotEmpty) ...[
-              const SizedBox(width: 28),
-              SizedBox(
-                width: box.maxWidth * .30,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    LocalizedText('也可以从这些开始', style: small(context)),
-                    const SizedBox(height: 18),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final companion in companions)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: InkWell(
-                                onTap: () => widget.onOpen(companion),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    AspectRatio(
-                                      aspectRatio: .70,
-                                      child: ComicCover(
-                                        companion,
-                                        web: widget.web,
-                                        cacheWidth: 256,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    LocalizedText(
-                                      companion.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: small(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       );
     },
   );
-  Widget _rankRow(Comic comic, int place) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: InkWell(
-      onTap: () => widget.onOpen(comic),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 45,
-            child: LocalizedText(
-              place.toString().padLeft(2, '0'),
-              style: TextStyle(
-                fontSize: 28,
-                color: place <= 3
-                    ? Theme.of(context).colorScheme.primary
-                    : quiet(context),
+  Widget _rankRow(Comic comic, int place) => BookLink(
+    comic: comic,
+    web: widget.web,
+    onOpen: widget.onOpen,
+    builder: (cover, open) => Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: InkWell(
+        onTap: open,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 45,
+              child: LocalizedText(
+                place.toString().padLeft(2, '0'),
+                style: TextStyle(
+                  fontSize: 28,
+                  color: place <= 3
+                      ? Theme.of(context).colorScheme.primary
+                      : quiet(context),
+                ),
               ),
             ),
-          ),
-          SizedBox(
-            width: 60,
-            height: 80,
-            child: ComicCover(comic, web: widget.web),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: LocalizedText(
-              comic.title,
-              style: const TextStyle(fontSize: 16),
+            SizedBox(width: 60, height: 80, child: cover),
+            const SizedBox(width: 18),
+            Expanded(
+              child: LocalizedText(
+                comic.title,
+                style: const TextStyle(fontSize: 16),
+              ),
             ),
-          ),
-          const Icon(Icons.north_east, size: 18),
-        ],
+            const Icon(Icons.north_east, size: 18),
+          ],
+        ),
       ),
     ),
   );

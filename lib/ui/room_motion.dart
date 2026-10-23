@@ -6,6 +6,7 @@ abstract final class RoomMotion {
   static const feedback = Duration(milliseconds: 180);
   static const page = Duration(milliseconds: 260);
   static const arrival = Duration(milliseconds: 420);
+  static const cover = Duration(milliseconds: 320);
   static const book = Duration(milliseconds: 760);
   static const bookReturn = Duration(milliseconds: 580);
   static const flight = Duration(milliseconds: 440);
