@@ -21,4 +21,15 @@
 
 ## 安装包
 
-构建号11，当前准备Android Release验证；未完成的构建、签名或发布不得记为通过。正式结果在验证后补记。
+构建号11；二进制与版本tag对应提交 `192e15922085503e16e2117faef35e3bfa4e29a1`。后续文档更新不用于归因二进制。
+
+- [常规CI](https://github.com/LexianLix/manxia/actions/runs/39958789770) 与 [Release构建/候选启动检查](https://github.com/LexianLix/manxia/actions/runs/39958820971) 均成功。Android11/API30、Android15/API35 的x86_64模拟器各三次冷启动，六份verdict均passed=true、标题实际绘制、启动及命令错误为空；renderer_override=platform。已核对两系统标题区域与首屏。
+- 原始构建归档SHA-256 `c80c700e1cc01fefaf6b39d18d19b68b3a75bd69d547e4c496773950d02dfa3c` 与GitHub artifact digest一致；候选启动证据归档同样校验后解包，保存在忽略目录 `artifacts/v032-candidate-qa/`。
+- 三架构沿用固定项目证书：`9618d4bb9b8ce8045c502c79fea0b8c2eb4d14f0a6ccb380cf22ac2bccdbc091`。签名、16KB对齐、API24最低版本与ARMv7/ARM64/x86_64分包版本码1011/2011/4011均通过。
+- [v0.3.2](https://github.com/LexianLix/manxia/releases/tag/v0.3.2) 已发布三个APK和两份校验/清单附件。五附件GitHub digest/大小均与本地一致，匿名HEAD均HTTP200；匿名下载的正式清单哈希 `4bad46679c26fcd0fd71e30e25d1090224027f00410c6401a201280304a5c90b` 与本地相同。
+- [公开正式签名包复测](https://github.com/LexianLix/manxia/actions/runs/39960694950) 已成功，输入只有version=0.3.2、未传build_run。Android11/API30、Android15/API35 的x86_64模拟器各三次冷启动，六份verdict均passed=true、首页标题实际绘制、错误列表为空、renderer_override=platform；已查看两系统正式包标题区域。原始证据保存在忽略目录 `artifacts/v032-public-qa/`，两份下载归档的SHA-256与GitHub artifact digest一致。
+
+## 后续边界
+
+- iQOO / ARM64 实际联网、持续阅读和物理帧率仍需验证；《火影忍者》在此处可读取553章不代表已经拿到用户手机上的同一失败响应。
+- 关于弹窗仍保留旧的版本文案0.3.1；系统安装包的versionName为0.3.2、构建号11。后续改为自动读取包元数据，避免手工版本文案滞后；不改写已发布的APK或标签。
