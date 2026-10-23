@@ -37,15 +37,38 @@ class RoomPageTransitions extends PageTransitionsBuilder {
   ) {
     if (MediaQuery.disableAnimationsOf(context)) return child;
     return AnimatedBuilder(
-      animation: animation,
+      animation: Listenable.merge([animation, secondaryAnimation]),
       child: child,
       builder: (_, child) {
         final t = RoomMotion.ease.transform(animation.value);
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(18 * (1 - t), 0),
-            child: child,
+        final depth = RoomMotion.ease.transform(secondaryAnimation.value);
+        final surface = const Interval(
+          0,
+          .36,
+          curve: RoomMotion.ease,
+        ).transform(animation.value);
+        final content = const Interval(
+          .24,
+          1,
+          curve: RoomMotion.ease,
+        ).transform(animation.value);
+        return Transform.translate(
+          offset: Offset(-8 * depth, 0),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Opacity(
+                opacity: surface,
+                child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+              ),
+              Opacity(
+                opacity: content,
+                child: Transform.translate(
+                  offset: Offset(18 * (1 - t), 0),
+                  child: child,
+                ),
+              ),
+            ],
           ),
         );
       },

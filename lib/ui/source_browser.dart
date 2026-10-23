@@ -7,6 +7,7 @@ import '../data/library.dart';
 import '../data/source_catalog.dart';
 import 'localized_text.dart';
 import 'app_shell.dart' show ComicGrid;
+import 'content_handoff.dart';
 
 class SourceBrowser extends StatefulWidget {
   const SourceBrowser({
@@ -195,34 +196,42 @@ class _SourceBrowserState extends State<SourceBrowser> {
               ),
           ],
         ),
-      if (busy)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 18),
-          child: LinearProgressIndicator(),
-        ),
-      if (error != null)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '来源暂不可达，已有缓存会继续显示。\n$error',
-                  style: const TextStyle(fontSize: 12),
+      ContentHandoff(
+        child: busy
+            ? const Padding(
+                key: ValueKey('catalog-busy'),
+                padding: EdgeInsets.symmetric(vertical: 18),
+                child: LinearProgressIndicator(),
+              )
+            : const SizedBox.shrink(key: ValueKey('catalog-idle')),
+      ),
+      ContentHandoff(
+        child: error != null
+            ? Padding(
+                key: const ValueKey('catalog-error'),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '来源暂不可达，已有缓存会继续显示。\n$error',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      key: const ValueKey('source-retry'),
+                      onPressed: busy
+                          ? null
+                          : retryNext
+                          ? next
+                          : () => load(path),
+                      child: const LocalizedText('重试'),
+                    ),
+                  ],
                 ),
-              ),
-              TextButton(
-                key: const ValueKey('source-retry'),
-                onPressed: busy
-                    ? null
-                    : retryNext
-                    ? next
-                    : () => load(path),
-                child: const LocalizedText('重试'),
-              ),
-            ],
-          ),
-        ),
+              )
+            : const SizedBox.shrink(key: ValueKey('catalog-no-error')),
+      ),
     ],
   );
   Widget loadMore() => Padding(
@@ -230,7 +239,9 @@ class _SourceBrowserState extends State<SourceBrowser> {
     child: Center(
       child: OutlinedButton(
         onPressed: busy ? null : next,
-        child: const LocalizedText('加载更多'),
+        child: ContentHandoff(
+          child: LocalizedText(busy ? '正在加载…' : '加载更多', key: ValueKey(busy)),
+        ),
       ),
     ),
   );
@@ -247,8 +258,13 @@ class _SourceBrowserState extends State<SourceBrowser> {
             onOpen: widget.onOpen,
             sliver: true,
           ),
-          if (catalog?.canPaginate == true && more)
-            SliverToBoxAdapter(child: loadMore()),
+          SliverToBoxAdapter(
+            child: ContentHandoff(
+              child: catalog?.canPaginate == true && more
+                  ? loadMore()
+                  : const SizedBox.shrink(),
+            ),
+          ),
         ],
       );
     }
@@ -258,7 +274,11 @@ class _SourceBrowserState extends State<SourceBrowser> {
         controls(context),
         const SizedBox(height: 20),
         ComicGrid(books: books, web: widget.web, onOpen: widget.onOpen),
-        if (catalog?.canPaginate == true && more) loadMore(),
+        ContentHandoff(
+          child: catalog?.canPaginate == true && more
+              ? loadMore()
+              : const SizedBox.shrink(),
+        ),
       ],
     );
   }

@@ -20,6 +20,7 @@ import 'room_motion.dart';
 import 'plugins_page.dart';
 import 'personalization_settings.dart';
 import 'book_link.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -38,6 +39,28 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   late int tab = widget.library.option<int>('startTab', 0).clamp(0, 5);
   bool opening = false;
+  bool openingLicenses = false;
+  Future<void> licenses() async {
+    if (openingLicenses) return;
+    openingLicenses = true;
+    String? version;
+    try {
+      version = (await PackageInfo.fromPlatform().timeout(
+        const Duration(seconds: 2),
+      )).version;
+    } catch (_) {
+      // An unavailable metadata plugin must not prevent access to licenses.
+    } finally {
+      openingLicenses = false;
+    }
+    if (!mounted) return;
+    showLicensePage(
+      context: context,
+      applicationName: '漫匣',
+      applicationVersion: version,
+    );
+  }
+
   (String, Rect)? openingOrigin;
   final atmosphere = ValueNotifier<Color>(const Color(0xff8baf99));
   late final source = SourceHub(
@@ -766,11 +789,7 @@ class _AppShellState extends State<AppShell> {
           LocalizedText('为每一段故事，留一个位置。', style: small(context)),
           const SizedBox(height: 22),
           TextButton(
-            onPressed: () => showLicensePage(
-              context: context,
-              applicationName: '漫匣',
-              applicationVersion: '0.3.1',
-            ),
+            onPressed: licenses,
             child: const LocalizedText(
               '开源许可与字体声明',
               style: TextStyle(fontSize: 12),
