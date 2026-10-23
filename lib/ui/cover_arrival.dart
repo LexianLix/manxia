@@ -16,6 +16,15 @@ class CoverArrival extends StatefulWidget {
   final bool ready, immediate;
   final Widget placeholder, child;
   static final _presented = <String>{};
+  static bool hasPresented(String identity) => _presented.contains(identity);
+  static void markPresented(String identity) {
+    _presented.remove(identity);
+    _presented.add(identity);
+    while (_presented.length > 256) {
+      _presented.remove(_presented.first);
+    }
+  }
+
   @override
   State<CoverArrival> createState() => _CoverArrivalState();
 }
@@ -28,18 +37,14 @@ class _CoverArrivalState extends State<CoverArrival>
   );
   bool started = false;
   void remember() {
-    CoverArrival._presented.remove(widget.identity);
-    CoverArrival._presented.add(widget.identity);
-    while (CoverArrival._presented.length > 256) {
-      CoverArrival._presented.remove(CoverArrival._presented.first);
-    }
+    CoverArrival.markPresented(widget.identity);
   }
 
   void prepare() {
     if (!widget.ready) return;
     if (widget.immediate ||
         MediaQuery.disableAnimationsOf(context) ||
-        CoverArrival._presented.contains(widget.identity)) {
+        CoverArrival.hasPresented(widget.identity)) {
       clock.value = 1;
       started = true;
       remember();

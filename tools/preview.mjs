@@ -45,16 +45,19 @@ export function createServer({load = upstream, dav = fetch} = {}) {
   }
   const sourceCache = new Map();
   const pending = new Map();
-  async function sourcePage(path) {
-    const cached = sourceCache.get(path);
+  async function sourcePage(path, desktop = false) {
+    const key = `${desktop ? 'desktop' : 'mobile'}:${path}`;
+    const base = desktop ? 'https://www.dm5.com' : 'https://m.dm5.com';
+    const cached = sourceCache.get(key);
     if (cached && Date.now() - cached.time < 120000) return cached.html;
-    if (pending.has(path)) return pending.get(path);
+    if (pending.has(key)) return pending.get(key);
     const task = (async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const response = await load(`https://m.dm5.com${path}`, 'https://m.dm5.com/', 10000);
+          const response = await load(`${base}${path}`, `${base}/`, 10000,
+            desktop ? {headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36'}} : {});
           const html = await response.text();
-          sourceCache.set(path, {html,time:Date.now()});
+          sourceCache.set(key, {html,time:Date.now()});
           if (sourceCache.size > 64) sourceCache.delete(sourceCache.keys().next().value);
           return html;
         } catch (error) {
@@ -62,8 +65,8 @@ export function createServer({load = upstream, dav = fetch} = {}) {
         }
       }
     })();
-    pending.set(path, task);
-    try { return await task; } finally { pending.delete(path); }
+    pending.set(key, task);
+    try { return await task; } finally { pending.delete(key); }
   }
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -152,7 +155,11 @@ export function createServer({load = upstream, dav = fetch} = {}) {
       if (url.pathname === '/api/source') {
         const path = url.searchParams.get('path');
         if (!sourceAllowed(path)) { res.writeHead(400); return res.end('Unsupported source path'); }
-        const html = await sourcePage(path);
+        const edition = url.searchParams.get('edition');
+        if (edition && (edition !== 'desktop' || !/^\/manhua-[\w-]+\/$/.test(path))) {
+          res.writeHead(400); return res.end('Unsupported source edition');
+        }
+        const html = await sourcePage(path, edition === 'desktop');
         res.setHeader('Content-Type','text/html; charset=utf-8');
         res.setHeader('Cache-Control','no-store');
         return res.end(html);

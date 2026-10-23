@@ -1,5 +1,7 @@
 import 'localized_text.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
@@ -11,6 +13,7 @@ import 'collection_motion.dart';
 import 'reader_page.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
+import 'content_handoff.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -38,6 +41,9 @@ class _DetailPageState extends State<DetailPage> {
   bool ascending = true;
   bool enteringReader = false;
   final coverKey = GlobalKey();
+  void retry() => setState(() {
+    detail = widget.source.detail(widget.comic);
+  });
 
   Rect? coverBounds() {
     final object = coverKey.currentContext?.findRenderObject();
@@ -237,6 +243,73 @@ class _DetailPageState extends State<DetailPage> {
                   ),
                 ],
               ),
+              ContentHandoff(
+                child: snapshot.connectionState != ConnectionState.done
+                    ? Padding(
+                        key: const ValueKey('directory-loading'),
+                        padding: const EdgeInsets.only(top: 14),
+                        child: Row(
+                          children: [
+                            const SizedBox.square(
+                              dimension: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            LocalizedText('正在读取章节目录…', style: small(context)),
+                          ],
+                        ),
+                      )
+                    : chapters.isEmpty
+                    ? Padding(
+                        key: const ValueKey('directory-retry'),
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            LocalizedText(
+                              snapshot.hasError
+                                  ? friendlyError(snapshot.error)
+                                  : '尚未识别到章节目录，请重新加载。',
+                              style: small(context),
+                            ),
+                            TextButton.icon(
+                              onPressed: retry,
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const LocalizedText('重试读取目录'),
+                            ),
+                            if (widget.source.detailDiagnostics.containsKey(
+                              comic.path,
+                            ))
+                              TextButton.icon(
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(
+                                      text: const JsonEncoder.withIndent('  ')
+                                          .convert(
+                                            widget
+                                                .source
+                                                .detailDiagnostics[comic.path],
+                                          ),
+                                    ),
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: LocalizedText('已复制目录诊断信息'),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.copy_outlined, size: 14),
+                                label: const LocalizedText('复制目录诊断'),
+                              ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('directory-ready')),
+              ),
               if (history != null) ...[
                 const SizedBox(height: 14),
                 LocalizedText(
@@ -303,22 +376,15 @@ class _DetailPageState extends State<DetailPage> {
                                 SizedBox(
                                   height: 280,
                                   width: 200,
-                                  child: BookFlight(
+                                  child: DetailCover(
+                                    comic,
+                                    web: widget.web,
+                                    opening: widget.library.option<bool>(
+                                      'bookOpening',
+                                      true,
+                                    ),
                                     tag: widget.flightTag,
                                     key: coverKey,
-                                    child: BookObject(
-                                      comic,
-                                      web: widget.web,
-                                      number: widget.bookNumber,
-                                      opening:
-                                          widget.library.option<bool>(
-                                            'bookOpening',
-                                            true,
-                                          )
-                                          ? 1
-                                          : 0,
-                                      bookmark: history != null,
-                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 18),
@@ -335,22 +401,15 @@ class _DetailPageState extends State<DetailPage> {
                                     child: SizedBox(
                                       width: 240,
                                       height: 336,
-                                      child: BookFlight(
+                                      child: DetailCover(
+                                        comic,
+                                        web: widget.web,
+                                        opening: widget.library.option<bool>(
+                                          'bookOpening',
+                                          true,
+                                        ),
                                         tag: widget.flightTag,
                                         key: coverKey,
-                                        child: BookObject(
-                                          comic,
-                                          web: widget.web,
-                                          number: widget.bookNumber,
-                                          opening:
-                                              widget.library.option<bool>(
-                                                'bookOpening',
-                                                true,
-                                              )
-                                              ? 1
-                                              : 0,
-                                          bookmark: history != null,
-                                        ),
                                       ),
                                     ),
                                   ),
@@ -430,17 +489,16 @@ class _DetailPageState extends State<DetailPage> {
                               icon: Icons.cloud_off_outlined,
                               title: '目录暂时无法读取',
                               message: friendlyError(snapshot.error),
-                              action: () => setState(
-                                () =>
-                                    detail = widget.source.detail(widget.comic),
-                              ),
+                              action: retry,
                               actionLabel: '重新加载',
                             )
                           else if (chapters.isEmpty)
-                            const EmptyState(
+                            EmptyState(
                               icon: Icons.menu_book_outlined,
-                              title: '原站暂未提供章节',
-                              message: '可以在右上角打开动漫屋查看。',
+                              title: '尚未读取到目录',
+                              message: '当前返回内容中未识别到章节，请重新加载或打开原站核对。',
+                              action: retry,
+                              actionLabel: '重新加载',
                             ),
                           const SizedBox(height: 8),
                         ],

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/library.dart';
 import 'book_object.dart';
+import 'book_link.dart';
 
 Future<void> editBook(
   BuildContext context,
@@ -310,9 +311,13 @@ class _LibraryManagerState extends State<LibraryManager> {
                   for (final b in entry.value)
                     SizedBox(
                       width: 130,
-                      child: InkWell(
-                        onTap: () => widget.onOpen(b),
-                        child: BookObject(b, web: widget.web),
+                      child: BookLink(
+                        comic: b,
+                        web: widget.web,
+                        onOpen: widget.onOpen,
+                        cover: BookObject(b, web: widget.web),
+                        builder: (cover, open) =>
+                            InkWell(onTap: open, child: cover),
                       ),
                     ),
                 ],
@@ -322,48 +327,60 @@ class _LibraryManagerState extends State<LibraryManager> {
         ),
     ],
   );
-  Widget booksView(List<Comic> books, Library library) =>
-      ReorderableListView.builder(
-        buildDefaultDragHandles:
-            query.isEmpty && group == '全部' && status == '全部',
-        itemCount: books.length,
-        onReorderItem: (oldIndex, newIndex) {
-          if (query.isNotEmpty || group != '全部' || status != '全部') return;
-          final list = [...library.favorites];
-          final item = list.removeAt(oldIndex);
-          list.insert(newIndex, item);
-          library.reorder(list);
-        },
-        itemBuilder: (c, i) {
-          final b = books[i];
-          final m = library.meta(b);
-          return ListTile(
-            key: ValueKey(b.path),
-            leading: Checkbox(
-              value: selection.contains(b.path),
-              onChanged: (v) => setState(() {
-                if (v == true) {
-                  selection.add(b.path);
-                } else {
-                  selection.remove(b.path);
-                }
-              }),
-            ),
-            title: LocalizedText(b.title, style: const TextStyle(fontSize: 14)),
-            subtitle: LocalizedText(
-              '${m['group'] ?? '未分组'} · ${m['status'] ?? '未读'}',
-              style: const TextStyle(fontSize: 11),
-            ),
-            trailing: Padding(
-              padding: const EdgeInsets.only(right: 35),
-              child: IconButton(
-                tooltip: '编辑分组与标签',
-                onPressed: () => editBook(context, library, b),
-                icon: const Icon(Icons.more_horiz),
+  Widget booksView(
+    List<Comic> books,
+    Library library,
+  ) => ReorderableListView.builder(
+    buildDefaultDragHandles: query.isEmpty && group == '全部' && status == '全部',
+    itemCount: books.length,
+    onReorderItem: (oldIndex, newIndex) {
+      if (query.isNotEmpty || group != '全部' || status != '全部') return;
+      final list = [...library.favorites];
+      final item = list.removeAt(oldIndex);
+      list.insert(newIndex, item);
+      library.reorder(list);
+    },
+    itemBuilder: (c, i) {
+      final b = books[i];
+      final m = library.meta(b);
+      return BookLink(
+        key: ValueKey(b.path),
+        comic: b,
+        web: widget.web,
+        onOpen: widget.onOpen,
+        builder: (cover, open) => ListTile(
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Checkbox(
+                value: selection.contains(b.path),
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    selection.add(b.path);
+                  } else {
+                    selection.remove(b.path);
+                  }
+                }),
               ),
+              SizedBox(width: 34, height: 48, child: cover),
+            ],
+          ),
+          title: LocalizedText(b.title, style: const TextStyle(fontSize: 14)),
+          subtitle: LocalizedText(
+            '${m['group'] ?? '未分组'} · ${m['status'] ?? '未读'}',
+            style: const TextStyle(fontSize: 11),
+          ),
+          trailing: Padding(
+            padding: const EdgeInsets.only(right: 35),
+            child: IconButton(
+              tooltip: '编辑分组与标签',
+              onPressed: () => editBook(context, library, b),
+              icon: const Icon(Icons.more_horiz),
             ),
-            onTap: () => widget.onOpen(b),
-          );
-        },
+          ),
+          onTap: open,
+        ),
       );
+    },
+  );
 }

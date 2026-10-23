@@ -598,14 +598,20 @@ class _DiscoveryPageState extends State<DiscoveryPage> {
                 for (final book in widget.library.favorites.where(
                   (b) => widget.library.updates[b.path]?['changed'] == true,
                 ))
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: LocalizedText(book.title),
-                    subtitle: LocalizedText(
-                      '新章 · ${widget.library.updates[book.path]!['latest']}',
+                  BookLink(
+                    comic: book,
+                    web: widget.web,
+                    onOpen: widget.onOpen,
+                    builder: (cover, open) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: SizedBox(width: 38, height: 54, child: cover),
+                      title: LocalizedText(book.title),
+                      subtitle: LocalizedText(
+                        '新章 · ${widget.library.updates[book.path]!['latest']}',
+                      ),
+                      trailing: const Icon(Icons.bookmark_added_outlined),
+                      onTap: open,
                     ),
-                    trailing: const Icon(Icons.bookmark_added_outlined),
-                    onTap: () => widget.onOpen(book),
                   ),
                 if (widget.library.favorites.isEmpty)
                   Padding(
@@ -878,28 +884,29 @@ class _DiscoveryPageState extends State<DiscoveryPage> {
                             Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.only(right: 12),
-                                child: InkWell(
-                                  onTap: () => widget.onOpen(companion),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      AspectRatio(
-                                        aspectRatio: .70,
-                                        child: ComicCover(
-                                          companion,
-                                          web: widget.web,
-                                          cacheWidth: 256,
+                                child: BookLink(
+                                  comic: companion,
+                                  web: widget.web,
+                                  onOpen: widget.onOpen,
+                                  builder: (cover, open) => InkWell(
+                                    onTap: open,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        AspectRatio(
+                                          aspectRatio: .70,
+                                          child: cover,
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      LocalizedText(
-                                        companion.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: small(context),
-                                      ),
-                                    ],
+                                        const SizedBox(height: 10),
+                                        LocalizedText(
+                                          companion.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: small(context),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),

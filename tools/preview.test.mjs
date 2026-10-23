@@ -32,6 +32,21 @@ test('deduplicate and briefly cache successful public source reads', async () =>
   } finally { await new Promise(resolve=>server.close(resolve)); }
 });
 
+test('public detail editions have separate caches and fixed source origins', async () => {
+  const reads=[];
+  const server=createServer({load:async(url)=>{reads.push(url);return new Response(url);}});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const base=`http://127.0.0.1:${server.address().port}/api/source?path=/manhua-test/`;
+    assert.equal(await (await fetch(base)).text(),'https://m.dm5.com/manhua-test/');
+    assert.equal(await (await fetch(`${base}&edition=desktop`)).text(),'https://www.dm5.com/manhua-test/');
+    await fetch(`${base}&edition=desktop`);
+    assert.equal(reads.length,2);
+    assert.equal((await fetch(`${base}&edition=https://evil.com`)).status,400);
+    assert.equal((await fetch(`${base.replace('/manhua-test/', '/m123/')}&edition=desktop`)).status,400);
+  } finally {await new Promise(resolve=>server.close(resolve));}
+});
+
 test('custom sources require explicit registration and keep reads on that source origin',async()=>{
   const requests=[];
   const server=createServer({load:async(url)=>{requests.push(url);return new Response('<main>source</main>');}});

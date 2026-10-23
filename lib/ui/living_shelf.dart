@@ -631,15 +631,31 @@ class OpenBookTransition extends StatelessWidget {
     child: child,
     builder: (context, child) {
       final t = const Interval(
-        .25,
-        1,
+        .45,
+        .95,
+        curve: RoomMotion.ease,
+      ).transform(animation.value);
+      final background = const Interval(
+        0,
+        .24,
         curve: RoomMotion.ease,
       ).transform(animation.value);
       return IgnorePointer(
         ignoring: animation.value < .12,
         child: ExcludeSemantics(
           excluding: animation.value < .12,
-          child: Opacity(opacity: t, child: child),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Opacity(
+                opacity: background,
+                child: ColoredBox(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                ),
+              ),
+              Opacity(opacity: t, child: child),
+            ],
+          ),
         ),
       );
     },

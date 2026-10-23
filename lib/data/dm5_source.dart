@@ -15,25 +15,33 @@ class Dm5Source {
     : _client = client ?? http.Client();
   final Uri? gateway;
   final http.Client _client;
+  final detailDiagnostics = <String, Map<String, Object?>>{};
   static const origin = 'https://m.dm5.com';
   static final Map<String, String> imageOrigins = {};
   static Map<String, String> headersForImage(String url) => {
     'Referer': imageOrigins[Uri.tryParse(url)?.host] ?? '$origin/',
   };
-  Future<String> fetchPage(String path) async {
+  Future<String> fetchPage(String path, {bool desktop = false}) async {
+    final base = desktop ? 'https://www.dm5.com' : origin;
     final uri =
         gateway
             ?.resolve('/api/source')
-            .replace(queryParameters: {'path': path}) ??
-        Uri.parse('$origin$path');
+            .replace(
+              queryParameters: {
+                'path': path,
+                if (desktop) 'edition': 'desktop',
+              },
+            ) ??
+        Uri.parse('$base$path');
     final response = await _client
         .get(
           uri,
           headers: gateway == null
               ? {
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36',
-                  'Referer': '$origin/',
+                  'User-Agent': desktop
+                      ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36'
+                      : 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36',
+                  'Referer': '$base/',
                 }
               : null,
         )
@@ -57,8 +65,40 @@ class Dm5Source {
       return (await offlineDetail?.call(comic)) ??
           (throw SourceException('本地漫画文件不存在。'));
     }
+    final attempts = <Map<String, Object?>>[];
+    detailDiagnostics.remove(comic.path);
+    detailDiagnostics[comic.path] = {'path': comic.path, 'attempts': attempts};
+    while (detailDiagnostics.length > 12) {
+      detailDiagnostics.remove(detailDiagnostics.keys.first);
+    }
+    Future<ComicDetail> readEdition(bool desktop) async {
+      final attempt = <String, Object?>{
+        'edition': desktop ? 'desktop' : 'mobile',
+      };
+      attempts.add(attempt);
+      try {
+        final input = await fetchPage(comic.path, desktop: desktop);
+        attempt['characters'] = input.length;
+        return parseDetail(
+          input,
+          comic,
+          inspect: (value) => attempt.addAll(value),
+        );
+      } catch (error) {
+        attempt['error'] = error.toString();
+        rethrow;
+      }
+    }
+
     try {
-      final result = parseDetail(await fetchPage(comic.path), comic);
+      ComicDetail result;
+      try {
+        result = await readEdition(false);
+      } on _DetailLayoutException {
+        // The same public comic has mobile and desktop layouts. Only fall
+        // back for an unrecognized layout, never for an explicit restriction.
+        result = await readEdition(true);
+      }
       chapterCatalogs[comic.path] = result.chapters;
       return result;
     } catch (_) {
@@ -252,26 +292,91 @@ class Dm5Source {
     return result.values.toList();
   }
 
-  static ComicDetail parseDetail(String input, Comic fallback) {
+  static ComicDetail parseDetail(
+    String input,
+    Comic fallback, {
+    void Function(Map<String, Object?> value)? inspect,
+  }) {
     final doc = html.parse(input);
-    final title = doc.querySelector('.detail-main-info-title')?.text.trim();
+    final desktopInfo = doc.querySelector('.banner_detail_form .info');
+    final desktopTitle = desktopInfo
+        ?.querySelector('.title')
+        ?.nodes
+        .where((n) => n.nodeType == 3)
+        .map((n) => n.text)
+        .join()
+        .trim();
+    final title =
+        doc.querySelector('.detail-main-info-title')?.text.trim() ??
+        desktopTitle;
+    final containers = doc.querySelectorAll(
+      '.detail-list-select, #detail-list-select-1, #detail-list-select-2, #detail-list-select-3',
+    );
+    inspect?.call({'title': title, 'groups': containers.length});
     if (title == null || title.isEmpty) {
-      throw SourceException('未读到漫画详情，请在原站查看或稍后重试。');
+      throw _DetailLayoutException('未读到漫画详情，请在原站查看或稍后重试。');
     }
     final chapters = <Chapter>[];
     final seen = <String>{};
-    for (final group in doc.querySelectorAll('.detail-list-select')) {
+    final oldestFirst = RegExp(r'\bDM5_COMIC_SORT\s*=\s*1\s*;').hasMatch(input);
+    for (final group in containers) {
       final groupName = switch (group.id) {
         'detail-list-select-2' => '卷',
         'detail-list-select-3' => '番外',
         _ => '连载',
       };
+      final members = <Chapter>[];
       for (final anchor in group.querySelectorAll('a[href]')) {
-        final path = anchor.attributes['href']!;
+        final uri = Uri.tryParse(anchor.attributes['href']!);
+        if (uri == null ||
+            (uri.hasAuthority &&
+                (uri.userInfo.isNotEmpty ||
+                    uri.hasPort ||
+                    !{
+                      'm.dm5.com',
+                      'www.dm5.com',
+                      'dm5.com',
+                    }.contains(uri.host))) ||
+            (uri.hasScheme && !{'https', 'http'}.contains(uri.scheme))) {
+          continue;
+        }
+        final path = uri.path;
         if (RegExp(r'^/m\d+/$').hasMatch(path) && seen.add(path)) {
-          chapters.add(Chapter(path, anchor.text.trim(), group: groupName));
+          final label =
+              (anchor.querySelector('.detail-list-2-info-title')?.text ??
+                      anchor.text)
+                  .replaceAll(RegExp(r'\s+'), ' ')
+                  .trim();
+          members.add(Chapter(path, label, group: groupName));
         }
       }
+      // Consumers expect newest first and reverse for their reading sequence.
+      // The source explicitly marks thumbnail layouts as oldest first.
+      chapters.addAll(oldestFirst ? members.reversed : members);
+    }
+    inspect?.call({'chapters': chapters.length});
+    if (chapters.isEmpty) {
+      final notice =
+          doc
+              .querySelector('.warning-bar')
+              ?.text
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim() ??
+          '';
+      if (notice.contains('全篇转移') && notice.contains('漫画人')) {
+        throw SourceException('原站已将这部漫画的网页章节迁移到漫画人 App，当前网页无法读取目录。');
+      }
+      if (notice.isNotEmpty) {
+        throw SourceException('原站提示：$notice');
+      }
+      if (doc
+              .querySelector('.detail-fix-bottom .detail-bottom-btn')
+              ?.text
+              .contains('全网搜索') ==
+          true) {
+        throw SourceException('原站当前只提供外部搜索入口，没有返回本作品的网页章节。');
+      }
+      throw _DetailLayoutException('未能识别章节目录，可能是页面结构变化或访问验证。请重新加载，或打开原站核对。');
     }
     return ComicDetail(
       Comic(
@@ -279,6 +384,9 @@ class Dm5Source {
         title: title,
         cover:
             doc.querySelector('.detail-main-cover img')?.attributes['src'] ??
+            doc
+                .querySelector('.banner_detail_form .cover img')
+                ?.attributes['src'] ??
             fallback.cover,
         author:
             doc
@@ -286,7 +394,12 @@ class Dm5Source {
                 ?.text
                 .trim()
                 .replaceFirst('作者：', '') ??
-            '',
+            desktopInfo
+                ?.querySelector('.subtitle')
+                ?.text
+                .trim()
+                .replaceFirst('作者：', '') ??
+            fallback.author,
         latest:
             doc.querySelector('.detail-list-title-2')?.text.trim() ??
             fallback.latest,
@@ -295,7 +408,8 @@ class Dm5Source {
                 .querySelector('.detail-desc, .detail-desc-content')
                 ?.text
                 .trim() ??
-            '',
+            desktopInfo?.querySelector('.content')?.text.trim() ??
+            fallback.description,
         tags: doc
             .querySelectorAll('.detail-main-info-class span')
             .map((e) => e.text.trim())
@@ -366,4 +480,8 @@ class SourceException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+class _DetailLayoutException extends SourceException {
+  _DetailLayoutException(super.message);
 }

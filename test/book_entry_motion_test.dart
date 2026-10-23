@@ -17,6 +17,84 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets(
+    'a decoded 3D binding arrives on one paint clock and honors reduced motion',
+    (tester) async {
+      late OfflineLibrary offline;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        final library = Library(await SharedPreferences.getInstance());
+        await library.load();
+        final store = MemoryBlobStore();
+        offline = OfflineLibrary(library, Dm5Source(), store: store);
+        final recorder = ui.PictureRecorder();
+        ui.Canvas(recorder).drawRect(
+          const ui.Rect.fromLTWH(0, 0, 12, 18),
+          ui.Paint()..color = const ui.Color(0xff47775e),
+        );
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(12, 18);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await store.write('binding-arrival', bytes!.buffer.asUint8List());
+        image.dispose();
+        picture.dispose();
+      });
+      var reduced = false;
+      late StateSetter update;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(disableAnimations: reduced),
+                child: const Center(
+                  child: SizedBox(
+                    width: 200,
+                    height: 300,
+                    child: BookObject(
+                      Comic(
+                        path: '/binding/',
+                        title: 'Binding',
+                        cover: 'offline:binding-arrival',
+                      ),
+                      web: false,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+      });
+      await tester.pump();
+      dynamic painter() => tester
+          .widget<CustomPaint>(
+            find.descendant(
+              of: find.byType(BookObject),
+              matching: find.byType(CustomPaint),
+            ),
+          )
+          .painter;
+      expect(painter().arrival.value, 0);
+      final artwork = painter().artwork as Object;
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(painter().arrival.value, inExclusiveRange(0, 1));
+      expect(identical(painter().artwork, artwork), isTrue);
+      update(() => reduced = true);
+      await tester.pump();
+      expect(painter().arrival.value, 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      offline.source.close();
+      OfflineLibrary.instance = null;
+    },
+  );
+  testWidgets(
     'each grid book supplies a unique flight even for repeated comics',
     (tester) async {
       const comic = Comic(
@@ -124,14 +202,7 @@ void main() {
                           child: SizedBox(
                             width: 200,
                             height: 280,
-                            child: BookFlight(
-                              tag: tag,
-                              child: const BookObject(
-                                comic,
-                                web: false,
-                                opening: 1,
-                              ),
-                            ),
+                            child: DetailCover(comic, web: false, tag: tag),
                           ),
                         ),
                       ),
@@ -154,10 +225,16 @@ void main() {
       await tester.tap(find.byType(InkWell).first);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 260));
+      final flight = tester.widget<CoverHinge>(find.byType(CoverHinge));
+      expect(flight.progress, inExclusiveRange(0, 1));
+      final planes = tester.widgetList<Transform>(
+        find.descendant(
+          of: find.byType(CoverHinge),
+          matching: find.byType(Transform),
+        ),
+      );
       expect(
-        tester
-            .widgetList<BookObject>(find.byType(BookObject))
-            .any((b) => b.opening > 0 && b.opening < 1),
+        planes.any((plane) => plane.transform.entry(0, 2).abs() > .1),
         isTrue,
       );
       navigator.currentState!.pop();

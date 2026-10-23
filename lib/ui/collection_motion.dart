@@ -4,6 +4,7 @@ import '../data/comic.dart';
 import '../data/library.dart';
 import 'book_object.dart';
 import 'room_motion.dart';
+import 'personalization_settings.dart' show navigationIds;
 
 final _flights = Expando<Map<String, OverlayEntry>>();
 
@@ -25,11 +26,15 @@ Future<void> collectWithMotion(
     final overlay = Overlay.of(context);
     final size = MediaQuery.sizeOf(context);
     final safe = MediaQuery.paddingOf(context);
-    final navWidth = math.min(size.width - 40, 420.0);
+    final ids = navigationIds(library);
+    final shelfSlot = ids.indexOf(0);
+    final navWidth = math.min(size.width - 32, 520.0);
     final destination = size.width < 1000
         ? Offset(
-            (size.width - navWidth) / 2 + 7 + (navWidth - 14) / 8,
-            size.height - safe.bottom - 52,
+            (size.width - navWidth) / 2 +
+                7 +
+                (shelfSlot + .5) * (navWidth - 14) / ids.length,
+            size.height - safe.bottom - 50,
           )
         : Offset(53, safe.top + 188);
     final start = origin?.center ?? Offset(size.width / 2, size.height * .42);

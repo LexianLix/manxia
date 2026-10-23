@@ -12,8 +12,118 @@ import 'package:manxia/ui/retained_pages.dart';
 import 'package:manxia/ui/room_motion.dart';
 import 'package:manxia/ui/collection_motion.dart';
 import 'package:manxia/ui/detail_page.dart';
+import 'package:manxia/ui/glass_navigation.dart';
 
 void main() {
+  testWidgets('collection flies to the actual reordered shelf slot', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    late Library library;
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({});
+      library = Library(await SharedPreferences.getInstance());
+      await library.load();
+      await library.setOption('navigation', [1, 3, 0]);
+    });
+    const comic = Comic(
+      path: '/reordered/',
+      title: 'Shelf target',
+      cover: 'offline:target',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () =>
+                    collectWithMotion(context, comic, library, false),
+                child: const Text('Collect'),
+              ),
+            ),
+            bottomNavigationBar: FrostedNavigation(
+              selectedIndex: 0,
+              onSelected: (_) {},
+              destinations: [
+                roomDestinations[1],
+                roomDestinations[3],
+                roomDestinations[0],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final destination = tester.getCenter(
+      find.byIcon(Icons.auto_stories_outlined),
+    );
+    await tester.tap(find.text('Collect'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 415));
+    expect(
+      tester.getCenter(find.byType(ComicCover)).dx,
+      closeTo(destination.dx, 4),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ComicCover), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets(
+    'a failed directory explains the disabled button and retries into reading',
+    (tester) async {
+      late Library library;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        library = Library(await SharedPreferences.getInstance());
+        await library.load();
+      });
+      final first = Completer<ComicDetail>();
+      final second = Completer<ComicDetail>();
+      final source = _RetryDetail([first.future, second.future]);
+      addTearDown(source.close);
+      const comic = Comic(
+        path: '/retry/',
+        title: 'Retry',
+        cover: 'offline:retry',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DetailPage(
+            comic: comic,
+            library: library,
+            source: source,
+            web: false,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('正在读取章节目录…'), findsOneWidget);
+      first.completeError(SourceException('未能识别章节目录'));
+      await tester.pumpAndSettle();
+      FilledButton start() => tester.widget<FilledButton>(
+        find.byWidgetPredicate((w) => w is FilledButton).first,
+      );
+      expect(start().onPressed, isNull);
+      expect(find.text('原站暂未提供章节'), findsNothing);
+      await tester.ensureVisible(find.text('重试读取目录'));
+      await tester.tap(find.text('重试读取目录'));
+      await tester.pump();
+      // The retiring retry button is still painted but cannot submit again.
+      await tester.tap(find.text('重试读取目录'), warnIfMissed: false);
+      expect(source.call, 2);
+      second.complete(const ComicDetail(comic, [Chapter('/m1/', '第1话')]));
+      await tester.pumpAndSettle();
+      expect(start().onPressed, isNotNull);
+      expect(find.text('重试读取目录'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'wide detail keeps the book landing point fixed while metadata arrives',
     (tester) async {
@@ -45,7 +155,12 @@ void main() {
         ),
       );
       await tester.pump();
-      final landing = tester.getRect(find.byType(BookObject));
+      // Detail should settle on the actual cover, not a permanently open
+      // decorative inner page. Keep its landing point stable as data arrives.
+      final cover = find.byWidgetPredicate((w) => w is ComicCover);
+      expect(cover, findsOneWidget);
+      expect(find.byType(BookObject), findsNothing);
+      final landing = tester.getRect(cover);
       pending.complete(
         ComicDetail(
           Comic(
@@ -60,7 +175,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(tester.getRect(find.byType(BookObject)), landing);
+      expect(tester.getRect(cover), landing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       source.close();
@@ -263,4 +378,12 @@ class _DeferredDetail extends Dm5Source {
   final Completer<ComicDetail> pending;
   @override
   Future<ComicDetail> detail(Comic comic) => pending.future;
+}
+
+class _RetryDetail extends Dm5Source {
+  _RetryDetail(this.results);
+  final List<Future<ComicDetail>> results;
+  int call = 0;
+  @override
+  Future<ComicDetail> detail(Comic comic) => results[call++];
 }

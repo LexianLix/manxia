@@ -6,6 +6,7 @@ import '../data/comic.dart';
 import 'comic_image.dart';
 import 'cover_palette.dart';
 import 'room_motion.dart';
+import 'cover_arrival.dart';
 export 'comic_image.dart' show imageAddress;
 
 /// One book travels between the real shelf and detail bounds in both directions.
@@ -51,6 +52,41 @@ class BookFlight extends StatelessWidget {
     // reverses its geometric endpoints. Keep the cover progress reversible.
     final source = direction == HeroFlightDirection.push ? start : end;
     final target = direction == HeroFlightDirection.push ? end : start;
+    final sourceChild = direction == HeroFlightDirection.push
+        ? fromChild
+        : toChild;
+    final targetChild = direction == HeroFlightDirection.push
+        ? toChild
+        : fromChild;
+    final landsOnCover = targetChild is! BookObject;
+    final hinge = targetChild is! _DetailComicCover || targetChild.opening;
+    Widget stillCover(Widget child) => child is ComicCover
+        ? ComicCover(
+            child.comic,
+            web: child.web,
+            fit: child.fit,
+            animate: false,
+          )
+        : child;
+    final destinationContext = direction == HeroFlightDirection.push
+        ? to
+        : from;
+    Widget destinationCover() => stillCover(
+      destinationContext.mounted && destinationContext.widget is Hero
+          ? (destinationContext.widget as Hero).child
+          : targetChild,
+    );
+    if (landsOnCover && flat) {
+      return AnimatedBuilder(
+        animation: animation,
+        builder: (_, _) => CoverHinge(
+          progress: animation.value,
+          opening: hinge,
+          source: stillCover(sourceChild),
+          destination: destinationCover(),
+        ),
+      );
+    }
     return AnimatedBuilder(
       animation: animation,
       builder: (_, _) {
@@ -59,18 +95,28 @@ class BookFlight extends StatelessWidget {
         final book = BookObject(
           comic,
           web: web,
+          animateCover: false,
           number: t < .5 ? source.number : target.number,
           bookmark: t < .5 ? source.bookmark : target.bookmark,
           exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
           light: ui.lerpDouble(source.light, target.light, t)!,
-          opening: ui.lerpDouble(
-            source.opening,
-            target.opening,
-            const Interval(.12, .96, curve: Curves.easeInOutCubic).transform(t),
-          )!,
+          opening: landsOnCover
+              ? (hinge ? .48 * math.sin(math.pi * t) : 0)
+              : ui.lerpDouble(
+                  source.opening,
+                  target.opening,
+                  const Interval(
+                    .12,
+                    .96,
+                    curve: Curves.easeInOutCubic,
+                  ).transform(t),
+                )!,
         );
         final binding = RoomMotion.ease.transform((t / .2).clamp(0, 1));
-        return Transform.rotate(
+        final reveal = landsOnCover
+            ? RoomMotion.ease.transform(((t - .60) / .40).clamp(0, 1))
+            : 0.0;
+        final solid = Transform.rotate(
           angle: -.025 * lift,
           child: flat
               ? Stack(
@@ -81,15 +127,140 @@ class BookFlight extends StatelessWidget {
                     if (binding < 1)
                       Opacity(
                         opacity: 1 - binding,
-                        child: ComicCover(comic, web: web, animate: false),
+                        child: stillCover(sourceChild),
                       ),
                   ],
                 )
               : book,
         );
+        return landsOnCover
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (reveal < 1) Opacity(opacity: 1 - reveal, child: solid),
+                  if (reveal > 0)
+                    Opacity(opacity: reveal, child: destinationCover()),
+                ],
+              )
+            : solid;
       },
     );
   };
+}
+
+/// Flat entries keep the exact source and landing bounds. Paper leaves stay
+/// behind a cover that pivots around its spine; no unrelated inner-page art is
+/// substituted for the image during the flight.
+class CoverHinge extends StatelessWidget {
+  const CoverHinge({
+    super.key,
+    required this.progress,
+    required this.source,
+    required this.destination,
+    this.opening = true,
+  });
+  final double progress;
+  final Widget source, destination;
+  final bool opening;
+  @override
+  Widget build(BuildContext context) {
+    final lift = math.sin(math.pi * progress);
+    final reveal = const Interval(
+      .48,
+      1,
+      curve: RoomMotion.ease,
+    ).transform(progress);
+    Widget plane(double angle, Widget child) => Transform(
+      alignment: Alignment.centerLeft,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, .0015)
+        ..rotateY(angle),
+      child: child,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        if (opening && lift > .001)
+          for (var leaf = 0; leaf < 3; leaf++)
+            Opacity(
+              opacity: lift,
+              child: plane(
+                -lift * (.14 + leaf * .13),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color.lerp(
+                      const Color(0xfff8f5ec),
+                      const Color(0xffe4e0d5),
+                      leaf / 3,
+                    ),
+                    border: Border.all(
+                      color: const Color(0xffd7d3c7),
+                      width: .5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        plane(
+          opening ? -lift * 1.08 : 0,
+          Stack(
+            fit: StackFit.expand,
+            children: [
+              if (reveal < 1) source,
+              if (reveal > 0)
+                Opacity(
+                  opacity: reveal,
+                  child: ColoredBox(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: destination,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The detail landing surface is the unaltered cover. The hinge belongs to
+/// the reversible flight, rather than a permanent decorative open inner page.
+class DetailCover extends StatelessWidget {
+  const DetailCover(
+    this.comic, {
+    super.key,
+    required this.web,
+    this.tag,
+    this.opening = true,
+  });
+  final Comic comic;
+  final bool web;
+  final Object? tag;
+  final bool opening;
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = _DetailComicCover(comic, web: web, opening: opening);
+    if (MediaQuery.disableAnimationsOf(context)) return cover;
+    return Hero(
+      tag: tag ?? 'book-${comic.path}',
+      curve: Curves.linear,
+      reverseCurve: Curves.linear,
+      createRectTween: (begin, end) => _BookRectTween(begin: begin, end: end),
+      flightShuttleBuilder: BookFlight.shuttle(comic, web),
+      child: cover,
+    );
+  }
+}
+
+class _DetailComicCover extends ComicCover {
+  const _DetailComicCover(
+    super.comic, {
+    required super.web,
+    required this.opening,
+  }) : super(fit: BoxFit.contain);
+  final bool opening;
 }
 
 class _BookRectTween extends RectTween {
@@ -155,9 +326,11 @@ class BookObject extends StatefulWidget {
     this.light = 0,
     this.opening = 0,
     this.onColor,
+    this.animateCover = true,
   });
   final Comic comic;
   final bool web, bookmark;
+  final bool animateCover;
   final double exposure;
   final double light;
   final double opening;
@@ -167,7 +340,15 @@ class BookObject extends StatefulWidget {
   State<BookObject> createState() => _BookObjectState();
 }
 
-class _BookObjectState extends State<BookObject> {
+class _BookObjectState extends State<BookObject>
+    with SingleTickerProviderStateMixin {
+  late final arrival =
+      AnimationController(vsync: this, duration: RoomMotion.cover)
+        ..addStatusListener((status) {
+          if (status == AnimationStatus.completed && bitmap != null) {
+            CoverArrival.markPresented(widget.comic.cover);
+          }
+        });
   ui.Image? bitmap;
   Color? bindingColor;
   ImageInfo? frame;
@@ -185,6 +366,9 @@ class _BookObjectState extends State<BookObject> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (bitmap != null && MediaQuery.disableAnimationsOf(context)) {
+      arrival.value = 1;
+    }
     _load();
   }
 
@@ -200,6 +384,7 @@ class _BookObjectState extends State<BookObject> {
       _invalidateArtwork();
       bitmap = null;
       bindingColor = null;
+      arrival.value = 0;
       _load();
     } else if (old.onColor == null &&
         widget.onColor != null &&
@@ -232,12 +417,13 @@ class _BookObjectState extends State<BookObject> {
       provider,
     ).resolve(createLocalImageConfiguration(context));
     listener = ImageStreamListener(
-      (info, _) {
+      (info, synchronous) {
         if (!mounted || current != generation) {
           info.dispose();
           return;
         }
         final previous = frame;
+        final first = bitmap == null;
         frame = info;
         if (mounted) {
           setState(() {
@@ -246,6 +432,16 @@ class _BookObjectState extends State<BookObject> {
           });
         }
         previous?.dispose();
+        if (first) {
+          if (synchronous ||
+              !widget.animateCover ||
+              MediaQuery.disableAnimationsOf(context) ||
+              CoverArrival.hasPresented(widget.comic.cover)) {
+            arrival.value = 1;
+          } else {
+            arrival.forward(from: 0);
+          }
+        }
         _color(info.image);
       },
       onError: (_, _) {
@@ -283,6 +479,7 @@ class _BookObjectState extends State<BookObject> {
   void dispose() {
     generation++;
     _unsubscribe();
+    arrival.dispose();
     frame?.dispose();
     _invalidateArtwork();
     super.dispose();
@@ -301,6 +498,7 @@ class _BookObjectState extends State<BookObject> {
       exposure: widget.exposure,
       light: widget.light,
       opening: widget.opening,
+      arrival: arrival,
     ),
     size: const Size(200, 300),
   );
@@ -315,7 +513,7 @@ class _BookArtwork {
     int number,
     bool bookmark,
     Color? tone,
-  ) {
+  ) : hasCover = image != null {
     final spineRecorder = ui.PictureRecorder();
     tone ??= const Color(0xffe7e8db);
     final spineCanvas = Canvas(spineRecorder);
@@ -358,6 +556,22 @@ class _BookArtwork {
     );
     _text(spineCanvas, '漫\n匣', 7, 194, 7, const Color(0xff8d9686));
     spine = spineRecorder.endRecording();
+    final placeholderRecorder = ui.PictureRecorder();
+    final placeholderCanvas = Canvas(placeholderRecorder);
+    placeholderCanvas.drawRect(
+      const Rect.fromLTWH(0, 0, 136, 226),
+      Paint()..color = const Color(0xffb4c6b4),
+    );
+    _text(
+      placeholderCanvas,
+      title,
+      12,
+      80,
+      13,
+      const Color(0xff304c3a),
+      max: 112,
+    );
+    placeholder = placeholderRecorder.endRecording();
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     const faceRect = Rect.fromLTWH(0, 0, 136, 226);
@@ -372,8 +586,7 @@ class _BookArtwork {
         filterQuality: FilterQuality.medium,
       );
     } else {
-      canvas.drawRect(cover, Paint()..color = const Color(0xffb4c6b4));
-      _text(canvas, title, 12, 80, 13, const Color(0xff304c3a), max: 112);
+      canvas.drawPicture(placeholder);
     }
     canvas.drawRect(
       faceRect,
@@ -424,35 +637,10 @@ class _BookArtwork {
           stops: [0, .16, 1],
         ).createShader(faceRect),
     );
-    _text(
-      paper,
-      'MANXIA / READING',
-      16,
-      32,
-      6,
-      const Color(0xff8a8c7d),
-      max: 108,
-    );
-    _text(paper, title, 16, 75, 15, const Color(0xff455345), max: 104);
-    paper.drawLine(
-      const Offset(16, 144),
-      const Offset(112, 144),
-      Paint()
-        ..color = const Color(0xffccc9ba)
-        ..strokeWidth = .5,
-    );
-    _text(paper, '把故事留在手边', 16, 158, 8, const Color(0xff898e7c), max: 108);
-    _text(
-      paper,
-      number.toString().padLeft(2, '0'),
-      60,
-      207,
-      7,
-      const Color(0xff898e7c),
-    );
     inner = innerRecorder.endRecording();
   }
-  late final ui.Picture spine, face, inner;
+  final bool hasCover;
+  late final ui.Picture spine, face, inner, placeholder;
   static void _text(
     Canvas canvas,
     String text,
@@ -483,6 +671,7 @@ class _BookArtwork {
     spine.dispose();
     face.dispose();
     inner.dispose();
+    placeholder.dispose();
   }
 }
 
@@ -492,7 +681,9 @@ class _BookPainter extends CustomPainter {
     required this.exposure,
     required this.light,
     required this.opening,
-  });
+    required this.arrival,
+  }) : super(repaint: arrival);
+  final Animation<double> arrival;
   final _BookArtwork artwork;
   final double exposure, light, opening;
   @override
@@ -587,7 +778,18 @@ class _BookPainter extends CustomPainter {
       canvas.scale(-1, 1);
       canvas.drawPicture(artwork.inner);
     } else {
-      canvas.drawPicture(artwork.face);
+      final opacity = RoomMotion.ease.transform(arrival.value);
+      if (artwork.hasCover && opacity < 1) {
+        canvas.drawPicture(artwork.placeholder);
+        canvas.saveLayer(
+          const Rect.fromLTWH(0, 0, 136, h),
+          Paint()..color = Colors.white.withValues(alpha: opacity),
+        );
+        canvas.drawPicture(artwork.face);
+        canvas.restore();
+      } else {
+        canvas.drawPicture(artwork.face);
+      }
     }
     const face = Rect.fromLTWH(0, 0, 136, h);
     canvas.drawRect(
