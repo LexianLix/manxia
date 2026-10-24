@@ -22,3 +22,27 @@
 - Web生产构建及离线壳生成通过（c82589f9ea88，236个文件）；本批未改动的网关/插件SDK和原生画面检查器分别已有8项Node、3项Python回归通过。
 - 新手势路径的390×844实际帧已查看，包括拖动、反向、归位及甩页后的左右向/纵向页面。不将这些组件帧当作物理设备帧率证据。
 - 候选和公开APK结果完成后追加；不使用被取消的v0.3.4候选作为发行证据。
+
+## 原生候选与公开发行
+
+- 二进制源码及v0.3.5标签固定为`0feffd63e14cb92afc342099e580160f2f747d42`；常规CI [40098737601](https://github.com/LexianLix/manxia/actions/runs/40098737601)成功，候选构建及启动 [40098742632](https://github.com/LexianLix/manxia/actions/runs/40098742632)成功。
+- 未签名准备产物ZIP为60146869字节，SHA256 `8f60725361f34e86438d98a3a51373c4006b8df56840af4ab72b311c0ba441a4`，下载后先校验再解压。候选Android11/API30及Android15/API35的x86_64模拟器各三次冷启动通过，六次均有真实绘制标题、无启动或命令错误、renderer_override为platform；六份标题裁片已查看。
+- 本地沿用固定证书`9618d4bb9b8ce8045c502c79fea0b8c2eb4d14f0a6ccb380cf22ac2bccdbc091`签名，检查Release模式、minSdk24、各架构版本码及16KB对齐。
+- [v0.3.5正式发行](https://github.com/LexianLix/manxia/releases/tag/v0.3.5)，Release ID422756899，名称仅版本号，2026-10-24 21:46（香港时间）公开。五附件上传大小和服务端摘要与本地一致，匿名下载均HTTP200，实际下载的manifest字节摘要与本地相同。
+
+| APK | 版本码 | 字节数 | SHA256 |
+| --- | --- | --- | --- |
+| arm64-v8a | 2014 | 31642388 | `bb0a7186ffd2c44968a62f6a7b4f5f70083021d0ba767a6c873257bfefb03361` |
+| armeabi-v7a | 1014 | 29512476 | `729599f03f31e2759765a49d92cc9f285e78f1c68dbf9283121d96192a3cec9e` |
+| x86_64 | 4014 | 33194760 | `1614a111c9d89567005d25dee2c715a660587e9295c5375485516c3409fd3aea` |
+
+公开签名APK的安装启动复核 [40099607563](https://github.com/LexianLix/manxia/actions/runs/40099607563)已成功完成。该步骤直接下载公开Release附件，不使用候选临时签名副本。Android11/15 x86_64模拟器各三次冷启动均通过，六份verdict均为passed、真实标题已绘制、无启动或命令错误、使用platform渲染器；六份实际标题裁片已查看。仍不等于物理iQOO/ARM64完整阅读或帧率验收。
+
+以下证据ZIP均先验证GitHub摘要再解压，保存在`artifacts/v035-candidate-qa/`和`artifacts/v035-public-qa/`：
+
+| 证据 | Artifact ID | ZIP字节数 | SHA256 |
+| --- | --- | --- | --- |
+| 候选API30 | 12561777703 | 1539741 | `13b9093a0bea0d27d7a5a257fa5f67b94e529de53948b2a8303e7b4d1fc051c3` |
+| 候选API35 | 12561953725 | 1598397 | `efda86209948c8564aa5cf5106e57bea862e776fe5c00042cf7804cb2ce041d9` |
+| 公开包API30 | 12562461183 | 1513880 | `3d8beb45f0dda1ff3fc4f64f69f8e6fd9325ec7665d8b4371886bd1a24dd88b5` |
+| 公开包API35 | 12561324952 | 1560969 | `f1de6c92dcc241b733d73b36465ac625e668fc0e6532177816bdf831af6ee023` |
