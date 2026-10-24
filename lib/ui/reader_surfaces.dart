@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'comic_image.dart';
 import 'room_motion.dart';
@@ -63,17 +64,87 @@ class PagedSurface extends StatefulWidget {
 
 class _PagedSurfaceState extends State<PagedSurface> {
   final viewport = TransformationController();
-  final pointers = <int>{};
-  bool pinching = false;
+  Drag? drag;
+  ScrollHoldController? hold;
+  Offset gestureTravel = Offset.zero;
   bool zoomed = false;
-  void pointerDown(PointerDownEvent event) {
-    pointers.add(event.pointer);
-    if (pointers.length > 1 && !pinching) setState(() => pinching = true);
+  void interactStart(ScaleStartDetails details) {
+    if (!controller.hasClients) return;
+    gestureTravel = Offset.zero;
+    if (zoomed || details.pointerCount > 1) {
+      hold ??= controller.position.hold(() => hold = null);
+    } else {
+      widget.control.target = null;
+      drag = controller.position.drag(
+        DragStartDetails(
+          globalPosition: details.focalPoint,
+          localPosition: details.localFocalPoint,
+        ),
+        () => drag = null,
+      );
+    }
   }
 
-  void pointerUp(PointerEvent event) {
-    pointers.remove(event.pointer);
-    if (pointers.isEmpty && pinching) setState(() => pinching = false);
+  void interactUpdate(ScaleUpdateDetails details) {
+    if (!controller.hasClients) return;
+    if (zoomed || details.pointerCount > 1 || details.scale != 1) {
+      drag?.cancel();
+      drag = null;
+      hold ??= controller.position.hold(() => hold = null);
+      return;
+    }
+    drag ??= controller.position.drag(
+      DragStartDetails(
+        globalPosition: details.focalPoint,
+        localPosition: details.localFocalPoint,
+      ),
+      () => drag = null,
+    );
+    gestureTravel += details.focalPointDelta;
+    final primary = widget.vertical ? gestureTravel.dy : gestureTravel.dx;
+    final cross = widget.vertical ? gestureTravel.dx : gestureTravel.dy;
+    if (primary.abs() < cross.abs()) return;
+    final delta = widget.vertical
+        ? details.focalPointDelta.dy
+        : details.focalPointDelta.dx;
+    drag!.update(
+      DragUpdateDetails(
+        delta: widget.vertical ? Offset(0, delta) : Offset(delta, 0),
+        primaryDelta: delta,
+        globalPosition: details.focalPoint,
+        localPosition: details.localFocalPoint,
+      ),
+    );
+  }
+
+  void interactEnd(ScaleEndDetails details) {
+    final active = drag;
+    drag = null;
+    if (details.pointerCount > 0) {
+      active?.cancel();
+    } else {
+      var speed = widget.vertical
+          ? details.velocity.pixelsPerSecond.dy
+          : details.velocity.pixelsPerSecond.dx;
+      final primary = widget.vertical ? gestureTravel.dy : gestureTravel.dx;
+      final cross = widget.vertical ? gestureTravel.dx : gestureTravel.dy;
+      if (primary.abs() < cross.abs() ||
+          speed.abs() < controller.position.physics.minFlingVelocity) {
+        speed = 0;
+      }
+      active?.end(
+        DragEndDetails(
+          velocity: Velocity(
+            pixelsPerSecond: widget.vertical
+                ? Offset(0, speed)
+                : Offset(speed, 0),
+          ),
+          primaryVelocity: speed,
+        ),
+      );
+    }
+    hold?.cancel();
+    hold = null;
   }
 
   void transformed() {
@@ -185,6 +256,8 @@ class _PagedSurfaceState extends State<PagedSurface> {
 
   @override
   void dispose() {
+    drag?.cancel();
+    hold?.cancel();
     widget.control.removeListener(jump);
     viewport.dispose();
     controller.dispose();
@@ -210,84 +283,71 @@ class _PagedSurfaceState extends State<PagedSurface> {
     },
   );
   @override
-  Widget build(BuildContext context) => RepaintBoundary(
-    child: Listener(
-      onPointerDown: pointerDown,
-      onPointerUp: pointerUp,
-      onPointerCancel: pointerUp,
-      child: InteractiveViewer(
-        transformationController: viewport,
-        minScale: 1,
-        maxScale: 4,
-        panEnabled: zoomed,
-        // The inner scrollable wins one-finger turns at 1x. A pinch enables
-        // viewport panning and pauses page scrolling until the zoom is reset.
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            if (notification.depth != 0) return false;
-            if (notification is ScrollStartNotification &&
-                notification.dragDetails != null) {
-              widget.control.target = null;
-            } else if (notification is ScrollEndNotification &&
-                controller.hasClients) {
-              widget.control.settle(page((controller.page ?? 0).round()));
-            }
-            return false;
-          },
-          child: PageView.builder(
-            physics: zoomed || pinching
-                ? const NeverScrollableScrollPhysics()
-                : null,
-            key: ValueKey(
-              '${widget.rtl}-${widget.vertical}-${widget.doublePage}',
-            ),
-            controller: controller,
-            reverse: widget.rtl && !widget.vertical,
-            scrollDirection: widget.vertical ? Axis.vertical : Axis.horizontal,
-            itemCount: widget.doublePage
-                ? 1 + ((widget.urls.length - 1) / 2).ceil()
-                : widget.urls.length,
-            onPageChanged: (v) => widget.onPosition(page(v), 0),
-            itemBuilder: (context, i) {
-              final p = page(i);
-              final images = [
-                p,
-                if (widget.doublePage && p > 0 && p + 1 < widget.urls.length)
-                  p + 1,
-              ];
-              if (widget.rtl) images.sort((a, b) => b.compareTo(a));
-              final content = Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (final entry in images.indexed)
-                    Expanded(
-                      child: picture(
-                        widget.urls[entry.$2],
-                        index: entry.$2,
-                        alignment: images.length == 1
-                            ? Alignment.center
-                            : entry.$1 == 0
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                      ),
-                    ),
-                ],
-              );
-              if (!widget.paper || widget.vertical) {
-                return content;
-              }
-              return AnimatedBuilder(
-                animation: controller,
-                builder: (context, _) {
-                  final progress =
-                      !MediaQuery.disableAnimationsOf(context) &&
-                          controller.hasClients &&
-                          controller.position.hasContentDimensions
-                      ? (controller.page ?? i.toDouble()) - i
-                      : 0.0;
-                  // The image mesh owns the fold and shadow. A second clipping
-                  // curve/rotation used to cut across it and darken whole pages.
-                  return Row(
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return RepaintBoundary(
+      child: MediaQuery(
+        // Scale's pan threshold is twice touchSlop. Match the normal scroll
+        // threshold here, while leaving child taps/long presses unchanged.
+        data: media.copyWith(
+          gestureSettings: DeviceGestureSettings(
+            touchSlop: (media.gestureSettings.touchSlop ?? kTouchSlop) / 2,
+          ),
+        ),
+        child: InteractiveViewer(
+          transformationController: viewport,
+          minScale: 1,
+          maxScale: 4,
+          panEnabled: zoomed,
+          onInteractionStart: interactStart,
+          onInteractionUpdate: interactUpdate,
+          onInteractionEnd: interactEnd,
+          // One recognizer owns both gestures. Single-finger deltas drive the
+          // actual scroll position; a pinch remains inside InteractiveViewer.
+          child: MediaQuery(
+            data: media,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.depth != 0) return false;
+                if (notification is ScrollStartNotification &&
+                    notification.dragDetails != null) {
+                  widget.control.target = null;
+                } else if (notification is ScrollEndNotification &&
+                    controller.hasClients) {
+                  widget.control.settle(page((controller.page ?? 0).round()));
+                }
+                return false;
+              },
+              child: PageView.builder(
+                // Delegate pointer drags to the single outer recognizer;
+                // keep scroll physics, wheel input and semantic actions.
+                scrollBehavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: const <PointerDeviceKind>{},
+                  scrollbars: false,
+                ),
+                key: ValueKey(
+                  '${widget.rtl}-${widget.vertical}-${widget.doublePage}',
+                ),
+                controller: controller,
+                reverse: widget.rtl && !widget.vertical,
+                scrollDirection: widget.vertical
+                    ? Axis.vertical
+                    : Axis.horizontal,
+                itemCount: widget.doublePage
+                    ? 1 + ((widget.urls.length - 1) / 2).ceil()
+                    : widget.urls.length,
+                onPageChanged: (v) => widget.onPosition(page(v), 0),
+                itemBuilder: (context, i) {
+                  final p = page(i);
+                  final images = [
+                    p,
+                    if (widget.doublePage &&
+                        p > 0 &&
+                        p + 1 < widget.urls.length)
+                      p + 1,
+                  ];
+                  if (widget.rtl) images.sort((a, b) => b.compareTo(a));
+                  final content = Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       for (final entry in images.indexed)
@@ -295,11 +355,6 @@ class _PagedSurfaceState extends State<PagedSurface> {
                           child: picture(
                             widget.urls[entry.$2],
                             index: entry.$2,
-                            curl: progress <= 0
-                                ? 0
-                                : widget.rtl
-                                ? -progress
-                                : progress,
                             alignment: images.length == 1
                                 ? Alignment.center
                                 : entry.$1 == 0
@@ -309,14 +364,52 @@ class _PagedSurfaceState extends State<PagedSurface> {
                         ),
                     ],
                   );
+                  if (!widget.paper || widget.vertical) {
+                    return content;
+                  }
+                  return AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, _) {
+                      final progress =
+                          !MediaQuery.disableAnimationsOf(context) &&
+                              controller.hasClients &&
+                              controller.position.hasContentDimensions
+                          ? (controller.page ?? i.toDouble()) - i
+                          : 0.0;
+                      // The image mesh owns the fold and shadow. A second clipping
+                      // curve/rotation used to cut across it and darken whole pages.
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (final entry in images.indexed)
+                            Expanded(
+                              child: picture(
+                                widget.urls[entry.$2],
+                                index: entry.$2,
+                                curl: progress <= 0
+                                    ? 0
+                                    : widget.rtl
+                                    ? -progress
+                                    : progress,
+                                alignment: images.length == 1
+                                    ? Alignment.center
+                                    : entry.$1 == 0
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  );
                 },
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class StripSurface extends StatefulWidget {

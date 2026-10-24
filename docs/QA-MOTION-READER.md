@@ -27,4 +27,4 @@
 - 最终全量105项Flutter测试通过，13项阅读交接测试包含在内；静态分析无问题。
 - Web生产构建及离线壳生成通过（`dd72b55c5366`，236个文件）；8项Node及3项Python检查通过。此结果不替代Android原生阅读验收。
 - 最终源码的390×844阅读交接再次录制，另重录并查看553章目录切到20章分组后的实际帧。历史目录回放仅验证渲染和解析，不能当成当前在线可读。
-- 对应源码b25a842的远端CI [40077272547](https://github.com/LexianLix/manxia/actions/runs/40077272547)已成功完成，包含Android Profile编译。此批随后纳入v0.3.4候选，实际发行与Release启动状态见 [该版本QA](QA-0.3.4.md)。
+- 对应源码b25a842的远端CI [40077272547](https://github.com/LexianLix/manxia/actions/runs/40077272547)已成功完成，包含Android Profile编译。此批随后纳入v0.3.5候选，实际发行与Release启动状态见 [该版本QA](QA-0.3.5.md)。

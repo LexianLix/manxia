@@ -68,9 +68,13 @@ void main() {
             final bytes = await image.toByteData(
               format: ui.ImageByteFormat.rawRgba,
             );
-            final value = bytes!.getUint8(
-              (420 * 390 + (rtl ? 120 : 270)) * 4 + 3,
-            );
+            final x =
+                (rtl
+                        ? controller.position.pixels + 2
+                        : 390 - controller.position.pixels - 2)
+                    .round()
+                    .clamp(0, 389);
+            final value = bytes!.getUint8((420 * 390 + x) * 4 + 3);
             image.dispose();
             return value;
           });
@@ -110,50 +114,140 @@ void main() {
         await tester.pumpAndSettle();
         expect(controller.page, closeTo(0, .001));
         await f.capture(tester, '$direction-settled');
+        await tester.flingFrom(origin, delta * .6, 1500);
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        });
+        await tester.pumpAndSettle();
+        expect(
+          controller.page,
+          closeTo(1, .001),
+          reason: 'A short fast flick must retain its release velocity.',
+        );
+        await f.capture(tester, '$direction-flick');
+        f.control.go(0);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        await tester.flingFrom(
+          const Offset(200, 600),
+          vertical ? const Offset(-180, 12) : const Offset(12, -180),
+          1500,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          controller.page,
+          closeTo(0, .001),
+          reason: 'A flick across the reading axis must not turn a page.',
+        );
         expect(tester.takeException(), isNull);
       },
     );
   }
-  testWidgets('pinch zoom keeps page fixed and enables image panning', (
-    tester,
-  ) async {
-    final f = await _Fixture.start(tester);
-    final controller = tester
-        .widget<PageView>(find.byType(PageView))
-        .controller!;
-    final zoom = tester
-        .widget<InteractiveViewer>(find.byType(InteractiveViewer))
-        .transformationController!;
-    final left = await tester.startGesture(const Offset(140, 420), pointer: 1);
-    final right = await tester.startGesture(const Offset(250, 420), pointer: 2);
-    await tester.pump();
-    await left.moveTo(const Offset(90, 420));
-    await right.moveTo(const Offset(300, 420));
-    await tester.pump();
-    await left.moveTo(const Offset(60, 420));
-    await right.moveTo(const Offset(330, 420));
-    await tester.pump();
-    expect(zoom.value.getMaxScaleOnAxis(), greaterThan(1.2));
-    await left.up();
-    await right.up();
-    await tester.pumpAndSettle();
-    final page = controller.page;
-    final before = zoom.value.storage.toList();
-    await tester.dragFrom(const Offset(240, 400), const Offset(-60, -50));
-    await tester.pumpAndSettle();
-    expect(controller.page, closeTo(page!, .001));
-    expect(zoom.value.storage.toList(), isNot(equals(before)));
-    f.control.go(1);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-    });
-    await tester.pumpAndSettle();
-    expect(controller.page, closeTo(1, .001));
-    expect(zoom.value.getMaxScaleOnAxis(), closeTo(1, .001));
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'touching a moving page holds its exact pose before a drag is recognized',
+    (tester) async {
+      final f = await _Fixture.start(tester);
+      final controller = tester
+          .widget<PageView>(find.byType(PageView))
+          .controller!;
+      f.control.go(2);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final pose = controller.page!;
+      final gesture = await tester.startGesture(const Offset(200, 420));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(controller.page, closeTo(pose, .001));
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(controller.page, closeTo(pose.round(), .001));
+      expect(tester.takeException(), isNull);
+    },
+  );
+  for (final frameBetween in [false, true]) {
+    testWidgets(
+      'pinch zoom keeps page fixed and enables image panning (frameBetween=$frameBetween)',
+      (tester) async {
+        final f = await _Fixture.start(tester);
+        final controller = tester
+            .widget<PageView>(find.byType(PageView))
+            .controller!;
+        final zoom = tester
+            .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+            .transformationController!;
+        final left = await tester.startGesture(
+          const Offset(140, 420),
+          pointer: 1,
+        );
+        final right = await tester.startGesture(
+          const Offset(250, 420),
+          pointer: 2,
+        );
+        if (frameBetween) await tester.pump();
+        await left.moveTo(const Offset(90, 420));
+        await right.moveTo(const Offset(300, 420));
+        await tester.pump();
+        await left.moveTo(const Offset(60, 420));
+        await right.moveTo(const Offset(330, 420));
+        await tester.pump();
+        expect(zoom.value.getMaxScaleOnAxis(), greaterThan(1.2));
+        await left.up();
+        await right.up();
+        await tester.pumpAndSettle();
+        final page = controller.page;
+        final before = zoom.value.storage.toList();
+        await tester.dragFrom(const Offset(240, 400), const Offset(-60, -50));
+        await tester.pumpAndSettle();
+        expect(controller.page, closeTo(page!, .001));
+        expect(zoom.value.storage.toList(), isNot(equals(before)));
+        f.control.go(1);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        });
+        await tester.pumpAndSettle();
+        expect(controller.page, closeTo(1, .001));
+        expect(zoom.value.getMaxScaleOnAxis(), closeTo(1, .001));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  for (final pinch in [false, true]) {
+    testWidgets(
+      'closing during an active ${pinch ? 'pinch' : 'drag'} releases its scroll activity',
+      (tester) async {
+        await _Fixture.start(tester);
+        final first = await tester.startGesture(
+          const Offset(300, 420),
+          pointer: 1,
+        );
+        TestGesture? second;
+        if (pinch) {
+          second = await tester.startGesture(
+            const Offset(120, 420),
+            pointer: 2,
+          );
+          await first.moveBy(const Offset(50, 0));
+          await second.moveBy(const Offset(-50, 0));
+        } else {
+          await first.moveBy(const Offset(-36, 0));
+          await tester.pump();
+          await first.moveBy(const Offset(-100, 0));
+        }
+        await tester.pump();
+        await tester.pumpWidget(const SizedBox());
+        await first.cancel();
+        await second?.cancel();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('strip reduced motion jumps directly to the requested image', (
     tester,
   ) async {
