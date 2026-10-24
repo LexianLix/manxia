@@ -316,8 +316,55 @@ class Dm5Source {
     );
     inspect?.call({'title': title, 'groups': containers.length});
     if (title == null || title.isEmpty) {
+      final notice =
+          doc
+              .querySelector('.warning-bar')
+              ?.text
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim() ??
+          '';
+      if (_isCopyrightRemoval(notice)) {
+        inspect?.call({'availability': 'copyright', 'notice': notice});
+        throw SourceCopyrightException(notice, comic: fallback);
+      }
       throw _DetailLayoutException('未读到漫画详情，请在原站查看或稍后重试。');
     }
+    final resolved = Comic(
+      path: fallback.path,
+      title: title,
+      cover:
+          doc.querySelector('.detail-main-cover img')?.attributes['src'] ??
+          doc
+              .querySelector('.banner_detail_form .cover img')
+              ?.attributes['src'] ??
+          fallback.cover,
+      author:
+          doc
+              .querySelector('.detail-main-info-author')
+              ?.text
+              .trim()
+              .replaceFirst('作者：', '') ??
+          desktopInfo
+              ?.querySelector('.subtitle')
+              ?.text
+              .trim()
+              .replaceFirst('作者：', '') ??
+          fallback.author,
+      latest:
+          doc.querySelector('.detail-list-title-2')?.text.trim() ??
+          fallback.latest,
+      description:
+          doc
+              .querySelector('.detail-desc, .detail-desc-content')
+              ?.text
+              .trim() ??
+          desktopInfo?.querySelector('.content')?.text.trim() ??
+          fallback.description,
+      tags: doc
+          .querySelectorAll('.detail-main-info-class span')
+          .map((e) => e.text.trim())
+          .toList(),
+    );
     final chapters = <Chapter>[];
     final seen = <String>{};
     final oldestFirst = RegExp(r'\bDM5_COMIC_SORT\s*=\s*1\s*;').hasMatch(input);
@@ -369,6 +416,11 @@ class Dm5Source {
         inspect?.call({'availability': 'migration', 'notice': notice});
         throw SourceException('原站已将这部漫画的网页章节迁移到漫画人 App，当前网页无法读取目录。');
       }
+      final copyrightRemoval = _isCopyrightRemoval(notice);
+      if (copyrightRemoval) {
+        inspect?.call({'availability': 'copyright', 'notice': notice});
+        throw SourceCopyrightException(notice, comic: resolved);
+      }
       if (notice.isNotEmpty) {
         inspect?.call({'availability': 'notice', 'notice': notice});
         throw SourceException('原站提示：$notice');
@@ -385,46 +437,18 @@ class Dm5Source {
       throw _DetailLayoutException('未能识别章节目录，可能是页面结构变化或访问验证。请重新加载，或打开原站核对。');
     }
     inspect?.call({'availability': 'available'});
-    return ComicDetail(
-      Comic(
-        path: fallback.path,
-        title: title,
-        cover:
-            doc.querySelector('.detail-main-cover img')?.attributes['src'] ??
-            doc
-                .querySelector('.banner_detail_form .cover img')
-                ?.attributes['src'] ??
-            fallback.cover,
-        author:
-            doc
-                .querySelector('.detail-main-info-author')
-                ?.text
-                .trim()
-                .replaceFirst('作者：', '') ??
-            desktopInfo
-                ?.querySelector('.subtitle')
-                ?.text
-                .trim()
-                .replaceFirst('作者：', '') ??
-            fallback.author,
-        latest:
-            doc.querySelector('.detail-list-title-2')?.text.trim() ??
-            fallback.latest,
-        description:
-            doc
-                .querySelector('.detail-desc, .detail-desc-content')
-                ?.text
-                .trim() ??
-            desktopInfo?.querySelector('.content')?.text.trim() ??
-            fallback.description,
-        tags: doc
-            .querySelectorAll('.detail-main-info-class span')
-            .map((e) => e.text.trim())
-            .toList(),
-      ),
-      chapters,
-    );
+    return ComicDetail(resolved, chapters);
   }
+
+  static bool _isCopyrightRemoval(String notice) =>
+      RegExp(
+        r'版权|版權|著作权|著作權|copyright',
+        caseSensitive: false,
+      ).hasMatch(notice) &&
+      RegExp(
+        r'删除|刪除|清理|移除|下架|屏蔽|未授权|未授權|未经授权|未經授權|没有版权|沒有版權|无版权|無版權|removed|unavailable',
+        caseSensitive: false,
+      ).hasMatch(notice);
 
   /// Decode the page's standard P.A.C.K.E.R string substitution as data, never eval.
   static String unpack(String input) {
@@ -471,14 +495,31 @@ class Dm5Source {
       r'(?:newImgs|chapterImages)\s*=\s*\[(.*?)\]',
       dotAll: true,
     ).firstMatch(decoded);
-    if (list == null) throw SourceException('此章节暂时无法直接读取。可能需要登录或原站阅读，请打开动漫屋。');
+    if (list == null) {
+      _unreadableChapter(input, '此章节暂时无法直接读取。可能需要登录或原站阅读，请打开动漫屋。');
+    }
     final urls = RegExp(r'''["'](https://[^"']+)["']''')
         .allMatches(list[1]!)
         .map((m) => m[1]!.replaceAll(r'\/', '/'))
         .where((s) => Uri.tryParse(s)?.host.endsWith('.cdndm5.com') ?? false)
         .toList();
-    if (urls.isEmpty) throw SourceException('此章节没有可读取的图片，请在原站查看。');
+    if (urls.isEmpty) _unreadableChapter(input, '此章节没有可读取的图片，请在原站查看。');
     return urls;
+  }
+
+  static Never _unreadableChapter(String input, String reason) {
+    if (input.contains('warning-bar')) {
+      final notice =
+          html
+              .parse(input)
+              .querySelector('.warning-bar')
+              ?.text
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim() ??
+          '';
+      if (_isCopyrightRemoval(notice)) throw SourceCopyrightException(notice);
+    }
+    throw SourceException(reason);
   }
 }
 
@@ -487,6 +528,15 @@ class SourceException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+/// An explicit rights/removal notice from this source, never inferred from a
+/// timeout, empty layout, search landing or a different source's response.
+class SourceCopyrightException extends SourceException {
+  SourceCopyrightException(this.notice, {this.comic})
+    : super('当前书源没有版权，无法提供在线章节。');
+  final String notice;
+  final Comic? comic;
 }
 
 class _DetailEditionException extends SourceException {

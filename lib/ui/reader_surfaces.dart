@@ -6,12 +6,20 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'comic_image.dart';
+import 'room_motion.dart';
 
 class ReaderControl extends ChangeNotifier {
   int page = 0;
+  int? target;
   void go(int value) {
     page = value;
+    target = value;
     notifyListeners();
+  }
+
+  void settle(int value) {
+    page = value;
+    target = null;
   }
 }
 
@@ -54,6 +62,25 @@ class PagedSurface extends StatefulWidget {
 }
 
 class _PagedSurfaceState extends State<PagedSurface> {
+  final viewport = TransformationController();
+  final pointers = <int>{};
+  bool pinching = false;
+  bool zoomed = false;
+  void pointerDown(PointerDownEvent event) {
+    pointers.add(event.pointer);
+    if (pointers.length > 1 && !pinching) setState(() => pinching = true);
+  }
+
+  void pointerUp(PointerEvent event) {
+    pointers.remove(event.pointer);
+    if (pointers.isEmpty && pinching) setState(() => pinching = false);
+  }
+
+  void transformed() {
+    final value = viewport.value.getMaxScaleOnAxis() > 1.001;
+    if (mounted && value != zoomed) setState(() => zoomed = value);
+  }
+
   final prepared = <int, String>{};
   String? announced;
   String identity(int index) =>
@@ -99,17 +126,44 @@ class _PagedSurfaceState extends State<PagedSurface> {
   @override
   void initState() {
     super.initState();
+    viewport.addListener(transformed);
     widget.control.addListener(jump);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final target = widget.control.target;
+    if (target != null && MediaQuery.disableAnimationsOf(context)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            widget.control.target == target &&
+            controller.hasClients) {
+          controller.jumpToPage(view(target));
+          widget.control.settle(page(view(target)));
+        }
+      });
+    }
   }
 
   void jump() {
     if (controller.hasClients) {
+      if (zoomed) viewport.value = Matrix4.identity();
+      final target = view(widget.control.page);
+      if (MediaQuery.disableAnimationsOf(context)) {
+        controller.jumpToPage(target);
+        widget.control.settle(page(target));
+        return;
+      }
+      final distance = (target - (controller.page ?? target)).abs();
       controller.animateToPage(
-        view(widget.control.page),
+        target,
         duration: Duration(
-          milliseconds: MediaQuery.disableAnimationsOf(context) ? 1 : 210,
+          milliseconds: (RoomMotion.page.inMilliseconds * math.sqrt(distance))
+              .round()
+              .clamp(100, 340),
         ),
-        curve: Curves.easeOutCubic,
+        curve: RoomMotion.ease,
       );
     }
   }
@@ -132,6 +186,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
   @override
   void dispose() {
     widget.control.removeListener(jump);
+    viewport.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -141,83 +196,98 @@ class _PagedSurfaceState extends State<PagedSurface> {
     required int index,
     double curl = 0,
     Alignment alignment = Alignment.center,
-  }) => InteractiveViewer(
-    minScale: 1,
-    maxScale: 4,
-    child: PagePicture(
-      url,
-      web: widget.web,
-      crop: widget.crop,
-      autoCrop: widget.autoCrop,
-      decodeWidth: widget.decodeWidth,
-      curl: curl,
-      alignment: alignment,
-      onReady: (_) => ready(index),
-      onLoadError: () {
-        if (initialPages.contains(index)) widget.onLoadError?.call();
-      },
-    ),
+  }) => PagePicture(
+    url,
+    web: widget.web,
+    crop: widget.crop,
+    autoCrop: widget.autoCrop,
+    decodeWidth: widget.decodeWidth,
+    curl: curl,
+    alignment: alignment,
+    onReady: (_) => ready(index),
+    onLoadError: () {
+      if (initialPages.contains(index)) widget.onLoadError?.call();
+    },
   );
   @override
-  Widget build(BuildContext context) => PageView.builder(
-    key: ValueKey('${widget.rtl}-${widget.vertical}-${widget.doublePage}'),
-    controller: controller,
-    reverse: widget.rtl && !widget.vertical,
-    scrollDirection: widget.vertical ? Axis.vertical : Axis.horizontal,
-    itemCount: widget.doublePage
-        ? 1 + ((widget.urls.length - 1) / 2).ceil()
-        : widget.urls.length,
-    onPageChanged: (v) => widget.onPosition(page(v), 0),
-    itemBuilder: (context, i) {
-      final p = page(i);
-      final images = [
-        p,
-        if (widget.doublePage && p > 0 && p + 1 < widget.urls.length) p + 1,
-      ];
-      if (widget.rtl) images.sort((a, b) => b.compareTo(a));
-      final content = Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final entry in images.indexed)
-            Expanded(
-              child: picture(
-                widget.urls[entry.$2],
-                index: entry.$2,
-                alignment: images.length == 1
-                    ? Alignment.center
-                    : entry.$1 == 0
-                    ? Alignment.centerRight
-                    : Alignment.centerLeft,
-              ),
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: Listener(
+      onPointerDown: pointerDown,
+      onPointerUp: pointerUp,
+      onPointerCancel: pointerUp,
+      child: InteractiveViewer(
+        transformationController: viewport,
+        minScale: 1,
+        maxScale: 4,
+        panEnabled: zoomed,
+        // The inner scrollable wins one-finger turns at 1x. A pinch enables
+        // viewport panning and pauses page scrolling until the zoom is reset.
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.depth != 0) return false;
+            if (notification is ScrollStartNotification &&
+                notification.dragDetails != null) {
+              widget.control.target = null;
+            } else if (notification is ScrollEndNotification &&
+                controller.hasClients) {
+              widget.control.settle(page((controller.page ?? 0).round()));
+            }
+            return false;
+          },
+          child: PageView.builder(
+            physics: zoomed || pinching
+                ? const NeverScrollableScrollPhysics()
+                : null,
+            key: ValueKey(
+              '${widget.rtl}-${widget.vertical}-${widget.doublePage}',
             ),
-        ],
-      );
-      if (!widget.paper ||
-          widget.vertical ||
-          MediaQuery.disableAnimationsOf(context)) {
-        return content;
-      }
-      return AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final progress =
-              controller.hasClients && controller.position.hasContentDimensions
-              ? (controller.page ?? i.toDouble()) - i
-              : 0.0;
-          final t = progress.abs().clamp(0.0, 1.0);
-          return Transform(
-            alignment: progress >= 0
-                ? Alignment.centerLeft
-                : Alignment.centerRight,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, .0007)
-              ..rotateY(progress * .12),
-            child: ClipPath(
-              clipper: _PaperEdge(t, progress >= 0),
-              child: Stack(
-                fit: StackFit.expand,
+            controller: controller,
+            reverse: widget.rtl && !widget.vertical,
+            scrollDirection: widget.vertical ? Axis.vertical : Axis.horizontal,
+            itemCount: widget.doublePage
+                ? 1 + ((widget.urls.length - 1) / 2).ceil()
+                : widget.urls.length,
+            onPageChanged: (v) => widget.onPosition(page(v), 0),
+            itemBuilder: (context, i) {
+              final p = page(i);
+              final images = [
+                p,
+                if (widget.doublePage && p > 0 && p + 1 < widget.urls.length)
+                  p + 1,
+              ];
+              if (widget.rtl) images.sort((a, b) => b.compareTo(a));
+              final content = Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
+                  for (final entry in images.indexed)
+                    Expanded(
+                      child: picture(
+                        widget.urls[entry.$2],
+                        index: entry.$2,
+                        alignment: images.length == 1
+                            ? Alignment.center
+                            : entry.$1 == 0
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                      ),
+                    ),
+                ],
+              );
+              if (!widget.paper || widget.vertical) {
+                return content;
+              }
+              return AnimatedBuilder(
+                animation: controller,
+                builder: (context, _) {
+                  final progress =
+                      !MediaQuery.disableAnimationsOf(context) &&
+                          controller.hasClients &&
+                          controller.position.hasContentDimensions
+                      ? (controller.page ?? i.toDouble()) - i
+                      : 0.0;
+                  // The image mesh owns the fold and shadow. A second clipping
+                  // curve/rotation used to cut across it and darken whole pages.
+                  return Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       for (final entry in images.indexed)
@@ -225,7 +295,11 @@ class _PagedSurfaceState extends State<PagedSurface> {
                           child: picture(
                             widget.urls[entry.$2],
                             index: entry.$2,
-                            curl: progress,
+                            curl: progress <= 0
+                                ? 0
+                                : widget.rtl
+                                ? -progress
+                                : progress,
                             alignment: images.length == 1
                                 ? Alignment.center
                                 : entry.$1 == 0
@@ -234,78 +308,15 @@ class _PagedSurfaceState extends State<PagedSurface> {
                           ),
                         ),
                     ],
-                  ),
-                  if (t > .005)
-                    IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: progress >= 0
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            end: progress >= 0
-                                ? Alignment.centerLeft
-                                : Alignment.centerRight,
-                            colors: [
-                              Colors.black.withValues(alpha: t * .4),
-                              Colors.white.withValues(alpha: t * .14),
-                              Colors.transparent,
-                            ],
-                            stops: const [0, .11, .36],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    ),
   );
-}
-
-class _PaperEdge extends CustomClipper<Path> {
-  _PaperEdge(this.t, this.right);
-  final double t;
-  final bool right;
-  @override
-  Path getClip(Size s) {
-    final inset = s.width * t * .13;
-    final edge = right ? s.width - inset : inset;
-    return right
-        ? (Path()
-            ..moveTo(0, 0)
-            ..lineTo(edge, 0)
-            ..cubicTo(
-              s.width + inset,
-              s.height * .25,
-              edge - inset,
-              s.height * .7,
-              edge,
-              s.height,
-            )
-            ..lineTo(0, s.height)
-            ..close())
-        : (Path()
-            ..moveTo(edge, 0)
-            ..lineTo(s.width, 0)
-            ..lineTo(s.width, s.height)
-            ..lineTo(edge, s.height)
-            ..cubicTo(
-              edge + inset,
-              s.height * .7,
-              -inset,
-              s.height * .25,
-              edge,
-              0,
-            )
-            ..close());
-  }
-
-  @override
-  bool shouldReclip(_PaperEdge old) => old.t != t || old.right != right;
 }
 
 class StripSurface extends StatefulWidget {
@@ -370,11 +381,23 @@ class _StripSurfaceState extends State<StripSurface> {
 
   void jump() {
     if (scroll.isAttached) {
-      scroll.scrollTo(
-        index: widget.control.page.clamp(0, widget.urls.length - 1),
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
+      final target = widget.control.page.clamp(0, widget.urls.length - 1);
+      if (MediaQuery.disableAnimationsOf(context)) {
+        scroll.jumpTo(index: target);
+        widget.control.settle(target);
+      } else {
+        scroll
+            .scrollTo(
+              index: target,
+              duration: RoomMotion.page,
+              curve: RoomMotion.ease,
+            )
+            .then((_) {
+              if (mounted && widget.control.target == target) {
+                widget.control.settle(target);
+              }
+            });
+      }
     }
   }
 
@@ -759,7 +782,7 @@ class _PicturePainter extends CustomPainter {
             Color.fromRGBO(
               (255 * light).round(),
               (255 * light).round(),
-              (250 * light).round(),
+              (255 * light).round(),
               1,
             ),
           );
@@ -782,6 +805,22 @@ class _PicturePainter extends CustomPainter {
         Colors.black.withValues(alpha: .5 * t),
         12 * t,
         false,
+      );
+      // The bent front exposes the paper back, not a transparent hole between
+      // sheets. Keep this inside the image bounds, including letterboxing.
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..shader = LinearGradient(
+            begin: curl >= 0 ? Alignment.centerRight : Alignment.centerLeft,
+            end: curl >= 0 ? Alignment.centerLeft : Alignment.centerRight,
+            colors: const [
+              Color(0xffd9d6ca),
+              Color(0xfff5f2e8),
+              Color(0xfffaf8f1),
+            ],
+            stops: const [0, .16, 1],
+          ).createShader(rect),
       );
       final mesh = ui.Vertices(
         ui.VertexMode.triangles,

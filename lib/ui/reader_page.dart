@@ -364,8 +364,10 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void turn(int direction) {
-    final step = paired && firstVisiblePage > 0 ? 2 : 1;
-    go(firstVisiblePage + direction * step);
+    final target = command.target ?? firstVisiblePage;
+    final anchor = paired && target > 0 ? 1 + ((target - 1) ~/ 2) * 2 : target;
+    final step = paired && anchor > 0 ? 2 : 1;
+    go(anchor + direction * step);
   }
 
   Future<void> changeChapter(

@@ -7,6 +7,91 @@ import 'package:http/testing.dart';
 void main() {
   const fallback = Comic(path: '/manhua-test/', title: '测试', cover: '');
   test(
+    'opening an old chapter also explains an explicit copyright removal',
+    () {
+      expect(
+        () => Dm5Source.parsePages(
+          '<div class="warning-bar">应版权方要求已删除本作品链接</div>',
+        ),
+        throwsA(isA<SourceCopyrightException>()),
+      );
+      expect(
+        () => Dm5Source.parsePages('<html>verification needed</html>'),
+        throwsA(
+          isA<SourceException>().having(
+            (e) => e is SourceCopyrightException,
+            'not inferred',
+            false,
+          ),
+        ),
+      );
+    },
+  );
+  test(
+    'copyright removal retains the actual cover metadata without inventing a catalog',
+    () {
+      try {
+        Dm5Source.parseDetail(
+          '<p class="detail-main-info-title">漫画</p><div class="detail-main-cover"><img src="https://example.com/portrait.jpg"></div><div class="warning-bar">应版权方要求已移除本作品</div>',
+          fallback,
+        );
+        fail('A removal must not return a successful catalog');
+      } on SourceCopyrightException catch (error) {
+        expect(error.comic!.cover, 'https://example.com/portrait.jpg');
+        expect(error.comic!.path, fallback.path);
+        expect(error.notice, contains('版权方'));
+      }
+    },
+  );
+  for (final notice in ['作品已下架', '版权归原作者所有，已获授权', '原站系统维护中']) {
+    test('non-rights notice stays distinct: $notice', () {
+      final observed = <String, Object?>{};
+      expect(
+        () => Dm5Source.parseDetail(
+          '<p class="detail-main-info-title">漫画</p><div class="warning-bar">$notice</div>',
+          fallback,
+          inspect: observed.addAll,
+        ),
+        throwsA(
+          isA<SourceException>().having(
+            (e) => e is SourceCopyrightException,
+            'copyright classification',
+            false,
+          ),
+        ),
+      );
+      expect(observed['availability'], 'notice');
+    });
+  }
+  test(
+    'copyright removals state the source has no rights without relabeling other failures',
+    () {
+      final observed = <String, Object?>{};
+      expect(
+        () => Dm5Source.parseDetail(
+          '<p class="detail-main-info-title">火影忍者</p><div class="warning-bar">应版权方要求，已删除清理本作品所有内容的链接和地址。</div>',
+          fallback,
+          inspect: observed.addAll,
+        ),
+        throwsA(
+          isA<SourceException>().having(
+            (e) => e.message,
+            'clear reason',
+            startsWith('当前书源没有版权'),
+          ),
+        ),
+      );
+      expect(observed['availability'], 'copyright');
+      expect(
+        () => Dm5Source.parseDetail(
+          '<div class="warning-bar">应版权方要求已移除本作品</div>',
+          fallback,
+        ),
+        throwsA(isA<SourceCopyrightException>()),
+      );
+    },
+  );
+  test(
     'mobile external-search response still checks the same public desktop catalog',
     () async {
       const comic = Comic(
@@ -81,7 +166,7 @@ void main() {
           isA<SourceException>().having(
             (e) => e.message,
             'desktop notice',
-            contains('版权方'),
+            contains('书源没有版权'),
           ),
         ),
       );
@@ -89,7 +174,7 @@ void main() {
       final attempts =
           source.detailDiagnostics[fallback.path]!['attempts'] as List;
       expect((attempts.first as Map)['availability'], 'externalSearch');
-      expect((attempts.last as Map)['availability'], 'notice');
+      expect((attempts.last as Map)['availability'], 'copyright');
     },
   );
   for (final status in [403, 429]) {

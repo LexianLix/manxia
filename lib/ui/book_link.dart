@@ -43,6 +43,8 @@ class _BookLinkState extends State<BookLink> {
               tag: tag,
               curve: Curves.linear,
               reverseCurve: Curves.linear,
+              createRectTween: (begin, end) =>
+                  BookTravelRectTween(begin: begin, end: end),
               flightShuttleBuilder: BookFlight.shuttle(
                 widget.comic,
                 widget.web,

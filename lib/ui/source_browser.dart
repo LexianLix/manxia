@@ -8,6 +8,7 @@ import '../data/source_catalog.dart';
 import 'localized_text.dart';
 import 'app_shell.dart' show ComicGrid;
 import 'content_handoff.dart';
+import 'room_motion.dart';
 
 class SourceBrowser extends StatefulWidget {
   const SourceBrowser({
@@ -30,7 +31,26 @@ class SourceBrowser extends StatefulWidget {
   State<SourceBrowser> createState() => _SourceBrowserState();
 }
 
-class _SourceBrowserState extends State<SourceBrowser> {
+class _SourceBrowserState extends State<SourceBrowser>
+    with SingleTickerProviderStateMixin {
+  late final arrival = AnimationController(
+    vsync: this,
+    duration: RoomMotion.cover,
+    value: 1,
+  );
+  int arrivingFrom = 0;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) arrival.value = 1;
+  }
+
+  @override
+  void dispose() {
+    arrival.dispose();
+    super.dispose();
+  }
+
   Map<String, String> categories = {};
   SourceCatalog? catalog;
   final List<Comic> books = [];
@@ -85,6 +105,7 @@ class _SourceBrowserState extends State<SourceBrowser> {
       if (mounted && generation == request) {
         setState(() {
           catalog = result;
+          arrivingFrom = result.books.length;
           books
             ..clear()
             ..addAll(result.books);
@@ -123,7 +144,15 @@ class _SourceBrowserState extends State<SourceBrowser> {
         setState(() {
           final seen = books.map((b) => b.path).toSet();
           final added = result.where((c) => seen.add(c.path)).toList();
+          arrivingFrom = books.length;
           books.addAll(added);
+          if (added.isNotEmpty &&
+              widget.library.motion &&
+              !MediaQuery.disableAnimationsOf(context)) {
+            arrival.forward(from: 0);
+          } else {
+            arrival.value = 1;
+          }
           more = added.isNotEmpty;
           page++;
         });
@@ -257,6 +286,8 @@ class _SourceBrowserState extends State<SourceBrowser> {
             web: widget.web,
             onOpen: widget.onOpen,
             sliver: true,
+            itemArrival: arrival,
+            arrivingFrom: arrivingFrom,
           ),
           SliverToBoxAdapter(
             child: ContentHandoff(
@@ -273,7 +304,13 @@ class _SourceBrowserState extends State<SourceBrowser> {
       children: [
         controls(context),
         const SizedBox(height: 20),
-        ComicGrid(books: books, web: widget.web, onOpen: widget.onOpen),
+        ComicGrid(
+          books: books,
+          web: widget.web,
+          onOpen: widget.onOpen,
+          itemArrival: arrival,
+          arrivingFrom: arrivingFrom,
+        ),
         ContentHandoff(
           child: catalog?.canPaginate == true && more
               ? loadMore()

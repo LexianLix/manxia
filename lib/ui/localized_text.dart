@@ -59,6 +59,9 @@ String translate(String text, Locale locale) {
 }
 
 const english = <String, String>{
+  '当前书源没有版权': 'This source has no rights to this comic',
+  '书源没有版权': 'No rights at this source',
+  '阅读已下载章节': 'Read downloaded chapters',
   '书架，等你放上第一本漫画': 'Your first comic belongs here',
   '去发现页搜索喜欢的漫画，加入收藏。': 'Find a comic in Explore and add it to your library.',
   '今天，读点什么': 'A story for today',
@@ -253,6 +256,9 @@ const english = <String, String>{
   '为每一段故事，留一个位置。': 'A place for every story.',
 };
 const traditional = <String, String>{
+  '当前书源没有版权': '當前書源沒有版權',
+  '书源没有版权': '書源沒有版權',
+  '阅读已下载章节': '閱讀已下載章節',
   '书架': '書架',
   '发现': '探索',
   '足迹': '足跡',

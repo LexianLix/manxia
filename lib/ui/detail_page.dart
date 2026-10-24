@@ -133,7 +133,26 @@ class _DetailPageState extends State<DetailPage> {
       child: FutureBuilder<ComicDetail>(
         future: detail,
         builder: (context, snapshot) {
-          final comic = snapshot.data?.comic ?? widget.comic;
+          SourceCopyrightException? copyrightFailure =
+              snapshot.error is SourceCopyrightException
+              ? snapshot.error as SourceCopyrightException
+              : null;
+          final comic =
+              snapshot.data?.comic ?? copyrightFailure?.comic ?? widget.comic;
+          final attempts =
+              widget.source.detailDiagnostics[comic.path]?['attempts'];
+          if (snapshot.connectionState == ConnectionState.done &&
+              attempts is List) {
+            for (final attempt in attempts.whereType<Map>()) {
+              if (attempt['availability'] == 'copyright' &&
+                  attempt['notice'] is String) {
+                copyrightFailure = SourceCopyrightException(
+                  attempt['notice'] as String,
+                );
+              }
+            }
+          }
+          final noCopyright = copyrightFailure != null;
           final sourceName = comic.sourceId == 'local'
               ? '本地书库'
               : comic.sourceId == 'dm5'
@@ -246,9 +265,13 @@ class _DetailPageState extends State<DetailPage> {
                       history != null
                           ? '继续阅读'
                           : mainChapters.isNotEmpty
-                          ? '开始阅读'
+                          ? noCopyright
+                                ? '阅读已下载章节'
+                                : '开始阅读'
                           : snapshot.connectionState != ConnectionState.done
                           ? '正在读取目录'
+                          : noCopyright
+                          ? '书源没有版权'
                           : '章节暂不可用',
                       style: const TextStyle(fontSize: 13),
                     ),
@@ -315,7 +338,7 @@ class _DetailPageState extends State<DetailPage> {
                           ],
                         ),
                       )
-                    : chapters.isEmpty
+                    : chapters.isEmpty || noCopyright
                     ? Padding(
                         key: const ValueKey('directory-retry'),
                         padding: const EdgeInsets.only(top: 12),
@@ -323,7 +346,9 @@ class _DetailPageState extends State<DetailPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             LocalizedText(
-                              snapshot.hasError
+                              noCopyright
+                                  ? '${copyrightFailure!.message}${chapters.isNotEmpty ? '\n已下载章节仍可离线阅读。' : ''}'
+                                  : snapshot.hasError
                                   ? friendlyError(snapshot.error)
                                   : '尚未识别到章节目录，请重新加载。',
                               style: small(context),
@@ -562,8 +587,12 @@ class _DetailPageState extends State<DetailPage> {
                                   )
                                 else if (snapshot.hasError)
                                   EmptyState(
-                                    icon: Icons.cloud_off_outlined,
-                                    title: '目录暂时无法读取',
+                                    icon: noCopyright
+                                        ? Icons.copyright_outlined
+                                        : Icons.cloud_off_outlined,
+                                    title: noCopyright
+                                        ? '当前书源没有版权'
+                                        : '目录暂时无法读取',
                                     message: friendlyError(snapshot.error),
                                     action: retry,
                                     actionLabel: '重新加载',

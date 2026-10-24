@@ -11,6 +11,28 @@ String imageAddress(String original, bool web) =>
           .replace(queryParameters: {'url': original})
           .toString()
     : original;
+
+/// No new cache: reuse the offline library's bounded cache or Flutter's
+/// existing NetworkImage cache. A known disk-only cover still loads normally.
+ImageProvider? immediateComicImageProvider(String url, bool web) {
+  final offline = OfflineLibrary.instance;
+  if (url.startsWith('offline:')) {
+    final bytes = offline?.peek(url.substring(8));
+    return bytes == null ? null : MemoryImage(bytes);
+  }
+  final entry = offline?.entries
+      .where((e) => e['comic']['cover'] == url && e['coverKey'] != null)
+      .firstOrNull;
+  if (entry != null) {
+    final bytes = offline!.peek(entry['coverKey']);
+    return bytes == null ? null : MemoryImage(bytes);
+  }
+  return NetworkImage(
+    imageAddress(url, web),
+    headers: web ? null : Dm5Source.headersForImage(url),
+  );
+}
+
 Future<ImageProvider> comicImageProvider(String url, bool web) async {
   if (url.startsWith('offline:')) {
     final Uint8List? bytes = await OfflineLibrary.instance?.read(
@@ -48,6 +70,10 @@ class ComicImage extends StatefulWidget {
 }
 
 class _ComicImageState extends State<ComicImage> {
+  late ImageProvider? immediate = immediateComicImageProvider(
+    widget.url,
+    widget.web,
+  );
   late Future<ImageProvider> provider = comicImageProvider(
     widget.url,
     widget.web,
@@ -55,7 +81,8 @@ class _ComicImageState extends State<ComicImage> {
   @override
   void didUpdateWidget(ComicImage old) {
     super.didUpdateWidget(old);
-    if (old.url != widget.url) {
+    if (old.url != widget.url || old.web != widget.web) {
+      immediate = immediateComicImageProvider(widget.url, widget.web);
       provider = comicImageProvider(widget.url, widget.web);
     }
   }
@@ -67,30 +94,33 @@ class _ComicImageState extends State<ComicImage> {
     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .04),
     child: const Center(child: Icon(Icons.image_outlined, size: 20)),
   );
-  @override
-  Widget build(BuildContext c) => FutureBuilder<ImageProvider>(
-    key: ValueKey(widget.url),
-    future: provider,
-    builder: (c, s) {
-      if (s.hasError) return fallback();
-      if (!s.hasData) {
-        return loading(c);
-      }
-      return Image(
-        image: widget.cacheWidth == null
-            ? s.data!
-            : ResizeImage.resizeIfNeeded(widget.cacheWidth, null, s.data!),
-        fit: widget.fit,
-        gaplessPlayback: true,
-        frameBuilder: (_, child, frame, sync) => CoverArrival(
-          identity: widget.url,
-          ready: frame != null,
-          immediate: sync || !widget.animate,
-          placeholder: loading(c),
-          child: child,
-        ),
-        errorBuilder: (_, _, _) => fallback(),
-      );
-    },
+  Widget picture(BuildContext c, ImageProvider provider) => Image(
+    image: widget.cacheWidth == null
+        ? provider
+        : ResizeImage.resizeIfNeeded(widget.cacheWidth, null, provider),
+    fit: widget.fit,
+    gaplessPlayback: true,
+    frameBuilder: (_, child, frame, sync) => CoverArrival(
+      identity: widget.url,
+      ready: frame != null,
+      immediate: sync || !widget.animate,
+      placeholder: loading(c),
+      child: child,
+    ),
+    errorBuilder: (_, _, _) => fallback(),
   );
+  @override
+  Widget build(BuildContext c) => immediate != null
+      ? picture(c, immediate!)
+      : FutureBuilder<ImageProvider>(
+          key: ValueKey(widget.url),
+          future: provider,
+          builder: (c, s) {
+            if (s.hasError) return fallback();
+            if (!s.hasData) {
+              return loading(c);
+            }
+            return picture(c, s.data!);
+          },
+        );
 }

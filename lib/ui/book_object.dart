@@ -9,6 +9,24 @@ import 'room_motion.dart';
 import 'cover_arrival.dart';
 export 'comic_image.dart' show imageAddress;
 
+/// One reversible clock drives travel, unfolding and the landing. Each phase
+/// enters and leaves with zero velocity and acceleration, including reverse.
+class BookFlightPose {
+  const BookFlightPose(this.progress);
+  final double progress;
+  static double phase(double t, double start, double end) {
+    final p = ((t - start) / (end - start)).clamp(0.0, 1.0);
+    return p * p * p * (p * (p * 6 - 15) + 10);
+  }
+
+  double get travel => phase(progress, 0, 1);
+  double get unfold => phase(progress, .08, .88);
+  double get flatten => phase(progress, .06, .68);
+  double get reveal => phase(progress, .36, .96);
+  double get departing => 1 - phase(progress, .60, 1);
+  double get lift => math.pow(math.sin(math.pi * progress), 2).toDouble();
+}
+
 /// One book travels between the real shelf and detail bounds in both directions.
 /// The same cover, numbering and material survive the flight.
 class BookFlight extends StatelessWidget {
@@ -29,123 +47,130 @@ class BookFlight extends StatelessWidget {
       tag: tag ?? 'book-${child.comic.path}',
       curve: Curves.linear,
       reverseCurve: Curves.linear,
-      createRectTween: (begin, end) => _BookRectTween(begin: begin, end: end),
+      createRectTween: (begin, end) =>
+          BookTravelRectTween(begin: begin, end: end),
       flightShuttleBuilder: shuttle(child.comic, child.web),
       child: child,
     );
   }
 
-  static HeroFlightShuttleBuilder shuttle(
-    Comic comic,
-    bool web,
-  ) => (_, animation, direction, from, to) {
-    final fromChild = (from.widget as Hero).child;
-    final toChild = (to.widget as Hero).child;
-    final start = fromChild is BookObject
-        ? fromChild
-        : BookObject(comic, web: web);
-    final end = toChild is BookObject ? toChild : BookObject(comic, web: web);
-    final flat =
-        (direction == HeroFlightDirection.push ? fromChild : toChild)
-            is! BookObject;
-    // The route's visual progress runs from one to zero on pop, while Hero
-    // reverses its geometric endpoints. Keep the cover progress reversible.
-    final source = direction == HeroFlightDirection.push ? start : end;
-    final target = direction == HeroFlightDirection.push ? end : start;
-    final sourceChild = direction == HeroFlightDirection.push
-        ? fromChild
-        : toChild;
-    final targetChild = direction == HeroFlightDirection.push
-        ? toChild
-        : fromChild;
-    final landsOnCover = targetChild is! BookObject;
-    final hinge = targetChild is! _DetailComicCover || targetChild.opening;
-    Widget stillCover(Widget child) => child is ComicCover
-        ? ComicCover(
-            child.comic,
-            web: child.web,
-            fit: child.fit,
-            animate: false,
-          )
-        : child;
-    final destinationContext = direction == HeroFlightDirection.push
-        ? to
-        : from;
-    Widget destinationCover() => stillCover(
-      destinationContext.mounted && destinationContext.widget is Hero
-          ? (destinationContext.widget as Hero).child
-          : targetChild,
-    );
-    if (landsOnCover && flat) {
-      return AnimatedBuilder(
-        animation: animation,
-        builder: (_, _) => CoverHinge(
-          progress: animation.value,
-          opening: hinge,
-          source: stillCover(sourceChild),
-          destination: destinationCover(),
-        ),
-      );
-    }
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (_, _) {
-        final t = animation.value;
-        final lift = math.sin(math.pi * t);
-        final book = BookObject(
-          comic,
-          web: web,
-          animateCover: false,
-          number: t < .5 ? source.number : target.number,
-          bookmark: t < .5 ? source.bookmark : target.bookmark,
-          exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
-          light: ui.lerpDouble(source.light, target.light, t)!,
-          opening: landsOnCover
-              ? (hinge ? .76 * math.sin(math.pi * t) : 0)
-              : ui.lerpDouble(
-                  source.opening,
-                  target.opening,
-                  const Interval(
-                    .12,
-                    .96,
-                    curve: Curves.easeInOutCubic,
-                  ).transform(t),
-                )!,
-        );
-        final binding = RoomMotion.ease.transform((t / .2).clamp(0, 1));
-        final reveal = landsOnCover
-            ? RoomMotion.ease.transform(((t - .60) / .40).clamp(0, 1))
-            : 0.0;
-        final solid = Transform.rotate(
-          angle: -.025 * lift,
-          child: flat
-              ? Stack(
-                  fit: StackFit.expand,
-                  clipBehavior: Clip.none,
-                  children: [
-                    Opacity(opacity: binding, child: book),
-                    if (binding < 1)
-                      Opacity(
-                        opacity: 1 - binding,
-                        child: stillCover(sourceChild),
-                      ),
-                  ],
-                )
-              : book,
-        );
-        return landsOnCover
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (reveal < 1) Opacity(opacity: 1 - reveal, child: solid),
-                  if (reveal > 0)
-                    Opacity(opacity: reveal, child: destinationCover()),
-                ],
+  static HeroFlightShuttleBuilder shuttle(Comic comic, bool web) =>
+      (_, animation, direction, from, to) {
+        final fromChild = (from.widget as Hero).child;
+        final toChild = (to.widget as Hero).child;
+        final start = fromChild is BookObject
+            ? fromChild
+            : BookObject(comic, web: web);
+        final end = toChild is BookObject
+            ? toChild
+            : BookObject(comic, web: web);
+        final flat =
+            (direction == HeroFlightDirection.push ? fromChild : toChild)
+                is! BookObject;
+        // The route's visual progress runs from one to zero on pop, while Hero
+        // reverses its geometric endpoints. Keep the cover progress reversible.
+        final source = direction == HeroFlightDirection.push ? start : end;
+        final target = direction == HeroFlightDirection.push ? end : start;
+        final sourceChild = direction == HeroFlightDirection.push
+            ? fromChild
+            : toChild;
+        final targetChild = direction == HeroFlightDirection.push
+            ? toChild
+            : fromChild;
+        final landsOnCover = targetChild is! BookObject;
+        final hinge = targetChild is! _DetailComicCover || targetChild.opening;
+        Widget stillCover(Widget child) => child is ComicCover
+            ? ComicCover(
+                child.comic,
+                web: child.web,
+                fit: child.fit,
+                animate: false,
               )
-            : solid;
-      },
-    );
-  };
+            : child;
+        final destinationContext = direction == HeroFlightDirection.push
+            ? to
+            : from;
+        Widget destinationCover() => stillCover(
+          destinationContext.mounted && destinationContext.widget is Hero
+              ? (destinationContext.widget as Hero).child
+              : targetChild,
+        );
+        if (landsOnCover && flat) {
+          return AnimatedBuilder(
+            animation: animation,
+            builder: (_, _) => CoverHinge(
+              progress: animation.value,
+              opening: hinge,
+              source: stillCover(sourceChild),
+              destination: destinationCover(),
+            ),
+          );
+        }
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (_, _) {
+            final t = animation.value;
+            final pose = BookFlightPose(t);
+            final lift = pose.lift;
+            final book = BookObject(
+              comic,
+              web: web,
+              animateCover: false,
+              number: t < .5 ? source.number : target.number,
+              bookmark: t < .5 ? source.bookmark : target.bookmark,
+              exposure: ui.lerpDouble(
+                source.exposure,
+                target.exposure,
+                pose.travel,
+              )!,
+              light: ui.lerpDouble(source.light, target.light, pose.travel)!,
+              flattening: landsOnCover ? pose.flatten : 0,
+              transparentBody: landsOnCover,
+              opening: landsOnCover
+                  ? (hinge ? .93 * pose.unfold : 0)
+                  : ui.lerpDouble(
+                      source.opening,
+                      target.opening,
+                      const Interval(
+                        .12,
+                        .96,
+                        curve: Curves.easeInOutCubic,
+                      ).transform(t),
+                    )!,
+            );
+            final binding = RoomMotion.ease.transform((t / .2).clamp(0, 1));
+            final reveal = landsOnCover ? pose.reveal : 0.0;
+            final solid = Transform.rotate(
+              angle: -.025 * lift,
+              child: flat
+                  ? Stack(
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.none,
+                      children: [
+                        Opacity(opacity: binding, child: book),
+                        if (binding < 1)
+                          Opacity(
+                            opacity: 1 - binding,
+                            child: stillCover(sourceChild),
+                          ),
+                      ],
+                    )
+                  : book,
+            );
+            return landsOnCover
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (reveal > 0)
+                        Opacity(opacity: reveal, child: destinationCover()),
+                      if (pose.departing > 0)
+                        Opacity(opacity: pose.departing, child: solid),
+                    ],
+                  )
+                : solid;
+          },
+        );
+      };
 }
 
 /// Flat entries keep the exact source and landing bounds. Paper leaves stay
@@ -164,21 +189,12 @@ class CoverHinge extends StatelessWidget {
   final bool opening;
   @override
   Widget build(BuildContext context) {
-    final lift = math.sin(math.pi * progress);
-    final turn = const Interval(
-      .05,
-      .75,
-      curve: Curves.easeInOutCubic,
-    ).transform(progress);
+    final pose = BookFlightPose(progress);
+    final lift = pose.lift;
+    final turn = pose.unfold;
     final angle = opening ? 2.55 * turn : 0.0;
-    final departing =
-        1 -
-        const Interval(.55, .86, curve: RoomMotion.ease).transform(progress);
-    final reveal = const Interval(
-      .48,
-      1,
-      curve: RoomMotion.ease,
-    ).transform(progress);
+    final departing = pose.departing;
+    final reveal = pose.reveal;
     Widget plane(double angle, Widget child) => Transform(
       alignment: Alignment.centerLeft,
       transform: Matrix4.identity()
@@ -190,12 +206,18 @@ class CoverHinge extends StatelessWidget {
       fit: StackFit.expand,
       clipBehavior: Clip.none,
       children: [
+        Opacity(opacity: reveal, child: destination),
         if (opening && lift > .001)
           for (var leaf = 0; leaf < 3; leaf++)
             Opacity(
-              opacity: lift,
+              opacity: lift * departing,
               child: plane(
-                lift * (.14 + leaf * .13),
+                2.55 *
+                    BookFlightPose.phase(
+                      progress,
+                      .14 + leaf * .055,
+                      .90 + leaf * .025,
+                    ),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: Color.lerp(
@@ -211,7 +233,6 @@ class CoverHinge extends StatelessWidget {
                 ),
               ),
             ),
-        Opacity(opacity: reveal, child: destination),
         Opacity(
           opacity: departing,
           child: plane(
@@ -249,7 +270,8 @@ class DetailCover extends StatelessWidget {
       tag: tag ?? 'book-${comic.path}',
       curve: Curves.linear,
       reverseCurve: Curves.linear,
-      createRectTween: (begin, end) => _BookRectTween(begin: begin, end: end),
+      createRectTween: (begin, end) =>
+          BookTravelRectTween(begin: begin, end: end),
       flightShuttleBuilder: BookFlight.shuttle(comic, web),
       child: cover,
     );
@@ -265,14 +287,10 @@ class _DetailComicCover extends ComicCover {
   final bool opening;
 }
 
-class _BookRectTween extends RectTween {
-  _BookRectTween({super.begin, super.end});
+class BookTravelRectTween extends RectTween {
+  BookTravelRectTween({super.begin, super.end});
   @override
-  Rect? lerp(double t) => Rect.lerp(
-    begin,
-    end,
-    const Interval(0, .82, curve: Curves.easeInOutCubic).transform(t),
-  );
+  Rect? lerp(double t) => Rect.lerp(begin, end, BookFlightPose(t).travel);
 }
 
 class ComicCover extends StatelessWidget {
@@ -327,6 +345,8 @@ class BookObject extends StatefulWidget {
     this.bookmark = false,
     this.light = 0,
     this.opening = 0,
+    this.flattening = 0,
+    this.transparentBody = false,
     this.onColor,
     this.animateCover = true,
   });
@@ -336,6 +356,8 @@ class BookObject extends StatefulWidget {
   final double exposure;
   final double light;
   final double opening;
+  final double flattening;
+  final bool transparentBody;
   final ValueChanged<Color>? onColor;
   final int number;
   @override
@@ -407,7 +429,12 @@ class _BookObjectState extends State<BookObject>
     _unsubscribe();
     final ImageProvider provider;
     try {
-      provider = await comicImageProvider(widget.comic.cover, widget.web);
+      final immediate = immediateComicImageProvider(
+        widget.comic.cover,
+        widget.web,
+      );
+      provider =
+          immediate ?? await comicImageProvider(widget.comic.cover, widget.web);
     } catch (_) {
       if (current == generation) requestedCover = null;
       return;
@@ -500,6 +527,8 @@ class _BookObjectState extends State<BookObject>
       exposure: widget.exposure,
       light: widget.light,
       opening: widget.opening,
+      flattening: widget.flattening,
+      transparentBody: widget.transparentBody,
       arrival: arrival,
     ),
     size: const Size(200, 300),
@@ -509,13 +538,8 @@ class _BookObjectState extends State<BookObject>
 /// Immutable pictures retain paragraph layout and cover draw commands. The
 /// animation only changes the projection and light; it does not lay out type.
 class _BookArtwork {
-  _BookArtwork(
-    ui.Image? image,
-    String title,
-    int number,
-    bool bookmark,
-    Color? tone,
-  ) : hasCover = image != null {
+  _BookArtwork(this.image, String title, int number, bool bookmark, Color? tone)
+    : hasCover = image != null {
     final spineRecorder = ui.PictureRecorder();
     tone ??= const Color(0xffe7e8db);
     final spineCanvas = Canvas(spineRecorder);
@@ -583,14 +607,16 @@ class _BookArtwork {
       paintImage(
         canvas: canvas,
         rect: cover,
-        image: image,
+        image: image!,
         fit: BoxFit.cover,
         filterQuality: FilterQuality.medium,
       );
     } else {
       canvas.drawPicture(placeholder);
     }
-    canvas.drawRect(
+    final finishRecorder = ui.PictureRecorder();
+    final finish = Canvas(finishRecorder);
+    finish.drawRect(
       faceRect,
       Paint()
         ..shader = LinearGradient(
@@ -602,12 +628,12 @@ class _BookArtwork {
           stops: const [0, .13, 1],
         ).createShader(faceRect),
     );
-    canvas.drawLine(
+    finish.drawLine(
       const Offset(3, 0),
       const Offset(3, 226),
       Paint()..color = Colors.black.withValues(alpha: .12),
     );
-    canvas.drawRect(
+    finish.drawRect(
       faceRect,
       Paint()
         ..color = const Color(0xffc6cbbd)
@@ -616,7 +642,7 @@ class _BookArtwork {
     );
     // The cover is the entire binding, rather than a framed image pasted on it.
     if (bookmark) {
-      canvas.drawPath(
+      finish.drawPath(
         Path()..addPolygon(const [
           Offset(112, -1),
           Offset(124, -1),
@@ -627,6 +653,8 @@ class _BookArtwork {
         Paint()..color = const Color(0xff47775e),
       );
     }
+    faceFinish = finishRecorder.endRecording();
+    canvas.drawPicture(faceFinish);
     face = recorder.endRecording();
     final innerRecorder = ui.PictureRecorder();
     final paper = Canvas(innerRecorder);
@@ -642,7 +670,8 @@ class _BookArtwork {
     inner = innerRecorder.endRecording();
   }
   final bool hasCover;
-  late final ui.Picture spine, face, inner, placeholder;
+  final ui.Image? image;
+  late final ui.Picture spine, face, faceFinish, inner, placeholder;
   static void _text(
     Canvas canvas,
     String text,
@@ -672,6 +701,7 @@ class _BookArtwork {
   void dispose() {
     spine.dispose();
     face.dispose();
+    faceFinish.dispose();
     inner.dispose();
     placeholder.dispose();
   }
@@ -683,21 +713,34 @@ class _BookPainter extends CustomPainter {
     required this.exposure,
     required this.light,
     required this.opening,
+    required this.flattening,
+    required this.transparentBody,
     required this.arrival,
   }) : super(repaint: arrival);
   final Animation<double> arrival;
   final _BookArtwork artwork;
   final double exposure, light, opening;
+  final double flattening;
+  final bool transparentBody;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(size.width / 200, size.height / 300);
     final spread = Curves.easeInOut.transform(opening.clamp(0, 1));
-    final fw = ui.lerpDouble(34 + exposure * 102, 86, spread)!;
-    final x = ui.lerpDouble(22, 92, spread)!;
-    final spine = ui.lerpDouble(23, 5, spread)!;
-    const y = 49.0, h = 226.0;
-    final dy = ui.lerpDouble(-28 - 12 * exposure + light * 4, -8, spread)!;
+    final f = flattening.clamp(0.0, 1.0);
+    final fw = ui.lerpDouble(
+      ui.lerpDouble(34 + exposure * 102, 86, spread),
+      200,
+      f,
+    )!;
+    final x = ui.lerpDouble(ui.lerpDouble(22, 92, spread), 0, f)!;
+    final spine = ui.lerpDouble(ui.lerpDouble(23, 5, spread), 0, f)!;
+    final y = ui.lerpDouble(49, 0, f)!, h = ui.lerpDouble(226, 300, f)!;
+    final dy = ui.lerpDouble(
+      ui.lerpDouble(-28 - 12 * exposure + light * 4, -8, spread),
+      0,
+      f,
+    )!;
     final shadow = Path()
       ..addPolygon([
         Offset(x, 277),
@@ -710,7 +753,7 @@ class _BookPainter extends CustomPainter {
       Paint()
         ..color = const Color(
           0xff243a29,
-        ).withValues(alpha: .08 + exposure * .12)
+        ).withValues(alpha: (.08 + exposure * .12) * (1 - f))
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 + exposure * 12),
     );
     final top = Path()
@@ -738,13 +781,44 @@ class _BookPainter extends CustomPainter {
     canvas.save();
     canvas.translate(x + spine, y);
     canvas.transform((Matrix4.identity()..setEntry(1, 0, dy / fw)).storage);
-    canvas.scale(fw / 136, 1);
+    canvas.scale(fw / 136, h / 226);
+    void drawFace() {
+      final image = artwork.image;
+      if (f == 0 || image == null) {
+        canvas.drawPicture(artwork.face);
+        return;
+      }
+      final imageSize = Size(image.width.toDouble(), image.height.toDouble());
+      final initialCrop = applyBoxFit(
+        BoxFit.cover,
+        imageSize,
+        const Size(136, 226),
+      ).source;
+      final flatCrop = applyBoxFit(
+        BoxFit.cover,
+        imageSize,
+        Size(fw * size.width / 200, h * size.height / 300),
+      ).source;
+      final crop = Rect.lerp(
+        Alignment.center.inscribe(initialCrop, Offset.zero & imageSize),
+        Alignment.center.inscribe(flatCrop, Offset.zero & imageSize),
+        f,
+      )!;
+      canvas.drawImageRect(
+        image,
+        crop,
+        const Rect.fromLTWH(0, 0, 136, 226),
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      canvas.drawPicture(artwork.faceFinish);
+    }
+
     if (opening > .001) {
-      canvas.drawPicture(artwork.inner);
-      for (var line = 1; line < 5; line++) {
+      if (!transparentBody) canvas.drawPicture(artwork.inner);
+      for (var line = 1; !transparentBody && line < 5; line++) {
         canvas.drawLine(
           Offset(136 - line * 2, 4),
-          Offset(136 - line * 2, h - 4),
+          Offset(136 - line * 2, 222),
           Paint()..color = const Color(0xffcdd2c3),
         );
       }
@@ -784,16 +858,16 @@ class _BookPainter extends CustomPainter {
       if (artwork.hasCover && opacity < 1) {
         canvas.drawPicture(artwork.placeholder);
         canvas.saveLayer(
-          const Rect.fromLTWH(0, 0, 136, h),
+          const Rect.fromLTWH(0, 0, 136, 226),
           Paint()..color = Colors.white.withValues(alpha: opacity),
         );
-        canvas.drawPicture(artwork.face);
+        drawFace();
         canvas.restore();
       } else {
-        canvas.drawPicture(artwork.face);
+        drawFace();
       }
     }
-    const face = Rect.fromLTWH(0, 0, 136, h);
+    const face = Rect.fromLTWH(0, 0, 136, 226);
     canvas.drawRect(
       face,
       Paint()
@@ -817,5 +891,7 @@ class _BookPainter extends CustomPainter {
       old.artwork != artwork ||
       old.exposure != exposure ||
       old.light != light ||
-      old.opening != opening;
+      old.opening != opening ||
+      old.flattening != flattening ||
+      old.transparentBody != transparentBody;
 }

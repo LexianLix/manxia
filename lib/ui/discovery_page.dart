@@ -46,10 +46,8 @@ class _DiscoveryPageState extends State<DiscoveryPage> {
         Scrollable.ensureVisible(
           tabsKey.currentContext!,
           alignment: 0,
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
+          duration: RoomMotion.duration(context, RoomMotion.page),
+          curve: RoomMotion.ease,
         );
       }
     });

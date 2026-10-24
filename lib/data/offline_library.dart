@@ -58,12 +58,20 @@ class OfflineLibrary extends ChangeNotifier {
   }
 
   String key(String input) => sha256.convert(utf8.encode(input)).toString();
-  Future<Uint8List?> read(String key) async {
+
+  /// Read only the existing bounded memory cache, without starting disk I/O.
+  /// Flights can reuse a cover on their very first painted frame.
+  Uint8List? peek(String key) {
     final hit = _memory.remove(key);
     if (hit != null) {
       _memory[key] = hit;
-      return hit;
     }
+    return hit;
+  }
+
+  Future<Uint8List?> read(String key) async {
+    final hit = peek(key);
+    if (hit != null) return hit;
     final data = await _store?.read(key);
     if (data != null && data.length < 32 * 1024 * 1024) {
       final previous = _memory.remove(key);

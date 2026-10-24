@@ -6,6 +6,7 @@ import 'data/library.dart';
 import 'data/plugin.dart';
 import 'ui/app_shell.dart';
 import 'ui/room_motion.dart';
+import 'ui/room_scroll.dart';
 import 'ui/startup.dart';
 
 Future<void> main() async {
@@ -28,6 +29,7 @@ class ManxiaApp extends StatelessWidget {
     builder: (context, _) => MaterialApp(
       title: '漫匣 · 把故事留在手边',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const RoomScrollBehavior(),
       locale: switch (library.option<String>('language', 'zh_CN')) {
         'en' => const Locale('en'),
         'zh_TW' => const Locale('zh', 'TW'),

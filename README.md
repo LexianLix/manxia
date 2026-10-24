@@ -35,7 +35,7 @@
 <p align="center">
   <img src="docs/images/book-motion.gif" width="320" alt="封面与书页沿书脊翻开，进入漫画详情" />
 </p>
-<p align="center"><sub>沿书脊向外翻开封面与书页 · 手机尺寸 Flutter 帧回放（测试收藏与缓存目录）</sub></p>
+<p align="center"><sub>沿书脊向外翻开封面与书页 · 手机尺寸 Flutter 帧回放（测试收藏与封面缓存，版权状态按原站响应显示）</sub></p>
 
 <p align="center">
   <img src="docs/images/shelf.png" width="30%" alt="立体书架与悬浮玻璃导航" />

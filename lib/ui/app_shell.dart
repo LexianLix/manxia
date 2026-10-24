@@ -1,4 +1,5 @@
 import 'localized_text.dart';
+import 'room_motion.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
@@ -802,10 +803,14 @@ class ComicGrid extends StatelessWidget {
     required this.onOpen,
     this.minItemWidth = 170,
     this.sliver = false,
+    this.itemArrival,
+    this.arrivingFrom = 0,
   });
   final List<Comic> books;
   final bool web, sliver;
   final double minItemWidth;
+  final Animation<double>? itemArrival;
+  final int arrivingFrom;
   final ValueChanged<Comic> onOpen;
   SliverGridDelegateWithFixedCrossAxisCount delegate(double width) =>
       SliverGridDelegateWithFixedCrossAxisCount(
@@ -836,7 +841,7 @@ class ComicGrid extends StatelessWidget {
         );
   Widget item(BuildContext context, int i) {
     final comic = books[i];
-    return BookLink(
+    final child = BookLink(
       key: ValueKey('${comic.sourceId}/${comic.path}/$i'),
       comic: comic,
       web: web,
@@ -887,6 +892,34 @@ class ComicGrid extends StatelessWidget {
           ],
         ),
       ),
+    );
+    final arrival = itemArrival;
+    if (arrival == null) return child;
+    return AnimatedBuilder(
+      animation: arrival,
+      child: child,
+      builder: (context, child) {
+        final t = i < arrivingFrom || MediaQuery.disableAnimationsOf(context)
+            ? 1.0
+            : Interval(
+                ((i - arrivingFrom) % 4) * .055,
+                1,
+                curve: RoomMotion.ease,
+              ).transform(arrival.value);
+        return IgnorePointer(
+          ignoring: t < .5,
+          child: ExcludeSemantics(
+            excluding: t < .5,
+            child: Opacity(
+              opacity: t,
+              child: Transform.translate(
+                offset: Offset(0, 10 * (1 - t)),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
