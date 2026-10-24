@@ -15,18 +15,30 @@ class ContentHandoff extends StatelessWidget {
       curve: RoomMotion.ease,
       child: AnimatedSwitcher(
         duration: RoomMotion.feedback,
-        switchInCurve: RoomMotion.ease,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween(
-              begin: const Offset(0, .035),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          ),
-        ),
+        switchInCurve: Curves.linear,
+        switchOutCurve: Curves.linear,
+        transitionBuilder: (child, animation) {
+          final opacity = animation.drive(
+            CurveTween(curve: const Interval(.5, 1, curve: RoomMotion.ease)),
+          );
+          return AnimatedBuilder(
+            animation: animation,
+            child: SlideTransition(
+              position: Tween(
+                begin: const Offset(0, .035),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: RoomMotion.ease)).animate(animation),
+              child: child,
+            ),
+            builder: (_, body) => IgnorePointer(
+              ignoring: animation.value < .55,
+              child: ExcludeSemantics(
+                excluding: animation.value < .55,
+                child: FadeTransition(opacity: opacity, child: body),
+              ),
+            ),
+          );
+        },
         layoutBuilder: (current, previous) => Stack(
           alignment: Alignment.topLeft,
           children: [

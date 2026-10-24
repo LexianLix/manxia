@@ -8,9 +8,11 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/source_hub.dart';
 import '../data/offline_library.dart';
 import 'app_shell.dart' show EmptyState, friendlyError;
 import 'reader_surfaces.dart';
+import 'content_handoff.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -36,21 +38,30 @@ class ReaderPage extends StatefulWidget {
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends State<ReaderPage> {
+class _ReaderPageState extends State<ReaderPage>
+    with SingleTickerProviderStateMixin {
   static const device = MethodChannel('io.manxia/device');
   late Chapter chapter = widget.chapter;
   late List<Chapter> chapters = widget.chapters;
   late Map<String, dynamic> options = widget.library.readerOptions(
     widget.comic,
   );
-  late Future<List<String>> loading;
-  final command = ReaderControl();
-  int page = 0, total = 0, request = 0;
-  int surfaceGeneration = 0;
-  double fraction = 0;
-  bool controls = true, first = true;
+  final idleCommand = ReaderControl();
+  ReaderControl get command => scene?.control ?? idleCommand;
+  _ChapterScene? scene, incoming, outgoing;
+  final ownedScenes = <_ChapterScene>{};
+  Chapter? pendingChapter;
+  String? chapterError;
   int? pendingPage;
   double pendingFraction = 0;
+  late final transition =
+      AnimationController(vsync: this, duration: RoomMotion.feedback, value: 1)
+        ..addListener(markPainted)
+        ..addStatusListener(finishTransition);
+  _ChapterScene? paintScheduled;
+  int page = 0, total = 0, request = 0;
+  double fraction = 0;
+  bool controls = true, first = true;
   Timer? saveTimer;
   Timer? chromeTimer;
   void armChromeTimer() {
@@ -126,36 +137,169 @@ class _ReaderPageState extends State<ReaderPage> {
     });
   }
 
-  void load() {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context) && transition.isAnimating) {
+      transition.value = 1;
+    }
+  }
+
+  Future<void> load([Chapter? selected, int? at, double? offset]) async {
+    final target = selected ?? pendingChapter ?? chapter;
+    if (selected != null &&
+        pendingChapter?.path == target.path &&
+        chapterError == null) {
+      return;
+    }
     final generation = ++request;
     final record = widget.library.record(widget.comic);
-    page =
-        pendingPage ??
-        (first && widget.initialPage != null
+    final initial =
+        first &&
+        target.path == widget.chapter.path &&
+        widget.initialPage != null;
+    final wantedPage =
+        at ??
+        (selected == null && pendingChapter != null ? pendingPage : null) ??
+        (initial
             ? widget.initialPage!
-            : record?.chapterPath == chapter.path
+            : record?.chapterPath == target.path
             ? record!.page
             : 0);
-    fraction = pendingPage != null
-        ? pendingFraction
-        : first && widget.initialPage != null
-        ? widget.initialPosition
-        : record?.chapterPath == chapter.path
-        ? record!.position
-        : 0;
-    first = false;
-    pendingPage = null;
-    total = 0;
-    loading = widget.source.pages(chapter.path).then((list) {
-      if (!mounted || generation != request) return list;
+    final wantedFraction =
+        offset ??
+        (selected == null && pendingChapter != null
+            ? pendingFraction
+            : initial
+            ? widget.initialPosition
+            : record?.chapterPath == target.path
+            ? record!.position
+            : 0);
+    final obsolete = incoming;
+    setState(() {
+      incoming = null;
+      pendingChapter = target;
+      pendingPage = wantedPage;
+      pendingFraction = wantedFraction;
+      chapterError = null;
+    });
+    retire(obsolete);
+    try {
+      final list = await widget.source.pages(target.path);
+      if (!mounted || generation != request) return;
+      if (list.isEmpty) throw SourceException('这一章没有返回可读取的图片，请重新加载。');
+      final prepared = _ChapterScene(
+        target,
+        List.unmodifiable(list),
+        generation,
+        wantedPage.clamp(0, list.length - 1),
+        wantedFraction.clamp(0, 1),
+      );
+      ownedScenes.add(prepared);
+      setState(() => incoming = prepared);
+    } catch (e) {
+      if (mounted && generation == request) {
+        setState(() => chapterError = friendlyError(e));
+      }
+    }
+  }
+
+  void retire(_ChapterScene? value) {
+    if (value == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ownedScenes.remove(value)) value.control.dispose();
+    });
+  }
+
+  void cancelLoad() {
+    final obsolete = incoming;
+    request++;
+    setState(() {
+      incoming = null;
+      pendingChapter = null;
+      pendingPage = null;
+      chapterError = null;
+    });
+    retire(obsolete);
+  }
+
+  void ready(_ChapterScene value) {
+    if (!mounted ||
+        !identical(incoming, value) ||
+        value.request != request ||
+        value.failed) {
+      return;
+    }
+    value.ready = true;
+    // Finish the currently visible blend before handing off another frame.
+    // A ready third request waits here; rapid retargeting cannot snap layers.
+    if (outgoing == null || !transition.isAnimating) commit(value);
+  }
+
+  void failed(_ChapterScene value) {
+    if (!mounted || !identical(incoming, value) || value.request != request) {
+      return;
+    }
+    value.failed = true;
+    setState(() => chapterError = '这一章的首屏图片加载失败，可以重试。');
+  }
+
+  void commit(_ChapterScene value) {
+    if (!mounted || !identical(incoming, value) || value.request != request) {
+      return;
+    }
+    save();
+    saveTimer?.cancel();
+    final previous = scene;
+    setState(() {
+      outgoing = previous;
+      scene = value;
+      incoming = null;
+      chapter = value.chapter;
+      urls = value.urls;
+      page = value.page;
+      fraction = value.position;
+      total = value.urls.length;
+      first = false;
+      pendingChapter = null;
+      pendingPage = null;
+      chapterError = null;
+    });
+    if (MediaQuery.disableAnimationsOf(context) || !widget.library.motion) {
+      transition.value = 1;
+      finishTransition(AnimationStatus.completed);
+      markPainted();
+    } else {
+      transition.forward(from: 0);
+    }
+  }
+
+  void finishTransition(AnimationStatus status) {
+    if (!mounted || status != AnimationStatus.completed) return;
+    final obsolete = outgoing;
+    if (obsolete != null) {
+      setState(() => outgoing = null);
+      retire(obsolete);
+    }
+    if (incoming?.ready == true && incoming?.failed == false) commit(incoming!);
+  }
+
+  void markPainted() {
+    final value = scene;
+    if (value == null ||
+        value.presented ||
+        identical(paintScheduled, value) ||
+        transition.value <= 0) {
+      return;
+    }
+    paintScheduled = value;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(scene, value) || transition.value <= 0) return;
       setState(() {
-        urls = list;
-        total = list.length;
-        page = page.clamp(0, total - 1);
+        value.presented = true;
       });
       save();
       preload();
-      return list;
     });
   }
 
@@ -169,11 +313,13 @@ class _ReaderPageState extends State<ReaderPage> {
     updatedAt: DateTime.now().millisecondsSinceEpoch,
   );
   void save() {
-    if (total > 0) widget.library.save(record());
+    if (total > 0 && scene?.presented == true) widget.library.save(record());
   }
 
   void position(int value, double offset) {
     if (!mounted) return;
+    scene?.page = value;
+    scene?.position = offset;
     fraction = offset;
     if (value != page) setState(() => page = value);
     saveTimer?.cancel();
@@ -203,12 +349,14 @@ class _ReaderPageState extends State<ReaderPage> {
         _ => 2200,
       };
   void go(int value, {double offset = 0}) {
-    if (total == 0) return;
+    if (total == 0 || scene?.presented != true) return;
     if (mode == 'strip' && offset > 0) {
       setState(() {
         page = value.clamp(0, total - 1);
         fraction = offset.clamp(0, 1);
-        surfaceGeneration++;
+        scene?.page = page;
+        scene?.position = fraction;
+        if (scene != null) scene!.generation++;
       });
       return;
     }
@@ -226,16 +374,12 @@ class _ReaderPageState extends State<ReaderPage> {
     double offset = 0,
   }) async {
     save();
-    if (value.path == chapter.path && at != null) {
-      go(at, offset: offset);
+    if (scene != null && value.path == chapter.path) {
+      if (pendingChapter != null) cancelLoad();
+      if (at != null) go(at, offset: offset);
       return;
     }
-    setState(() {
-      chapter = value;
-      pendingPage = at;
-      pendingFraction = offset;
-      load();
-    });
+    await load(value, at, offset);
   }
 
   Future<void> native(String method, dynamic args) async {
@@ -244,17 +388,226 @@ class _ReaderPageState extends State<ReaderPage> {
     } catch (_) {}
   }
 
+  Widget surface(_ChapterScene value) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapUp: (d) {
+        if (!identical(scene, value) || !value.presented) return;
+        final width = MediaQuery.sizeOf(context).width;
+        if (options['tapZones'] == true &&
+            mode != 'strip' &&
+            d.localPosition.dx < width * .24) {
+          turn(rtl ? 1 : -1);
+        } else if (options['tapZones'] == true &&
+            mode != 'strip' &&
+            d.localPosition.dx > width * .76) {
+          turn(rtl ? -1 : 1);
+        } else {
+          toggleChrome();
+        }
+      },
+      child: mode == 'strip'
+          ? StripSurface(
+              key: ValueKey((value, mode, value.generation)),
+              urls: value.urls,
+              web: widget.web,
+              startPage: value.page,
+              position: value.position,
+              control: value.control,
+              onPosition: (p, f) {
+                if (identical(scene, value) && value.presented) position(p, f);
+              },
+              onReady: () => ready(value),
+              onLoadError: () => failed(value),
+              speed: identical(scene, value) && value.presented
+                  ? (options['autoScroll'] as num).toDouble()
+                  : 0,
+              crop: (options['crop'] as num).toDouble(),
+              autoCrop: options['autoCrop'] == true,
+              decodeWidth: decodeWidth,
+            )
+          : PagedSurface(
+              key: ValueKey((value, mode)),
+              urls: value.urls,
+              web: widget.web,
+              startPage: value.page,
+              control: value.control,
+              onPosition: (p, f) {
+                if (identical(scene, value) && value.presented) position(p, f);
+              },
+              onReady: () => ready(value),
+              onLoadError: () => failed(value),
+              rtl: rtl,
+              vertical: mode == 'vertical',
+              doublePage: paired,
+              paper: options['turn'] == 'paper',
+              crop: (options['crop'] as num).toDouble(),
+              autoCrop: options['autoCrop'] == true,
+              decodeWidth: decodeWidth,
+            ),
+    );
+  }
+
+  Widget chapterSurfaces() {
+    final current = scene, previous = outgoing, prepared = incoming;
+    final currentBody = current == null ? null : surface(current);
+    final previousBody = previous == null ? null : surface(previous);
+    final preparedBody = prepared == null ? null : surface(prepared);
+    Widget layer(
+      _ChapterScene value,
+      Widget body,
+      double alpha, {
+      bool active = false,
+    }) => KeyedSubtree(
+      key: ValueKey(value),
+      child: IgnorePointer(
+        ignoring: !active || !value.presented,
+        child: ExcludeSemantics(
+          excluding: !active || !value.presented,
+          child: TickerMode(
+            // A prepared strip needs its short restore scroll before onReady.
+            enabled: !identical(value, previous),
+            child: Opacity(opacity: alpha, child: body),
+          ),
+        ),
+      ),
+    );
+    Widget? waiting;
+    if (current == null || (previous == null && !current.presented)) {
+      if (chapterError != null && current == null) {
+        waiting = SingleChildScrollView(
+          child: Column(
+            children: [
+              EmptyState(
+                icon: Icons.cloud_off_outlined,
+                title: '这一章暂时无法打开',
+                message: chapterError!,
+                action: load,
+                actionLabel: '重新加载',
+              ),
+              TextButton(
+                onPressed: openChapterOriginal,
+                child: const LocalizedText('在原站打开'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        waiting = const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        );
+      }
+    }
+    return AnimatedBuilder(
+      animation: transition,
+      builder: (_, _) {
+        final t = RoomMotion.ease.transform(transition.value);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (waiting != null)
+              Opacity(opacity: current == null ? 1 : 1 - t, child: waiting),
+            if (previousBody != null) layer(previous!, previousBody, 1 - t),
+            if (currentBody != null)
+              layer(current!, currentBody, t, active: true),
+            if (preparedBody != null) layer(prepared!, preparedBody, 0),
+            if ((options['brightness'] as num) < 1)
+              IgnorePointer(
+                child: ColoredBox(
+                  color: Colors.black.withValues(
+                    alpha: 1 - (options['brightness'] as num).toDouble(),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> openChapterOriginal() async {
+    final target = pendingChapter ?? chapter;
+    try {
+      final url =
+          target.path.startsWith('custom:') && widget.source is SourceHub
+          ? (widget.source as SourceHub)
+                .profile(target.path)
+                .decode(target.path)
+          : Uri.parse('${Dm5Source.origin}${target.path}');
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: LocalizedText(friendlyError(e))));
+      }
+    }
+  }
+
+  Widget chapterStatus() => ContentHandoff(
+    child: pendingChapter == null || scene == null
+        ? const SizedBox.shrink(key: ValueKey('chapter-idle'))
+        : Container(
+            key: ValueKey((pendingChapter!.path, chapterError == null)),
+            padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
+            decoration: BoxDecoration(
+              color: const Color(0xf21c2b20),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LocalizedText(
+                  '正在打开 ${pendingChapter!.title}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 7),
+                if (chapterError == null) ...[
+                  const LinearProgressIndicator(minHeight: 2),
+                  const SizedBox(height: 7),
+                  LocalizedText(
+                    incoming == null ? '正在读取章节…' : '正在准备首屏图片…',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ] else
+                  LocalizedText(
+                    chapterError!,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    if (chapterError != null)
+                      TextButton(
+                        onPressed: load,
+                        child: const LocalizedText('重试'),
+                      ),
+                    TextButton(
+                      onPressed: cancelLoad,
+                      child: const LocalizedText('继续当前章'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+  );
+
   @override
   void dispose() {
     chromeTimer?.cancel();
     saveTimer?.cancel();
-    if (total > 0) {
+    if (total > 0 && scene?.presented == true) {
       final value = record();
       final library = widget.library;
       scheduleMicrotask(() => library.save(value));
     }
     request++;
-    command.dispose();
+    transition.dispose();
+    for (final value in ownedScenes.toList()) {
+      retire(value);
+    }
+    idleCommand.dispose();
     device.setMethodCallHandler(null);
     native('volumeKeys', false);
     native('brightness', -1.0);
@@ -297,117 +650,12 @@ class _ReaderPageState extends State<ReaderPage> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Positioned.fill(
-                    child: FutureBuilder<List<String>>(
-                      future: loading,
-                      builder: (context, s) {
-                        if (s.connectionState != ConnectionState.done) {
-                          return const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          );
-                        }
-                        if (s.hasError) {
-                          return SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                EmptyState(
-                                  icon: Icons.cloud_off_outlined,
-                                  title: '这一章暂时无法打开',
-                                  message: friendlyError(s.error),
-                                  action: () => setState(load),
-                                  actionLabel: '重新加载',
-                                ),
-                                TextButton(
-                                  onPressed: () => launchUrl(
-                                    Uri.parse(
-                                      '${Dm5Source.origin}${chapter.path}',
-                                    ),
-                                    mode: LaunchMode.externalApplication,
-                                  ),
-                                  child: const LocalizedText('在动漫屋打开'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        final pages = s.data!;
-                        return Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            GestureDetector(
-                              behavior: HitTestBehavior.translucent,
-                              onTapUp: (d) {
-                                final width = MediaQuery.sizeOf(context).width;
-                                if (options['tapZones'] == true &&
-                                    mode != 'strip' &&
-                                    d.localPosition.dx < width * .24) {
-                                  turn(rtl ? 1 : -1);
-                                } else if (options['tapZones'] == true &&
-                                    mode != 'strip' &&
-                                    d.localPosition.dx > width * .76) {
-                                  turn(rtl ? -1 : 1);
-                                } else {
-                                  toggleChrome();
-                                }
-                              },
-                              child: mode == 'strip'
-                                  ? StripSurface(
-                                      key: ValueKey(
-                                        '${chapter.path}-$surfaceGeneration',
-                                      ),
-                                      urls: pages,
-                                      web: widget.web,
-                                      startPage: page,
-                                      position: fraction,
-                                      control: command,
-                                      onPosition: position,
-                                      speed: (options['autoScroll'] as num)
-                                          .toDouble(),
-                                      crop: (options['crop'] as num).toDouble(),
-                                      autoCrop: options['autoCrop'] == true,
-                                      decodeWidth: decodeWidth,
-                                    )
-                                  : PagedSurface(
-                                      key: ValueKey('${chapter.path}-$mode'),
-                                      urls: pages,
-                                      web: widget.web,
-                                      startPage: page,
-                                      control: command,
-                                      onPosition: position,
-                                      rtl: rtl,
-                                      vertical: mode == 'vertical',
-                                      doublePage: paired,
-                                      paper: options['turn'] == 'paper',
-                                      crop: (options['crop'] as num).toDouble(),
-                                      autoCrop: options['autoCrop'] == true,
-                                      decodeWidth: decodeWidth,
-                                    ),
-                            ),
-                            if ((options['brightness'] as num) < 1)
-                              IgnorePointer(
-                                child: ColoredBox(
-                                  color: Colors.black.withValues(
-                                    alpha:
-                                        1 -
-                                        (options['brightness'] as num)
-                                            .toDouble(),
-                                  ),
-                                ),
-                              ),
-                            if ((options['warmth'] as num) > 0)
-                              IgnorePointer(
-                                child: ColoredBox(
-                                  color: const Color(0xffffad5b).withValues(
-                                    alpha:
-                                        (options['warmth'] as num).toDouble() *
-                                        .18,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
+                  Positioned.fill(child: chapterSurfaces()),
+                  Positioned(
+                    top: controls ? 74 : 12,
+                    left: 12,
+                    right: 12,
+                    child: chapterStatus(),
                   ),
                   Align(
                     alignment: Alignment.topCenter,
@@ -438,11 +686,16 @@ class _ReaderPageState extends State<ReaderPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(fontSize: 13),
                                   ),
-                                  LocalizedText(
-                                    chapter.title,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Color(0xff9cab9d),
+                                  ContentHandoff(
+                                    child: LocalizedText(
+                                      chapter.title,
+                                      key: ValueKey(chapter.path),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Color(0xff9cab9d),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -903,4 +1156,21 @@ class _ReaderPageState extends State<ReaderPage> {
       },
     ),
   );
+}
+
+class _ChapterScene {
+  _ChapterScene(
+    this.chapter,
+    this.urls,
+    this.request,
+    this.page,
+    this.position,
+  );
+  final Chapter chapter;
+  final List<String> urls;
+  final int request;
+  final control = ReaderControl();
+  int page, generation = 0;
+  double position;
+  bool ready = false, failed = false, presented = false;
 }

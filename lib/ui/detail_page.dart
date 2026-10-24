@@ -1,4 +1,5 @@
 import 'localized_text.dart';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +18,7 @@ import 'content_handoff.dart';
 import 'book_link.dart';
 import 'book_navigation.dart';
 import 'source_search_page.dart';
+import 'sliver_handoff.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -536,103 +538,153 @@ class _DetailPageState extends State<DetailPage> {
                                     .toList(),
                               ),
                             ),
-                          if (snapshot.connectionState != ConnectionState.done)
-                            const Padding(
-                              padding: EdgeInsets.all(55),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                          ContentHandoff(
+                            child: Column(
+                              key: ValueKey(
+                                snapshot.connectionState != ConnectionState.done
+                                    ? 'catalog-loading'
+                                    : snapshot.hasError
+                                    ? 'catalog-error'
+                                    : chapters.isEmpty
+                                    ? 'catalog-empty'
+                                    : 'catalog-ready',
                               ),
-                            )
-                          else if (snapshot.hasError)
-                            EmptyState(
-                              icon: Icons.cloud_off_outlined,
-                              title: '目录暂时无法读取',
-                              message: friendlyError(snapshot.error),
-                              action: retry,
-                              actionLabel: '重新加载',
-                            )
-                          else if (chapters.isEmpty)
-                            EmptyState(
-                              icon: Icons.menu_book_outlined,
-                              title: '尚未读取到目录',
-                              message: '当前返回内容中未识别到章节，请重新加载或打开原站核对。',
-                              action: retry,
-                              actionLabel: '重新加载',
+                              children: [
+                                if (snapshot.connectionState !=
+                                    ConnectionState.done)
+                                  const Padding(
+                                    padding: EdgeInsets.all(55),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                else if (snapshot.hasError)
+                                  EmptyState(
+                                    icon: Icons.cloud_off_outlined,
+                                    title: '目录暂时无法读取',
+                                    message: friendlyError(snapshot.error),
+                                    action: retry,
+                                    actionLabel: '重新加载',
+                                  )
+                                else if (chapters.isEmpty)
+                                  EmptyState(
+                                    icon: Icons.menu_book_outlined,
+                                    title: '尚未读取到目录',
+                                    message: '当前返回内容中未识别到章节，请重新加载或打开原站核对。',
+                                    action: retry,
+                                    actionLabel: '重新加载',
+                                  ),
+                              ],
                             ),
+                          ),
                           const SizedBox(height: 8),
                         ],
                       ),
                     ),
                   ),
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      compact ? 26 : 60,
-                      0,
-                      compact ? 26 : 60,
-                      45,
-                    ),
-                    sliver: SliverLayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = constraints.crossAxisExtent < 500
-                            ? 2
-                            : 4;
-                        return SliverGrid(
-                          delegate: SliverChildBuilderDelegate((context, i) {
-                            final chapter = ordered[i];
-                            final marked = history?.chapterPath == chapter.path;
-                            return OutlinedButton(
-                              onPressed: () => read(
-                                comic,
-                                chapter,
-                                visible.reversed.toList(),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                alignment: Alignment.centerLeft,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 13,
-                                ),
-                                side: BorderSide(
-                                  color: marked
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).dividerColor,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: LocalizedText(
-                                      chapter.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 12,
+                  SliverHandoff(
+                    identity: (group, ascending, snapshot.data),
+                    animate: widget.library.motion,
+                    sliver: SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        compact ? 26 : 60,
+                        0,
+                        compact ? 26 : 60,
+                        45,
+                      ),
+                      sliver: SliverLayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns = constraints.crossAxisExtent < 500
+                              ? 2
+                              : 4;
+                          final rows = (ordered.length / columns).ceil();
+                          final gridExtent = rows == 0
+                              ? 0
+                              : rows * 48 + (rows - 1) * 11;
+                          // Keep a short group's first row at the same scroll
+                          // position. This is virtual trailing space, not an
+                          // eager list or a second laid-out chapter catalog.
+                          final trailing = ordered.isEmpty
+                              ? 0.0
+                              : math.max(
+                                  0.0,
+                                  constraints.viewportMainAxisExtent -
+                                      gridExtent -
+                                      45,
+                                );
+                          return SliverMainAxisGroup(
+                            slivers: [
+                              SliverGrid(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  i,
+                                ) {
+                                  final chapter = ordered[i];
+                                  final marked =
+                                      history?.chapterPath == chapter.path;
+                                  return OutlinedButton(
+                                    key: ValueKey(chapter.path),
+                                    onPressed: () => read(
+                                      comic,
+                                      chapter,
+                                      visible.reversed.toList(),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      alignment: Alignment.centerLeft,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 13,
+                                      ),
+                                      side: BorderSide(
                                         color: marked
                                             ? Theme.of(
                                                 context,
                                               ).colorScheme.primary
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurface,
+                                            : Theme.of(context).dividerColor,
                                       ),
                                     ),
-                                  ),
-                                  if (marked)
-                                    const Icon(Icons.bookmark, size: 14),
-                                ],
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: LocalizedText(
+                                            chapter.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: marked
+                                                  ? Theme.of(
+                                                      context,
+                                                    ).colorScheme.primary
+                                                  : Theme.of(
+                                                      context,
+                                                    ).colorScheme.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                        if (marked)
+                                          const Icon(Icons.bookmark, size: 14),
+                                      ],
+                                    ),
+                                  );
+                                }, childCount: ordered.length),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      mainAxisExtent: 48,
+                                      mainAxisSpacing: 11,
+                                      crossAxisSpacing: 11,
+                                    ),
                               ),
-                            );
-                          }, childCount: ordered.length),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: columns,
-                                mainAxisExtent: 48,
-                                mainAxisSpacing: 11,
-                                crossAxisSpacing: 11,
-                              ),
-                        );
-                      },
+                              if (trailing > 0)
+                                SliverToBoxAdapter(
+                                  child: SizedBox(height: trailing),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ],

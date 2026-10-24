@@ -32,6 +32,8 @@ class PagedSurface extends StatefulWidget {
     required this.startPage,
     required this.control,
     required this.onPosition,
+    this.onReady,
+    this.onLoadError,
     this.rtl = false,
     this.vertical = false,
     this.doublePage = false,
@@ -46,11 +48,41 @@ class PagedSurface extends StatefulWidget {
   final double crop;
   final ReaderControl control;
   final PagePosition onPosition;
+  final VoidCallback? onReady, onLoadError;
   @override
   State<PagedSurface> createState() => _PagedSurfaceState();
 }
 
 class _PagedSurfaceState extends State<PagedSurface> {
+  final prepared = <int, String>{};
+  String? announced;
+  String identity(int index) =>
+      '${widget.urls[index]}|${widget.decodeWidth}|${widget.autoCrop}';
+  Set<int> get initialPages {
+    final first = page(view(widget.startPage));
+    return {
+      first,
+      if (widget.doublePage && first > 0 && first + 1 < widget.urls.length)
+        first + 1,
+    };
+  }
+
+  void ready(int index) {
+    if (!mounted) return;
+    prepared[index] = identity(index);
+    checkReady();
+  }
+
+  void checkReady() {
+    if (!mounted) return;
+    final required = initialPages;
+    if (!required.every((p) => prepared[p] == identity(p))) return;
+    final key = required.map(identity).join('|');
+    if (announced == key) return;
+    announced = key;
+    widget.onReady?.call();
+  }
+
   late PageController controller = PageController(
     initialPage: view(widget.startPage),
   );
@@ -90,6 +122,11 @@ class _PagedSurfaceState extends State<PagedSurface> {
       controller = PageController(initialPage: view(widget.startPage));
       WidgetsBinding.instance.addPostFrameCallback((_) => prior.dispose());
     }
+    if (prepared.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) checkReady();
+      });
+    }
   }
 
   @override
@@ -101,6 +138,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
 
   Widget picture(
     String url, {
+    required int index,
     double curl = 0,
     Alignment alignment = Alignment.center,
   }) => InteractiveViewer(
@@ -114,6 +152,10 @@ class _PagedSurfaceState extends State<PagedSurface> {
       decodeWidth: widget.decodeWidth,
       curl: curl,
       alignment: alignment,
+      onReady: (_) => ready(index),
+      onLoadError: () {
+        if (initialPages.contains(index)) widget.onLoadError?.call();
+      },
     ),
   );
   @override
@@ -140,6 +182,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
             Expanded(
               child: picture(
                 widget.urls[entry.$2],
+                index: entry.$2,
                 alignment: images.length == 1
                     ? Alignment.center
                     : entry.$1 == 0
@@ -181,6 +224,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
                         Expanded(
                           child: picture(
                             widget.urls[entry.$2],
+                            index: entry.$2,
                             curl: progress,
                             alignment: images.length == 1
                                 ? Alignment.center
@@ -273,6 +317,8 @@ class StripSurface extends StatefulWidget {
     required this.position,
     required this.control,
     required this.onPosition,
+    this.onReady,
+    this.onLoadError,
     this.speed = 0,
     this.crop = 0,
     this.autoCrop = false,
@@ -284,6 +330,7 @@ class StripSurface extends StatefulWidget {
   final double position, speed, crop;
   final ReaderControl control;
   final PagePosition onPosition;
+  final VoidCallback? onReady, onLoadError;
   @override
   State<StripSurface> createState() => _StripSurfaceState();
 }
@@ -334,14 +381,15 @@ class _StripSurfaceState extends State<StripSurface> {
   void restore(double contentHeight) {
     if (restored || !mounted) return;
     restored = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || initialFraction <= 0) return;
-      if (scroll.isAttached) {
-        offset.animateScroll(
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (initialFraction > 0 && scroll.isAttached) {
+        await offset.animateScroll(
           offset: initialFraction * contentHeight,
           duration: const Duration(milliseconds: 1),
         );
       }
+      if (mounted) widget.onReady?.call();
     });
     WidgetsBinding.instance.scheduleFrame();
   }
@@ -399,6 +447,7 @@ class _StripSurfaceState extends State<StripSurface> {
               autoCrop: widget.autoCrop,
               decodeWidth: widget.decodeWidth,
               onReady: i == initialPage ? restore : null,
+              onLoadError: i == initialPage ? widget.onLoadError : null,
             ),
           ),
         ),
@@ -459,6 +508,7 @@ class PagePicture extends StatefulWidget {
     this.autoCrop = false,
     this.decodeWidth = 1800,
     this.onReady,
+    this.onLoadError,
     this.curl = 0,
     this.alignment = Alignment.center,
   });
@@ -467,6 +517,7 @@ class PagePicture extends StatefulWidget {
   final double crop;
   final int decodeWidth;
   final ValueChanged<double>? onReady;
+  final VoidCallback? onLoadError;
   final double curl;
   final Alignment alignment;
   @override
@@ -481,6 +532,7 @@ class _PagePictureState extends State<PagePicture> {
   Rect? trim;
   String? error;
   int request = 0;
+  int decodedRequest = -1;
   bool announced = false;
   @override
   void didChangeDependencies() {
@@ -530,6 +582,7 @@ class _PagePictureState extends State<PagePicture> {
           final previous = frame;
           frame = info;
           setState(() {
+            decodedRequest = generation;
             image = info.image;
             trim = crop;
             error = null;
@@ -539,12 +592,16 @@ class _PagePictureState extends State<PagePicture> {
         onError: (Object e, StackTrace? _) {
           if (mounted && generation == request) {
             setState(() => error = '这一页加载失败');
+            widget.onLoadError?.call();
           }
         },
       );
       stream!.addListener(listener!);
     } catch (_) {
-      if (mounted) setState(() => error = '离线图片不存在或无法读取');
+      if (mounted && generation == request) {
+        setState(() => error = '离线图片不存在或无法读取');
+        widget.onLoadError?.call();
+      }
     }
   }
 
@@ -600,10 +657,13 @@ class _PagePictureState extends State<PagePicture> {
         final width = b.maxWidth;
         final natural = width * source.height / source.width;
         final height = widget.strip ? natural : b.maxHeight;
-        if (!announced && widget.onReady != null) {
+        if (!announced && widget.onReady != null && decodedRequest == request) {
           announced = true;
+          final generation = request;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) widget.onReady?.call(height);
+            if (mounted && generation == request && error == null) {
+              widget.onReady?.call(height);
+            }
           });
         }
         return GestureDetector(
