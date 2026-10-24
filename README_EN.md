@@ -10,7 +10,7 @@ A Flutter manga reader for Android built around the feel of a physical book.
 
 [Download](#download--install) · [Changelog](CHANGELOG.md) · [Issues](https://github.com/LexianLix/manxia/issues)
 
-> 中文版见 [README.md](README.md)。
+> [中文](README.md) · [日本語](README_JA.md)
 
 ## About
 
@@ -42,7 +42,7 @@ See the plugin development guide for Plugin API 1, the manifest format, and comp
 
 ## Download & Install
 
-Current release: **v0.3.2**, for **Android 7.0+**. Release APKs are signed with the project's fixed release key and split per architecture:
+Current release: **v0.3.3**, for **Android 7.0+**. Release APKs are signed with the project's fixed release key and split per architecture:
 
 | Device | Package |
 | --- | --- |
