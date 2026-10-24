@@ -1,6 +1,6 @@
 # v0.3.3 验证记录
 
-日期：2026-10-24。目标版本0.3.3+12；安装包尚在准备，不能把下列本地验证写成已发布或真机通过。
+日期：2026-10-24。已发布版本0.3.3+12；二进制与版本tag对应提交 `426e7484a5c8060c44676616625c02f5607c9594`。后续源码和文档提交不用于归因这个安装包。
 
 ## 两项用户反馈
 
@@ -31,4 +31,8 @@
 
 ## 安装包与原生验证
 
-待构建并记录候选启动、签名、公开附件与正式包复测。沿用项目发行证书，不覆盖既有v0.3.2附件。
+- [常规CI](https://github.com/LexianLix/manxia/actions/runs/40073656884)、[Release候选与启动检查](https://github.com/LexianLix/manxia/actions/runs/40073725890) 完整成功。Android11/API30和Android15/API35 x86_64各三次冷启动，六份verdict均passed=true、首页标题实际绘制、启动/命令错误为空、renderer_override=platform。原始构建归档SHA-256 `1b8f4637a0120d6e8a68f52a106068da751aa196f21aae2bb552e948444ff9af` 与GitHub artifact digest一致；候选启动证据下载校验后解包，已查看两系统标题区域。
+- 三架构沿用固定证书 `9618d4bb9b8ce8045c502c79fea0b8c2eb4d14f0a6ccb380cf22ac2bccdbc091`，Release、API24最低版本、16KB对齐和签名验证通过。ARMv7/ARM64/x86_64分包版本码1012/2012/4012。
+- [v0.3.3](https://github.com/LexianLix/manxia/releases/tag/v0.3.3) 已公开三个APK与两份校验/清单附件；所有附件GitHub大小与digest均匹配本地，匿名HEAD均HTTP200。匿名下载正式清单SHA-256 `3e679dd44f74dadc9475a87c4cec906175f3212c008f4d880e770e36f0e5796a`，与本地一致。
+- [公开正式签名包复测](https://github.com/LexianLix/manxia/actions/runs/40074780782) 完整成功，输入仅version=0.3.3，无build_run。两系统各三次冷启动、六份verdict通过、标题实际绘制、错误列表为空、renderer_override=platform；已查看标题区域。两份证据归档SHA-256与GitHub artifact digest一致，保存在忽略目录 `artifacts/v033-public-qa/`。
+- 物理iQOO/ARM64联网、持续阅读、覆盖安装、帧率和发热仍未验证。模拟器冷启动与历史目录回放不能代替这部分真实设备验证。
