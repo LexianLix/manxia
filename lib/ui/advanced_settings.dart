@@ -21,10 +21,11 @@ class AdvancedSettings extends StatefulWidget {
     required this.source,
     required this.web,
     this.sliver = false,
+    this.sourceOnly = false,
   });
   final Library library;
   final Dm5Source source;
-  final bool web, sliver;
+  final bool web, sliver, sourceOnly;
   @override
   State<AdvancedSettings> createState() => _AdvancedSettingsState();
 }
@@ -389,226 +390,236 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
             children: _sections(context),
           ),
   );
+  Widget _sourceSection() => group('漫画源与维护', [
+    choice('source', '默认发现源', {
+      'dm5': '动漫屋',
+      for (final p in [
+        ...library.sourceProfiles,
+        ...PluginSnapshot(library.options).sources,
+      ])
+        p['id'] as String: p['name'] as String,
+    }, 'dm5'),
+    for (final p in library.sourceProfiles)
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: LocalizedText(p['name']),
+        subtitle: LocalizedText(p['baseUrl']),
+        trailing: const Icon(Icons.edit_outlined),
+        onTap: () => editSource(p),
+      ),
+    TextButton.icon(
+      onPressed: () => editSource(),
+      icon: const Icon(Icons.add),
+      label: const LocalizedText('添加声明式漫画源'),
+    ),
+    ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.network_check),
+      title: const LocalizedText('检查当前源'),
+      subtitle: const LocalizedText('依次验证列表、详情、章节图片地址'),
+      onTap: busy ? null : () => run(diagnose),
+    ),
+    ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.system_update),
+      title: const LocalizedText('检查 GitHub 更新'),
+      onTap: busy ? null : () => run(checkUpdate),
+    ),
+    ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.code),
+      title: const LocalizedText('GitHub · LexianLix/manxia'),
+      onTap: () => launchUrl(
+        Uri.parse('https://github.com/LexianLix/manxia'),
+        mode: LaunchMode.externalApplication,
+      ),
+    ),
+  ]);
+
   List<Widget> _sections(BuildContext context) => [
-    PersonalizationSettings(library: library),
-    group('质感与性能', [
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.cleaning_services_outlined),
-        title: const LocalizedText('清理临时图片缓存'),
-        subtitle: const LocalizedText('清理内存中的解码图片；浏览器版可同时清理预览服务的网络缓存'),
-        onTap: busy
-            ? null
-            : () => run(() async {
-                PaintingBinding.instance.imageCache.clear();
-                PaintingBinding.instance.imageCache.clearLiveImages();
-                if (widget.web) {
-                  final before = await http.get(Uri.base.resolve('/api/cache'));
-                  final size =
-                      (jsonDecode(before.body)['bytes'] as num) / 1024 / 1024;
-                  await http.post(
-                    Uri.base.resolve('/api/cache'),
-                    headers: {'Content-Type': 'application/json'},
-                    body: '{"action":"clear"}',
-                  );
-                  return '已清理 ${size.toStringAsFixed(1)} MB 网络缓存；已下载章节保存在离线书库。';
-                }
-                return '解码图片缓存已清理。';
-              }),
-      ),
-      choice('quality', '画质与材质', {
-        'high': '高 · 折射与高清',
-        'standard': '标准 · 柔光',
-        'low': '省电 · 简化材质',
-      }, 'high'),
-      toggle('parallax', '指针视差', '移动指针时书脊随光线轻微变化', true),
-      if (!kIsWeb) toggle('tilt', '设备倾斜视差', '使用加速度计；可随时关闭', false),
-      toggle('coverColor', '封面取色', '从真实封面提取书架环境色', true),
-      toggle('haptics', '轻触反馈', '切换实体书时提供触感反馈', true),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const LocalizedText('预载页数'),
-        trailing: DropdownButton<int>(
-          value: library.option<int>('preload', 2),
-          items: [0, 1, 2, 3, 5]
-              .map(
-                (i) => DropdownMenuItem(value: i, child: LocalizedText('$i 页')),
-              )
-              .toList(),
-          onChanged: (v) {
-            if (v != null) library.setOption('preload', v);
-          },
-        ),
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const LocalizedText('同时下载'),
-        trailing: DropdownButton<int>(
-          value: library.option<int>('downloadParallel', 2),
-          items: [1, 2, 3, 4]
-              .map(
-                (i) => DropdownMenuItem(value: i, child: LocalizedText('$i 章')),
-              )
-              .toList(),
-          onChanged: (v) {
-            if (v != null) library.setOption('downloadParallel', v);
-          },
-        ),
-      ),
-    ]),
-    group('可读性', [
-      choice('language', '界面语言', {
-        'zh_CN': '简体中文',
-        'zh_TW': '繁體中文',
-        'en': 'English',
-      }, 'zh_CN'),
-      toggle('highContrast', '高对比度', '增强边框与文字对比', false),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const LocalizedText('界面文字大小'),
-        subtitle: Slider(
-          value: library.option<double>('textScale', 1).clamp(.85, 1.5),
-          min: .85,
-          max: 1.5,
-          divisions: 13,
-          label: '${(library.option<double>('textScale', 1) * 100).round()}%',
-          onChanged: (v) => library.setOption('textScale', v),
-        ),
-      ),
-      const ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: LocalizedText('键盘与辅助功能'),
-        subtitle: LocalizedText(
-          '书架可 Tab 聚焦，阅读器用方向键翻页、空格显示控制栏、Esc 返回；动画跟随系统减少动画设置。',
-        ),
-      ),
-    ]),
-    group('备份与同步', [
-      if (OfflineLibrary.instance != null) ...[
+    if (!widget.sourceOnly) ...[
+      PersonalizationSettings(library: library),
+      group('质感与性能', [
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.cloud_upload_outlined),
-          title: const LocalizedText('上传离线书库到 WebDAV'),
-          subtitle: const LocalizedText('完整图片快照 · 与资料 JSON 相邻保存为 offline.zip'),
-          onTap: busy ? null : () => transferLibrary(true),
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.cloud_download_outlined),
-          title: const LocalizedText('从 WebDAV 恢复离线书库'),
-          subtitle: const LocalizedText('先检查清单和图片校验，再合并到本机'),
-          onTap: busy ? null : () => transferLibrary(false),
-        ),
-      ],
-      if (OfflineLibrary.instance != null) ...[
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.inventory_2_outlined),
-          title: const LocalizedText('导出完整离线书库'),
-          subtitle: const LocalizedText('包含已完成章节的图片与资料，可保存到网盘；上限 512 MB'),
+          leading: const Icon(Icons.cleaning_services_outlined),
+          title: const LocalizedText('清理临时图片缓存'),
+          subtitle: const LocalizedText('清理内存中的解码图片；浏览器版可同时清理预览服务的网络缓存'),
           onTap: busy
               ? null
               : () => run(() async {
-                  await FileActions.exportLibrary(OfflineLibrary.instance!);
-                  return '已打开书库保存窗口。';
+                  PaintingBinding.instance.imageCache.clear();
+                  PaintingBinding.instance.imageCache.clearLiveImages();
+                  if (widget.web) {
+                    final before = await http.get(
+                      Uri.base.resolve('/api/cache'),
+                    );
+                    final size =
+                        (jsonDecode(before.body)['bytes'] as num) / 1024 / 1024;
+                    await http.post(
+                      Uri.base.resolve('/api/cache'),
+                      headers: {'Content-Type': 'application/json'},
+                      body: '{"action":"clear"}',
+                    );
+                    return '已清理 ${size.toStringAsFixed(1)} MB 网络缓存；已下载章节保存在离线书库。';
+                  }
+                  return '解码图片缓存已清理。';
+                }),
+        ),
+        choice('quality', '画质与材质', {
+          'high': '高 · 折射与高清',
+          'standard': '标准 · 柔光',
+          'low': '省电 · 简化材质',
+        }, 'high'),
+        toggle('parallax', '指针视差', '移动指针时书脊随光线轻微变化', true),
+        if (!kIsWeb) toggle('tilt', '设备倾斜视差', '使用加速度计；可随时关闭', false),
+        toggle('coverColor', '封面取色', '从真实封面提取书架环境色', true),
+        toggle('haptics', '轻触反馈', '切换实体书时提供触感反馈', true),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const LocalizedText('预载页数'),
+          trailing: DropdownButton<int>(
+            value: library.option<int>('preload', 2),
+            items: [0, 1, 2, 3, 5]
+                .map(
+                  (i) =>
+                      DropdownMenuItem(value: i, child: LocalizedText('$i 页')),
+                )
+                .toList(),
+            onChanged: (v) {
+              if (v != null) library.setOption('preload', v);
+            },
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const LocalizedText('同时下载'),
+          trailing: DropdownButton<int>(
+            value: library.option<int>('downloadParallel', 2),
+            items: [1, 2, 3, 4]
+                .map(
+                  (i) =>
+                      DropdownMenuItem(value: i, child: LocalizedText('$i 章')),
+                )
+                .toList(),
+            onChanged: (v) {
+              if (v != null) library.setOption('downloadParallel', v);
+            },
+          ),
+        ),
+      ]),
+      group('可读性', [
+        choice('language', '界面语言', {
+          'zh_CN': '简体中文',
+          'zh_TW': '繁體中文',
+          'en': 'English',
+        }, 'zh_CN'),
+        toggle('highContrast', '高对比度', '增强边框与文字对比', false),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const LocalizedText('界面文字大小'),
+          subtitle: Slider(
+            value: library.option<double>('textScale', 1).clamp(.85, 1.5),
+            min: .85,
+            max: 1.5,
+            divisions: 13,
+            label: '${(library.option<double>('textScale', 1) * 100).round()}%',
+            onChanged: (v) => library.setOption('textScale', v),
+          ),
+        ),
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: LocalizedText('键盘与辅助功能'),
+          subtitle: LocalizedText(
+            '书架可 Tab 聚焦，阅读器用方向键翻页、空格显示控制栏、Esc 返回；动画跟随系统减少动画设置。',
+          ),
+        ),
+      ]),
+      group('备份与同步', [
+        if (OfflineLibrary.instance != null) ...[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.cloud_upload_outlined),
+            title: const LocalizedText('上传离线书库到 WebDAV'),
+            subtitle: const LocalizedText(
+              '完整图片快照 · 与资料 JSON 相邻保存为 offline.zip',
+            ),
+            onTap: busy ? null : () => transferLibrary(true),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.cloud_download_outlined),
+            title: const LocalizedText('从 WebDAV 恢复离线书库'),
+            subtitle: const LocalizedText('先检查清单和图片校验，再合并到本机'),
+            onTap: busy ? null : () => transferLibrary(false),
+          ),
+        ],
+        if (OfflineLibrary.instance != null) ...[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.inventory_2_outlined),
+            title: const LocalizedText('导出完整离线书库'),
+            subtitle: const LocalizedText('包含已完成章节的图片与资料，可保存到网盘；上限 512 MB'),
+            onTap: busy
+                ? null
+                : () => run(() async {
+                    await FileActions.exportLibrary(OfflineLibrary.instance!);
+                    return '已打开书库保存窗口。';
+                  }),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.restore),
+            title: const LocalizedText('恢复离线书库'),
+            subtitle: const LocalizedText('导入漫匣 ZIP 书库，校验图片后合并'),
+            onTap: busy
+                ? null
+                : () => run(() async {
+                    return await FileActions.importLibrary(
+                          OfflineLibrary.instance!,
+                        )
+                        ? '离线书库已恢复。'
+                        : '已取消。';
+                  }),
+          ),
+        ],
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.file_download_outlined),
+          title: const LocalizedText('导出资料备份'),
+          subtitle: const LocalizedText('收藏、分组、笔记和阅读位置 · JSON'),
+          onTap: busy
+              ? null
+              : () => run(() async {
+                  await FileActions.exportBackup(library);
+                  return '已打开备份保存窗口。';
                 }),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.restore),
-          title: const LocalizedText('恢复离线书库'),
-          subtitle: const LocalizedText('导入漫匣 ZIP 书库，校验图片后合并'),
+          leading: const Icon(Icons.upload_file),
+          title: const LocalizedText('导入并合并备份'),
+          subtitle: const LocalizedText('同一本漫画保留较新的阅读位置；收藏取并集'),
           onTap: busy
               ? null
               : () => run(() async {
-                  return await FileActions.importLibrary(
-                        OfflineLibrary.instance!,
-                      )
-                      ? '离线书库已恢复。'
+                  return await FileActions.importBackup(library)
+                      ? '备份已合并。'
                       : '已取消。';
                 }),
         ),
-      ],
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.file_download_outlined),
-        title: const LocalizedText('导出资料备份'),
-        subtitle: const LocalizedText('收藏、分组、笔记和阅读位置 · JSON'),
-        onTap: busy
-            ? null
-            : () => run(() async {
-                await FileActions.exportBackup(library);
-                return '已打开备份保存窗口。';
-              }),
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.upload_file),
-        title: const LocalizedText('导入并合并备份'),
-        subtitle: const LocalizedText('同一本漫画保留较新的阅读位置；收藏取并集'),
-        onTap: busy
-            ? null
-            : () => run(() async {
-                return await FileActions.importBackup(library)
-                    ? '备份已合并。'
-                    : '已取消。';
-              }),
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.sync),
-        title: const LocalizedText('WebDAV 同步'),
-        subtitle: LocalizedText(
-          library.option<String>('webdav.lastSync', '配置自己的 WebDAV / NAS'),
-        ),
-        onTap: busy ? null : configureSync,
-      ),
-    ]),
-    group('漫画源与维护', [
-      choice('source', '默认发现源', {
-        'dm5': '动漫屋',
-        for (final p in [
-          ...library.sourceProfiles,
-          ...PluginSnapshot(library.options).sources,
-        ])
-          p['id'] as String: p['name'] as String,
-      }, 'dm5'),
-      for (final p in library.sourceProfiles)
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: LocalizedText(p['name']),
-          subtitle: LocalizedText(p['baseUrl']),
-          trailing: const Icon(Icons.edit_outlined),
-          onTap: () => editSource(p),
+          leading: const Icon(Icons.sync),
+          title: const LocalizedText('WebDAV 同步'),
+          subtitle: LocalizedText(
+            library.option<String>('webdav.lastSync', '配置自己的 WebDAV / NAS'),
+          ),
+          onTap: busy ? null : configureSync,
         ),
-      TextButton.icon(
-        onPressed: () => editSource(),
-        icon: const Icon(Icons.add),
-        label: const LocalizedText('添加声明式漫画源'),
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.network_check),
-        title: const LocalizedText('检查当前源'),
-        subtitle: const LocalizedText('依次验证列表、详情、章节图片地址'),
-        onTap: busy ? null : () => run(diagnose),
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.system_update),
-        title: const LocalizedText('检查 GitHub 更新'),
-        onTap: busy ? null : () => run(checkUpdate),
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.code),
-        title: const LocalizedText('GitHub · LexianLix/manxia'),
-        onTap: () => launchUrl(
-          Uri.parse('https://github.com/LexianLix/manxia'),
-          mode: LaunchMode.externalApplication,
-        ),
-      ),
-    ]),
+      ]),
+    ],
+    _sourceSection(),
     if (busy) const LinearProgressIndicator(),
     if (status != null)
       Padding(

@@ -14,6 +14,9 @@ import 'reader_page.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
 import 'content_handoff.dart';
+import 'book_link.dart';
+import 'book_navigation.dart';
+import 'source_search_page.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -40,6 +43,38 @@ class _DetailPageState extends State<DetailPage> {
   String group = '连载';
   bool ascending = true;
   bool enteringReader = false;
+  bool findingSource = false;
+  Future<void> findAnotherSource() async {
+    if (findingSource || widget.source is! SourceHub) return;
+    findingSource = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SourceSearchPage(
+            comic: widget.comic,
+            library: widget.library,
+            source: widget.source as SourceHub,
+            web: widget.web,
+            onOpen: (comic) async {
+              await Navigator.of(context).push(
+                comicDetailRoute(
+                  context,
+                  comic: comic,
+                  library: widget.library,
+                  source: widget.source,
+                  web: widget.web,
+                  flightTag: BookLink.takeTag(context, comic),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } finally {
+      findingSource = false;
+    }
+  }
+
   final coverKey = GlobalKey();
   void retry() => setState(() {
     detail = widget.source.detail(widget.comic);
@@ -97,6 +132,17 @@ class _DetailPageState extends State<DetailPage> {
         future: detail,
         builder: (context, snapshot) {
           final comic = snapshot.data?.comic ?? widget.comic;
+          final sourceName = comic.sourceId == 'local'
+              ? '本地书库'
+              : comic.sourceId == 'dm5'
+              ? '动漫屋'
+              : widget.source is SourceHub
+              ? (widget.source as SourceHub).profiles
+                        .where((p) => p['id'] == comic.sourceId)
+                        .map((p) => p['name'] as String)
+                        .firstOrNull ??
+                    '自定义书源'
+              : '自定义书源';
           final chapters = snapshot.data?.chapters ?? <Chapter>[];
           final groups = chapters.map((c) => c.group).toSet().toList();
           if (groups.isNotEmpty && !groups.contains(group)) {
@@ -127,7 +173,7 @@ class _DetailPageState extends State<DetailPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               LocalizedText(
-                'MANGA / 动漫屋',
+                'MANGA / $sourceName',
                 style: small(context).copyWith(letterSpacing: 2, fontSize: 10),
               ),
               const SizedBox(height: 16),
@@ -195,7 +241,13 @@ class _DetailPageState extends State<DetailPage> {
                         : null,
                     icon: const Icon(Icons.menu_book_outlined, size: 17),
                     label: LocalizedText(
-                      history == null ? '开始阅读' : '继续阅读',
+                      history != null
+                          ? '继续阅读'
+                          : mainChapters.isNotEmpty
+                          ? '开始阅读'
+                          : snapshot.connectionState != ConnectionState.done
+                          ? '正在读取目录'
+                          : '章节暂不可用',
                       style: const TextStyle(fontSize: 13),
                     ),
                   ),
@@ -279,6 +331,15 @@ class _DetailPageState extends State<DetailPage> {
                               icon: const Icon(Icons.refresh, size: 16),
                               label: const LocalizedText('重试读取目录'),
                             ),
+                            if (widget.source is SourceHub)
+                              OutlinedButton.icon(
+                                onPressed: findAnotherSource,
+                                icon: const Icon(
+                                  Icons.travel_explore,
+                                  size: 17,
+                                ),
+                                label: const LocalizedText('换源查找'),
+                              ),
                             if (widget.source.detailDiagnostics.containsKey(
                               comic.path,
                             ))

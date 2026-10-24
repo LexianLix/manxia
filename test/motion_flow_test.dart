@@ -109,6 +109,7 @@ void main() {
         find.byWidgetPredicate((w) => w is FilledButton).first,
       );
       expect(start().onPressed, isNull);
+      expect(find.text('章节暂不可用'), findsOneWidget);
       expect(find.text('原站暂未提供章节'), findsNothing);
       await tester.ensureVisible(find.text('重试读取目录'));
       await tester.tap(find.text('重试读取目录'));

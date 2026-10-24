@@ -94,9 +94,11 @@ class Dm5Source {
       ComicDetail result;
       try {
         result = await readEdition(false);
-      } on _DetailLayoutException {
-        // The same public comic has mobile and desktop layouts. Only fall
-        // back for an unrecognized layout, never for an explicit restriction.
+      } on _DetailEditionException {
+        // A mobile search-only landing is not a statement about the public
+        // desktop edition. Check the same work there, never follow the
+        // external search link or substitute another comic's chapters.
+        // Explicit removal/migration notices and HTTP challenges still stop.
         result = await readEdition(true);
       }
       chapterCatalogs[comic.path] = result.chapters;
@@ -364,9 +366,11 @@ class Dm5Source {
               .trim() ??
           '';
       if (notice.contains('全篇转移') && notice.contains('漫画人')) {
+        inspect?.call({'availability': 'migration', 'notice': notice});
         throw SourceException('原站已将这部漫画的网页章节迁移到漫画人 App，当前网页无法读取目录。');
       }
       if (notice.isNotEmpty) {
+        inspect?.call({'availability': 'notice', 'notice': notice});
         throw SourceException('原站提示：$notice');
       }
       if (doc
@@ -374,10 +378,13 @@ class Dm5Source {
               ?.text
               .contains('全网搜索') ==
           true) {
-        throw SourceException('原站当前只提供外部搜索入口，没有返回本作品的网页章节。');
+        inspect?.call({'availability': 'externalSearch'});
+        throw _DetailEditionException('此入口只提供外部搜索，没有返回本作品的网页章节。');
       }
+      inspect?.call({'availability': 'unrecognized'});
       throw _DetailLayoutException('未能识别章节目录，可能是页面结构变化或访问验证。请重新加载，或打开原站核对。');
     }
+    inspect?.call({'availability': 'available'});
     return ComicDetail(
       Comic(
         path: fallback.path,
@@ -482,6 +489,10 @@ class SourceException implements Exception {
   String toString() => message;
 }
 
-class _DetailLayoutException extends SourceException {
+class _DetailEditionException extends SourceException {
+  _DetailEditionException(super.message);
+}
+
+class _DetailLayoutException extends _DetailEditionException {
   _DetailLayoutException(super.message);
 }

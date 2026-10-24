@@ -7,6 +7,38 @@ import 'package:http/testing.dart';
 void main() {
   const fallback = Comic(path: '/manhua-test/', title: '测试', cover: '');
   test(
+    'mobile external-search response still checks the same public desktop catalog',
+    () async {
+      const comic = Comic(
+        path: '/manhua-huoyingrenzhe-naruto/',
+        title: '火影忍者',
+        cover: '',
+      );
+      final editions = <String>[];
+      final source = Dm5Source(
+        client: MockClient((request) async {
+          editions.add(request.url.host);
+          return http.Response(
+            request.url.host == 'm.dm5.com'
+                ? '<p class="detail-main-info-title">火影忍者</p><div class="detail-fix-bottom"><a class="detail-bottom-btn">全网搜索</a></div>'
+                : '<div class="banner_detail_form"><div class="info"><p class="title">火影忍者</p></div></div><ul id="detail-list-select-1"><li><a href="/m5196/">第1卷</a></li></ul>',
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+      addTearDown(source.close);
+      final detail = await source.detail(comic);
+      expect(editions, ['m.dm5.com', 'www.dm5.com']);
+      expect(detail.chapters.single.path, '/m5196/');
+      final attempts =
+          source.detailDiagnostics[comic.path]!['attempts'] as List;
+      expect(attempts, hasLength(2));
+      expect((attempts.first as Map)['error'], contains('外部搜索'));
+      expect((attempts.last as Map)['chapters'], 1);
+    },
+  );
+  test(
     'external search and recommended chapters do not become this comic catalog',
     () {
       expect(
@@ -26,6 +58,57 @@ void main() {
       );
     },
   );
+  test(
+    'desktop unavailability is reported after a search-only mobile entry',
+    () async {
+      var calls = 0;
+      final source = Dm5Source(
+        client: MockClient((request) async {
+          calls++;
+          return http.Response(
+            request.url.host == 'm.dm5.com'
+                ? '<p class="detail-main-info-title">测试</p><div class="detail-fix-bottom"><a class="detail-bottom-btn">全网搜索</a></div>'
+                : '<p class="detail-main-info-title">测试</p><div class="warning-bar">应版权方要求，已移除本作品链接</div>',
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }),
+      );
+      addTearDown(source.close);
+      await expectLater(
+        source.detail(fallback),
+        throwsA(
+          isA<SourceException>().having(
+            (e) => e.message,
+            'desktop notice',
+            contains('版权方'),
+          ),
+        ),
+      );
+      expect(calls, 2);
+      final attempts =
+          source.detailDiagnostics[fallback.path]!['attempts'] as List;
+      expect((attempts.first as Map)['availability'], 'externalSearch');
+      expect((attempts.last as Map)['availability'], 'notice');
+    },
+  );
+  for (final status in [403, 429]) {
+    test('HTTP $status does not trigger another edition', () async {
+      var calls = 0;
+      final source = Dm5Source(
+        client: MockClient((_) async {
+          calls++;
+          return http.Response('rejected', status);
+        }),
+      );
+      addTearDown(source.close);
+      await expectLater(
+        source.detail(fallback),
+        throwsA(isA<SourceException>()),
+      );
+      expect(calls, 1);
+    });
+  }
   test(
     'an unrecognized mobile directory falls back to the public desktop edition',
     () async {

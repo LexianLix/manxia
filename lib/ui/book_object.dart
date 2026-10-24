@@ -101,7 +101,7 @@ class BookFlight extends StatelessWidget {
           exposure: ui.lerpDouble(source.exposure, target.exposure, t)!,
           light: ui.lerpDouble(source.light, target.light, t)!,
           opening: landsOnCover
-              ? (hinge ? .48 * math.sin(math.pi * t) : 0)
+              ? (hinge ? .76 * math.sin(math.pi * t) : 0)
               : ui.lerpDouble(
                   source.opening,
                   target.opening,
@@ -165,6 +165,15 @@ class CoverHinge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lift = math.sin(math.pi * progress);
+    final turn = const Interval(
+      .05,
+      .75,
+      curve: Curves.easeInOutCubic,
+    ).transform(progress);
+    final angle = opening ? 2.55 * turn : 0.0;
+    final departing =
+        1 -
+        const Interval(.55, .86, curve: RoomMotion.ease).transform(progress);
     final reveal = const Interval(
       .48,
       1,
@@ -186,7 +195,7 @@ class CoverHinge extends StatelessWidget {
             Opacity(
               opacity: lift,
               child: plane(
-                -lift * (.14 + leaf * .13),
+                lift * (.14 + leaf * .13),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: Color.lerp(
@@ -202,21 +211,14 @@ class CoverHinge extends StatelessWidget {
                 ),
               ),
             ),
-        plane(
-          opening ? -lift * 1.08 : 0,
-          Stack(
-            fit: StackFit.expand,
-            children: [
-              if (reveal < 1) source,
-              if (reveal > 0)
-                Opacity(
-                  opacity: reveal,
-                  child: ColoredBox(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    child: destination,
-                  ),
-                ),
-            ],
+        Opacity(opacity: reveal, child: destination),
+        Opacity(
+          opacity: departing,
+          child: plane(
+            angle,
+            angle > math.pi / 2
+                ? const ColoredBox(color: Color(0xfff8f5ec))
+                : source,
           ),
         ),
       ],
@@ -749,7 +751,7 @@ class _BookPainter extends CustomPainter {
       // Separate leaves lag behind the binding, all pivoting around the spine.
       for (var leaf = 2; leaf >= 0; leaf--) {
         final turn = ((opening - .12 - leaf * .07) / .76).clamp(0.0, 1.0);
-        final angle = -2.56 * turn;
+        final angle = 2.56 * turn;
         canvas.save();
         canvas.translate(0, -leaf * .65);
         canvas.transform(
@@ -766,7 +768,7 @@ class _BookPainter extends CustomPainter {
         canvas.restore();
       }
     }
-    final angle = -2.75 * opening;
+    final angle = 2.75 * opening;
     canvas.transform(
       (Matrix4.identity()
             ..setEntry(3, 2, .0012)

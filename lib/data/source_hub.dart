@@ -94,6 +94,23 @@ class SourceHub extends Dm5Source {
           );
   }
 
+  /// A one-off lookup must not change discovery's default source or rewrite
+  /// the original book's identity, favorites, or reading position.
+  Future<List<Comic>> searchIn(String sourceId, String query) async {
+    final value = query.trim();
+    if (value.isEmpty) return [];
+    if (sourceId == 'dm5') return super.search(value);
+    final json = profiles.where((p) => p['id'] == sourceId).firstOrNull;
+    if (json == null) throw SourceException('这个漫画源已停用或被移除，请重新选择。');
+    final p = SourceProfile(Map<String, dynamic>.from(json));
+    final url = p.url(
+      p
+          .value('search', '/search?q={query}')
+          .replaceAll('{query}', Uri.encodeComponent(value)),
+    );
+    return p.catalog(await customPage(p, url));
+  }
+
   @override
   Future<Discovery> discover() async {
     if (selected == null) return super.discover();

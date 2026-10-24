@@ -8,7 +8,6 @@ import '../data/source_hub.dart';
 import 'advanced_settings.dart';
 import 'history_page.dart';
 import '../data/library.dart';
-import 'detail_page.dart';
 import 'reader_page.dart';
 import 'living_shelf.dart';
 import 'discovery_page.dart';
@@ -16,10 +15,10 @@ import 'glass_navigation.dart';
 import 'retained_pages.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
-import 'room_motion.dart';
 import 'plugins_page.dart';
 import 'personalization_settings.dart';
 import 'book_link.dart';
+import 'book_navigation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 const green = Color(0xff47775e);
@@ -89,40 +88,14 @@ class _AppShellState extends State<AppShell> {
     openingOrigin = null;
     try {
       await Navigator.of(context).push(
-        PageRouteBuilder(
-          opaque: false,
-          transitionDuration: Duration(
-            milliseconds:
-                widget.library.motion &&
-                    !MediaQuery.disableAnimationsOf(context)
-                ? RoomMotion.book.inMilliseconds
-                : 0,
-          ),
-          reverseTransitionDuration: Duration(
-            milliseconds:
-                widget.library.motion &&
-                    !MediaQuery.disableAnimationsOf(context)
-                ? RoomMotion.bookReturn.inMilliseconds
-                : 0,
-          ),
-          pageBuilder: (_, _, _) => DetailPage(
-            comic: c,
-            library: widget.library,
-            source: source,
-            web: widget.web,
-            flightTag: flightTag,
-            bookNumber: math.max(
-              1,
-              widget.library.books.indexWhere((b) => b.path == c.path) + 1,
-            ),
-          ),
-          transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
-            animation: animation,
-            comic: c,
-            web: widget.web,
-            origin: origin,
-            child: child,
-          ),
+        comicDetailRoute(
+          context,
+          comic: c,
+          library: widget.library,
+          source: source,
+          web: widget.web,
+          flightTag: flightTag,
+          origin: origin,
         ),
       );
     } finally {
@@ -900,7 +873,13 @@ class ComicGrid extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             LocalizedText(
-              comic.latest.isEmpty ? '动漫屋' : comic.latest,
+              comic.latest.isEmpty
+                  ? comic.sourceId == 'dm5'
+                        ? '动漫屋'
+                        : comic.sourceId == 'local'
+                        ? '本地漫画'
+                        : '漫画'
+                  : comic.latest,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: small(context),
