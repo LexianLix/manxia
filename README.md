@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">漫匣 · Manxia</h1>
+[简体中文](README.md) | [English](README_EN.md)
 
 <p align="center">把喜欢的故事，留在手边。</p>
 <p align="center">一个注重书籍质感与阅读体验的 Flutter 漫画阅读器</p>
