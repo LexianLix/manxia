@@ -92,9 +92,9 @@
 | 备份、换机与安装包签名 | [发布与迁移](docs/RELEASE.md) |
 | 配置默认源或自定义来源 | [漫画来源](docs/SOURCES.md) |
 | 调整玻璃、动画和性能 | [界面动效](docs/MOTION.md) · [性能说明](docs/PERFORMANCE.md) |
-| 了解功能支持范围 | [功能实现状态](docs/IMPLEMENTATION.md) · [验证记录](docs/VALIDATION.md) |
+| 开发与参与贡献 | [贡献指南](CONTRIBUTING.md) · [插件接口](docs/PLUGINS.md) |
 
-功能支持范围见 [实现说明](docs/IMPLEMENTATION.md)。在线内容的可用性取决于来源站点与网络；浏览器清理站点数据会移除本地书库，请定期导出备份。
+在线内容的可用性取决于来源站点与网络；浏览器清理站点数据会移除本地书库，请定期导出备份。
 
 ## 从源码构建
 

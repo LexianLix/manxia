@@ -62,3 +62,15 @@ node_modules/
 web/pdfjs/
 .private/
 WORK_START.md
+
+# Local collaboration notes and acceptance records
+/AGENTS.md
+/tools/Resume-Work.ps1
+/docs/DEVELOPMENT_PLAN.md
+/docs/FEATURE_CHOICES.md
+/docs/IMPLEMENTATION.md
+/docs/MOTION_AUDIT.md
+/docs/GITHUB.md
+/docs/STARTUP.md
+/docs/VALIDATION.md
+/docs/QA*.md
