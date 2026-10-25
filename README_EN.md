@@ -42,7 +42,7 @@ See the plugin development guide for Plugin API 1, the manifest format, and comp
 
 ## Download & Install
 
-Current release: **v0.3.5**, for **Android 7.0+**. Release APKs are signed with the project's fixed release key and split per architecture:
+Current release: **v0.3.6**, for **Android 7.0+**. Release APKs are signed with the project's fixed release key and split per architecture:
 
 | Device | Package |
 | --- | --- |

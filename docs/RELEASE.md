@@ -2,14 +2,14 @@
 
 ## 安装发行版
 
-从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.3.5 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
+从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.3.6 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
 
 发行包使用 Release 模式编译，并由项目固定密钥签名。发行页包含 `SHA256SUMS.txt` 与 `release-manifest.json`，后者记录构建提交、工作流、架构、版本码和签名证书指纹。GitHub 自动提供的 Source code 归档是源码，不是安装包。
 
 下载后可在 PowerShell 中检查文件哈希，并与发行页的校验文件比对：
 
 ```powershell
-Get-FileHash .\Manxia-0.3.5-arm64-v8a.apk -Algorithm SHA256
+Get-FileHash .\Manxia-0.3.6-arm64-v8a.apk -Algorithm SHA256
 ```
 
 项目签名证书 SHA-256：
@@ -82,7 +82,7 @@ flutter build apk --release --split-per-abi
 
 脚本核对输入哈希、版本、包名、架构与版本码，先执行 16 KB ZIP 对齐，再签名、验证签名和对齐。密码通过环境变量传递；输出包含 APK、`SHA256SUMS.txt`、`release-manifest.json` 及各架构的验证日志。已有 APK 不会被覆盖。
 
-5. 核对三包签名一致且与既往发行版相同。Flutter 分包会为构建号增加架构偏移，当前构建号 9 对应 ARMv7 `1009`、ARM64 `2009`、x86_64 `4009`，不要把这些值误认为版本不一致。
+5. 核对三包签名一致且与既往发行版相同。Flutter 分包会为构建号增加架构偏移，例如构建号 15 对应 ARMv7 `1015`、ARM64 `2015`、x86_64 `4015`，不要把这些值误认为版本不一致。
 6. 在 GitHub 创建关联标签的 Release 草稿，上传三个已签名 APK、哈希清单和发行清单。检查附件名称与 README 链接一致，再发布并确认公开下载可用。发布后不替换同名安装包；修订应用需增加构建号并发布新版本。
 
 签名密钥保留本机，没有上传到 GitHub Secrets。CI 通过显式环境变量 `MANXIA_UNSIGNED_RELEASE=true` 准备未签名产物；只有维护者签名、核对并发布后的附件才是发行包。
