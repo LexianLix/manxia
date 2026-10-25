@@ -879,8 +879,8 @@ class _ReaderPageState extends State<ReaderPage>
           children: [
             const TabBar(
               tabs: [
-                Tab(text: '章节目录'),
-                Tab(text: '我的书签'),
+                Tab(child: LocalizedText('章节目录')),
+                Tab(child: LocalizedText('我的书签')),
               ],
             ),
             Expanded(
@@ -1021,23 +1021,35 @@ class _ReaderPageState extends State<ReaderPage>
                     style: TextStyle(fontSize: 21),
                   ),
                   const SizedBox(height: 22),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'page', label: LocalizedText('横向')),
-                      ButtonSegment(
-                        value: 'strip',
-                        label: LocalizedText('连续条漫'),
-                      ),
-                      ButtonSegment(
-                        value: 'vertical',
-                        label: LocalizedText('竖向'),
-                      ),
-                    ],
-                    selected: {mode},
-                    onSelectionChanged: (v) {
-                      save();
-                      set('mode', v.first);
-                    },
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      direction:
+                          MediaQuery.sizeOf(c).width < 600 &&
+                              (Localizations.localeOf(c).languageCode == 'en' ||
+                                  MediaQuery.textScalerOf(c).scale(14) > 18)
+                          ? Axis.vertical
+                          : Axis.horizontal,
+                      segments: const [
+                        ButtonSegment(
+                          value: 'page',
+                          label: LocalizedText('横向'),
+                        ),
+                        ButtonSegment(
+                          value: 'strip',
+                          label: LocalizedText('连续条漫'),
+                        ),
+                        ButtonSegment(
+                          value: 'vertical',
+                          label: LocalizedText('竖向'),
+                        ),
+                      ],
+                      selected: {mode},
+                      onSelectionChanged: (v) {
+                        save();
+                        set('mode', v.first);
+                      },
+                    ),
                   ),
                   const SizedBox(height: 15),
                   toggle('从右向左翻页', 'rtl'),

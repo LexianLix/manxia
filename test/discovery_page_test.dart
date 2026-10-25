@@ -14,6 +14,7 @@ import 'package:manxia/data/dm5_source.dart';
 import 'package:manxia/data/library.dart';
 import 'package:manxia/data/offline_library.dart';
 import 'package:manxia/main.dart';
+import 'package:manxia/ui/localized_text.dart';
 import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/app_shell.dart';
 import 'package:manxia/ui/discovery_collection.dart';
@@ -319,34 +320,52 @@ void main() {
       OfflineLibrary.instance = null;
     });
   }
-  testWidgets('English discovery supports 150 percent type on a phone', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    late Library state;
-    await tester.runAsync(() async {
-      state = await library();
-      await state.setOption('language', 'en');
-      await state.setOption('textScale', 1.5);
-      await state.setOption('startTab', 1);
-      await state.prefs.setString(
-        'discovery.cache.dm5',
-        jsonEncode((await snapshot()).toJson()),
+  for (final locale in [const Locale('en'), const Locale('zh', 'TW')]) {
+    testWidgets('$locale discovery supports 150 percent type on a phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      late Library state;
+      await tester.runAsync(() async {
+        state = await library();
+        await state.setOption(
+          'language',
+          locale.languageCode == 'en' ? 'en' : 'zh_TW',
+        );
+        await state.setOption('textScale', 1.5);
+        await state.setOption('startTab', 1);
+        await state.prefs.setString(
+          'discovery.cache.dm5',
+          jsonEncode((await snapshot()).toJson()),
+        );
+      });
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: ManxiaApp(library: state),
+        ),
       );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      });
+      await tester.pumpAndSettle();
+      expect(find.text(translate('今日主推', locale)), findsOneWidget);
+      expect(find.text(translate('搜索漫画名称', locale)), findsOneWidget);
+      await capture(tester, key, 'localized-discovery-$locale');
+      await tester.tap(find.byTooltip('搜索方式'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(translate('搜索漫画作者', locale)));
+      await tester.pumpAndSettle();
+      expect(find.text(translate('搜索漫画作者', locale)), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const ValueKey('collection-每日精选')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     });
-    await tester.pumpWidget(ManxiaApp(library: state));
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-    });
-    await tester.pumpAndSettle();
-    expect(find.text("Today's pick"), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.byKey(const ValueKey('collection-每日精选')));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
+  }
 }

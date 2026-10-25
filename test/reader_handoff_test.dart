@@ -15,6 +15,7 @@ import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/reader_page.dart';
 import 'package:manxia/ui/reader_surfaces.dart';
 import 'package:manxia/ui/room_motion.dart';
+import 'package:manxia/ui/localized_text.dart';
 
 const comic = Comic(
   path: '/handoff-reader/',
@@ -25,15 +26,66 @@ const a = Chapter('/old/', 'Old chapter'), b = Chapter('/new/', 'New chapter');
 const c = Chapter('/third/', 'Third chapter');
 void main() {
   setUpAll(() async {
-    if (Platform.environment['MANXIA_CAPTURE_DIR'] == null) return;
     await (FontLoader('ArchiveSerif')..addFont(
           rootBundle.load('assets/fonts/SourceHanSerifCN-Regular.otf'),
         ))
         .load();
+    if (Platform.environment['MANXIA_CAPTURE_DIR'] == null) return;
     await (FontLoader(
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
+  for (final locale in [const Locale('zh', 'TW'), const Locale('en')]) {
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('localized reader settings fit a phone: $locale x$scale', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = await _Fixture.start(
+          tester,
+          locale: locale,
+          textScale: scale,
+        );
+        String label(String text) => translate(text, locale);
+        await tester.tap(find.byTooltip('阅读设置'));
+        await tester.pumpAndSettle();
+        expect(find.text(label('横向')), findsOneWidget);
+        expect(find.text(label('连续条漫')), findsOneWidget);
+        expect(find.text(label('竖向')), findsOneWidget);
+        for (final text in ['横向', '连续条漫', '竖向']) {
+          final translated = label(text);
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.text(translated),
+          );
+          expect(
+            paragraph.getBoxesForSelection(
+              TextSelection(baseOffset: 0, extentOffset: translated.length),
+            ),
+            hasLength(1),
+            reason: 'Mode labels must remain readable without splitting words.',
+          );
+        }
+        expect(find.text(label('护眼暖色')), findsOneWidget);
+        await f.capture(tester, 'localized-settings-$locale-$scale');
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text(label('连续条漫')));
+        await _decode(tester);
+        expect(f.library.readerOptions(comic)['mode'], 'strip');
+        expect(find.text(label('自动滚动速度（0 为关闭）')), findsOneWidget);
+        Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('章节与书签'));
+        await tester.pumpAndSettle();
+        expect(find.text(label('章节目录')), findsOneWidget);
+        expect(find.text(label('我的书签')), findsOneWidget);
+        await f.capture(tester, 'localized-catalog-$locale-$scale');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
   for (final reduced in [false, true]) {
     testWidgets(
       'phone reader sheets share motion and preserve the page; reduced=$reduced',
@@ -474,6 +526,8 @@ class _Fixture {
     int? initialPage,
     double initialPosition = 0,
     bool waitInitial = true,
+    Locale locale = const Locale('zh', 'CN'),
+    double textScale = 1,
   }) async {
     final source = _Pages(), store = _Store();
     final boundary = GlobalKey();
@@ -536,11 +590,18 @@ class _Fixture {
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations: reduced,
+              textScaler: TextScaler.linear(textScale),
+            ),
             child: child!,
           ),
-          locale: const Locale('zh', 'CN'),
-          supportedLocales: const [Locale('zh', 'CN')],
+          locale: locale,
+          supportedLocales: const [
+            Locale('zh', 'CN'),
+            Locale('zh', 'TW'),
+            Locale('en'),
+          ],
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: ReaderPage(
             comic: comic,
