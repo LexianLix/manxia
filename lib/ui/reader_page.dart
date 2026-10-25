@@ -12,6 +12,7 @@ import '../data/source_hub.dart';
 import '../data/offline_library.dart';
 import 'app_shell.dart' show EmptyState, friendlyError;
 import 'reader_surfaces.dart';
+import 'reader_layout.dart';
 import 'content_handoff.dart';
 
 class ReaderPage extends StatefulWidget {
@@ -350,17 +351,7 @@ class _ReaderPageState extends State<ReaderPage>
       };
   void go(int value, {double offset = 0}) {
     if (total == 0 || scene?.presented != true) return;
-    if (mode == 'strip' && offset > 0) {
-      setState(() {
-        page = value.clamp(0, total - 1);
-        fraction = offset.clamp(0, 1);
-        scene?.page = page;
-        scene?.position = fraction;
-        if (scene != null) scene!.generation++;
-      });
-      return;
-    }
-    command.go(value.clamp(0, total - 1));
+    command.go(value.clamp(0, total - 1), position: offset.clamp(0, 1));
   }
 
   void turn(int direction) {
@@ -408,45 +399,29 @@ class _ReaderPageState extends State<ReaderPage>
           toggleChrome();
         }
       },
-      child: mode == 'strip'
-          ? StripSurface(
-              key: ValueKey((value, mode, value.generation)),
-              urls: value.urls,
-              web: widget.web,
-              startPage: value.page,
-              position: value.position,
-              control: value.control,
-              onPosition: (p, f) {
-                if (identical(scene, value) && value.presented) position(p, f);
-              },
-              onReady: () => ready(value),
-              onLoadError: () => failed(value),
-              speed: identical(scene, value) && value.presented
-                  ? (options['autoScroll'] as num).toDouble()
-                  : 0,
-              crop: (options['crop'] as num).toDouble(),
-              autoCrop: options['autoCrop'] == true,
-              decodeWidth: decodeWidth,
-            )
-          : PagedSurface(
-              key: ValueKey((value, mode)),
-              urls: value.urls,
-              web: widget.web,
-              startPage: value.page,
-              control: value.control,
-              onPosition: (p, f) {
-                if (identical(scene, value) && value.presented) position(p, f);
-              },
-              onReady: () => ready(value),
-              onLoadError: () => failed(value),
-              rtl: rtl,
-              vertical: mode == 'vertical',
-              doublePage: paired,
-              paper: options['turn'] == 'paper',
-              crop: (options['crop'] as num).toDouble(),
-              autoCrop: options['autoCrop'] == true,
-              decodeWidth: decodeWidth,
-            ),
+      child: ReaderLayout(
+        key: ObjectKey(value),
+        urls: value.urls,
+        web: widget.web,
+        mode: mode,
+        rtl: rtl,
+        paired: paired,
+        startPage: value.page,
+        position: value.position,
+        control: value.control,
+        onPosition: (p, f) {
+          if (identical(scene, value) && value.presented) position(p, f);
+        },
+        onReady: () => ready(value),
+        onLoadError: () => failed(value),
+        speed: identical(scene, value) && value.presented
+            ? (options['autoScroll'] as num).toDouble()
+            : 0,
+        paper: options['turn'] == 'paper',
+        crop: (options['crop'] as num).toDouble(),
+        autoCrop: options['autoCrop'] == true,
+        decodeWidth: decodeWidth,
+      ),
     );
   }
 
@@ -618,17 +593,26 @@ class _ReaderPageState extends State<ReaderPage>
     super.dispose();
   }
 
+  ThemeData get readerTheme => ThemeData.dark(useMaterial3: true).copyWith(
+    textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'ArchiveSerif'),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color(0xff9cbaa0),
+      brightness: Brightness.dark,
+    ),
+  );
+
+  Widget readerContent(Widget child) => Theme(
+    data: readerTheme,
+    child: DefaultTextStyle(
+      style: readerTheme.textTheme.bodyMedium!,
+      child: child,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final darkTheme = ThemeData.dark(useMaterial3: true).copyWith(
-      textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'ArchiveSerif'),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xff9cbaa0),
-        brightness: Brightness.dark,
-      ),
-    );
     return Theme(
-      data: darkTheme,
+      data: readerTheme,
       child: Scaffold(
         backgroundColor: switch (options['background']) {
           'paper' => const Color(0xfff3f1e9),
@@ -653,7 +637,9 @@ class _ReaderPageState extends State<ReaderPage>
                 fit: StackFit.expand,
                 children: [
                   Positioned.fill(child: chapterSurfaces()),
-                  Positioned(
+                  AnimatedPositioned(
+                    duration: RoomMotion.duration(context, RoomMotion.feedback),
+                    curve: RoomMotion.ease,
                     top: controls ? 74 : 12,
                     left: 12,
                     right: 12,
@@ -830,28 +816,31 @@ class _ReaderPageState extends State<ReaderPage>
     final input = TextEditingController();
     final note = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const LocalizedText('留一枚书签'),
-        content: TextField(
-          controller: input,
-          decoration: InputDecoration(
-            hintText: '${chapter.title} · 第 ${page + 1} 页，可添加备注',
+      animationStyle: RoomMotion.sheet(context),
+      builder: (c) => readerContent(
+        AlertDialog(
+          title: const LocalizedText('留一枚书签'),
+          content: TextField(
+            controller: input,
+            decoration: InputDecoration(
+              hintText: '${chapter.title} · 第 ${page + 1} 页，可添加备注',
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const LocalizedText('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(c, '__page_favorite__'),
+              child: const LocalizedText('收藏这一页'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(c, input.text),
+              child: const LocalizedText('保存书签'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const LocalizedText('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, '__page_favorite__'),
-            child: const LocalizedText('收藏这一页'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, input.text),
-            child: const LocalizedText('保存书签'),
-          ),
-        ],
       ),
     );
     Future.delayed(const Duration(seconds: 1), input.dispose);
@@ -869,12 +858,21 @@ class _ReaderPageState extends State<ReaderPage>
     }
   }
 
-  void catalog() => showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (c) => DefaultTabController(
+  Future<T?> showReaderSheet<T>(WidgetBuilder builder) =>
+      showModalBottomSheet<T>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        backgroundColor: const Color(0xf51c231e),
+        useSafeArea: true,
+        sheetAnimationStyle: RoomMotion.sheet(context),
+        builder: (c) => readerContent(builder(c)),
+      );
+
+  void catalog() => showReaderSheet(
+    (c) => DefaultTabController(
       length: 2,
+      animationDuration: RoomMotion.duration(c, RoomMotion.feedback),
       child: SizedBox(
         height: MediaQuery.sizeOf(c).height * .78,
         child: Column(
@@ -969,11 +967,8 @@ class _ReaderPageState extends State<ReaderPage>
       ),
     ),
   );
-  void settings() => showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (c) => StatefulBuilder(
+  void settings() => showReaderSheet(
+    (c) => StatefulBuilder(
       builder: (c, update) {
         void set(String key, dynamic value) {
           setState(() => options[key] = value);
@@ -1010,6 +1005,9 @@ class _ReaderPageState extends State<ReaderPage>
                 ),
               ],
             );
+        final automatic = mode == 'strip'
+            ? slider('自动滚动速度（0 为关闭）', 'autoScroll', 0, 120)
+            : const SizedBox(width: double.infinity);
         return SafeArea(
           child: SizedBox(
             height: MediaQuery.sizeOf(c).height * .8,
@@ -1067,8 +1065,15 @@ class _ReaderPageState extends State<ReaderPage>
                   slider('手动裁边', 'crop', 0, .15),
                   slider('画面亮度', 'brightness', .15, 1),
                   slider('护眼暖色', 'warmth', 0, 1),
-                  if (mode == 'strip')
-                    slider('自动滚动速度（0 为关闭）', 'autoScroll', 0, 120),
+                  if (MediaQuery.disableAnimationsOf(c))
+                    automatic
+                  else
+                    AnimatedSize(
+                      duration: RoomMotion.feedback,
+                      curve: RoomMotion.ease,
+                      alignment: Alignment.topLeft,
+                      child: automatic,
+                    ),
                   toggle(
                     '保持屏幕常亮',
                     'keepAwake',
@@ -1172,7 +1177,7 @@ class _ChapterScene {
   final List<String> urls;
   final int request;
   final control = ReaderControl();
-  int page, generation = 0;
+  int page;
   double position;
   bool ready = false, failed = false, presented = false;
 }

@@ -16,6 +16,16 @@ abstract final class RoomMotion {
 
   static Duration duration(BuildContext context, Duration value) =>
       MediaQuery.disableAnimationsOf(context) ? Duration.zero : value;
+
+  static AnimationStyle sheet(BuildContext context) =>
+      MediaQuery.disableAnimationsOf(context)
+      ? AnimationStyle.noAnimation
+      : const AnimationStyle(
+          duration: page,
+          reverseDuration: feedback,
+          curve: ease,
+          reverseCurve: ease,
+        );
 }
 
 /// Shared by ordinary routes so reading, downloads and library management

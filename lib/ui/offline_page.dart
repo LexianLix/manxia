@@ -8,6 +8,7 @@ import '../data/library.dart';
 import '../data/offline_library.dart';
 import 'book_object.dart';
 import 'reader_page.dart';
+import 'room_motion.dart';
 
 class OfflinePage extends StatefulWidget {
   const OfflinePage({
@@ -419,6 +420,8 @@ Future<void> selectDownloads(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
+    useSafeArea: true,
+    sheetAnimationStyle: RoomMotion.sheet(context),
     builder: (c) => StatefulBuilder(
       builder: (c, update) => SafeArea(
         child: SizedBox(

@@ -12,9 +12,13 @@ import 'room_motion.dart';
 class ReaderControl extends ChangeNotifier {
   int page = 0;
   int? target;
-  void go(int value) {
+  double position = 0;
+  Matrix4 transform = Matrix4.identity();
+  int transformPage = 0;
+  void go(int value, {double position = 0}) {
     page = value;
     target = value;
+    this.position = position;
     notifyListeners();
   }
 
@@ -63,7 +67,9 @@ class PagedSurface extends StatefulWidget {
 }
 
 class _PagedSurfaceState extends State<PagedSurface> {
-  final viewport = TransformationController();
+  late final viewport = TransformationController(
+    Matrix4.copy(widget.control.transform),
+  );
   Drag? drag;
   ScrollHoldController? hold;
   Offset gestureTravel = Offset.zero;
@@ -148,6 +154,10 @@ class _PagedSurfaceState extends State<PagedSurface> {
   }
 
   void transformed() {
+    widget.control.transform = Matrix4.copy(viewport.value);
+    if (controller.hasClients) {
+      widget.control.transformPage = page((controller.page ?? 0).round());
+    }
     final value = viewport.value.getMaxScaleOnAxis() > 1.001;
     if (mounted && value != zoomed) setState(() => zoomed = value);
   }
@@ -198,6 +208,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
   void initState() {
     super.initState();
     viewport.addListener(transformed);
+    zoomed = viewport.value.getMaxScaleOnAxis() > 1.001;
     widget.control.addListener(jump);
   }
 
@@ -499,11 +510,23 @@ class _StripSurfaceState extends State<StripSurface> {
     restored = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (initialFraction > 0 && scroll.isAttached) {
-        await offset.animateScroll(
-          offset: initialFraction * contentHeight,
-          duration: const Duration(milliseconds: 1),
-        );
+      if (scroll.isAttached) {
+        // Earlier images can grow from placeholders during decode. The target
+        // page may no longer start at the viewport edge, so include its actual
+        // leading position instead of treating a relative delta as absolute.
+        final leading =
+            positions.itemPositions.value
+                .where((p) => p.index == initialPage)
+                .firstOrNull
+                ?.itemLeadingEdge ??
+            0;
+        final delta = leading * height + initialFraction * contentHeight;
+        if (delta.abs() > .5) {
+          await offset.animateScroll(
+            offset: delta,
+            duration: const Duration(milliseconds: 1),
+          );
+        }
       }
       if (mounted) widget.onReady?.call();
     });
@@ -785,6 +808,7 @@ class _PagePictureState extends State<PagePicture> {
         return GestureDetector(
           onLongPress: () => showDialog(
             context: c,
+            animationStyle: RoomMotion.sheet(c),
             builder: (dialogContext) => Dialog.fullscreen(
               backgroundColor: Colors.black,
               child: Stack(

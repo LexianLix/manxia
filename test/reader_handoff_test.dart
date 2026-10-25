@@ -14,6 +14,7 @@ import 'package:manxia/data/offline_library.dart';
 import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/reader_page.dart';
 import 'package:manxia/ui/reader_surfaces.dart';
+import 'package:manxia/ui/room_motion.dart';
 
 const comic = Comic(
   path: '/handoff-reader/',
@@ -33,6 +34,60 @@ void main() {
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'phone reader sheets share motion and preserve the page; reduced=$reduced',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = await _Fixture.start(tester, reduced: reduced);
+        await tester.tap(find.byTooltip('阅读设置'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        final sheet = ModalRoute.of(tester.element(find.byType(BottomSheet)))!;
+        expect(
+          sheet.transitionDuration,
+          reduced ? Duration.zero : RoomMotion.page,
+        );
+        expect(
+          sheet.reverseTransitionDuration,
+          reduced ? Duration.zero : RoomMotion.feedback,
+        );
+        await f.capture(tester, 'settings-enter-$reduced');
+        await tester.pumpAndSettle();
+        await f.capture(tester, 'settings-phone-$reduced');
+        await tester.tap(find.text('连续条漫'));
+        await _decode(tester);
+        expect(find.byType(StripSurface), findsOneWidget);
+        expect(f.library.readerOptions(comic)['mode'], 'strip');
+        final top = tester.getTopLeft(find.byType(BottomSheet));
+        await tester.dragFrom(
+          top + const Offset(195, 15),
+          const Offset(0, 650),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(f.library.record(comic)!.page, 0);
+        await tester.tap(find.byTooltip('章节与书签'));
+        await tester.pumpAndSettle();
+        await f.capture(tester, 'catalog-phone-$reduced');
+        await tester.tap(find.text('我的书签'));
+        await tester.pumpAndSettle();
+        expect(find.text('还没有书签，点击阅读器右上角添加。'), findsOneWidget);
+        Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('添加书签'));
+        await tester.pumpAndSettle();
+        await f.capture(tester, 'bookmark-phone-$reduced');
+        await tester.tap(find.text('取消'));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'a wide spread waits for both initial images before replacing the previous record',
     (tester) async {
@@ -207,17 +262,15 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 25));
       double alpha() => tester
-          .widget<Opacity>(
-            find
-                .ancestor(
-                  of: find.byWidgetPredicate(
-                    (w) => w is PagePicture && w.url == 'offline:new',
-                  ),
-                  matching: find.byType(Opacity),
-                )
-                .first,
+          .widgetList<Opacity>(
+            find.ancestor(
+              of: find.byWidgetPredicate(
+                (w) => w is PagePicture && w.url == 'offline:new',
+              ),
+              matching: find.byType(Opacity),
+            ),
           )
-          .opacity;
+          .fold(1.0, (value, layer) => value * layer.opacity);
       for (var i = 0; i < 8 && alpha() == 0; i++) {
         await tester.runAsync(() async {
           await Future<void>.delayed(const Duration(milliseconds: 16));
