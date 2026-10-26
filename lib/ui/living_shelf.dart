@@ -36,7 +36,7 @@ class LivingShelf extends StatefulWidget {
 }
 
 class _LivingShelfState extends State<LivingShelf>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final position = AnimationController.unbounded(
     vsync: this,
     value:
@@ -71,21 +71,46 @@ class _LivingShelfState extends State<LivingShelf>
   int get selected => index(position.value.round());
   bool get animate =>
       widget.library.motion && !MediaQuery.disableAnimationsOf(context);
+  bool sensorEnabled = false, foreground = true;
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb && widget.library.option<bool>('tilt', false)) {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  void syncTilt() {
+    final enabled =
+        !kIsWeb &&
+        foreground &&
+        animate &&
+        TickerMode.valuesOf(context).enabled &&
+        widget.library.option<bool>('tilt', false);
+    if (enabled == sensorEnabled) return;
+    sensorEnabled = enabled;
+    tilt?.cancel();
+    tilt = null;
+    if (enabled) {
       tilt = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval)
-          .listen(
-            (e) => aim(Offset((e.x / 6).clamp(-1, 1), (e.y / 6).clamp(-1, 1))),
-            onError: (_) {},
-          );
+          .listen((e) {
+            if (mounted && sensorEnabled) {
+              aim(Offset((e.x / 6).clamp(-1, 1), (e.y / 6).clamp(-1, 1)));
+            }
+          }, onError: (_) {});
+    } else {
+      aim(Offset.zero);
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    foreground = state == AppLifecycleState.resumed;
+    if (mounted) syncTilt();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    syncTilt();
     if (!entered) {
       entered = true;
       if (animate) {
@@ -106,6 +131,12 @@ class _LivingShelfState extends State<LivingShelf>
   @override
   void didUpdateWidget(LivingShelf old) {
     super.didUpdateWidget(old);
+    syncTilt();
+    if (!sensorEnabled &&
+        !widget.library.option<bool>('parallax', true) &&
+        pointerTo != Offset.zero) {
+      aim(Offset.zero);
+    }
     if (!listEquals(
       old.books.map((c) => c.path).toList(),
       widget.books.map((c) => c.path).toList(),
@@ -195,6 +226,7 @@ class _LivingShelfState extends State<LivingShelf>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     tilt?.cancel();
     position.dispose();
     pointer.dispose();
@@ -309,16 +341,22 @@ class _LivingShelfState extends State<LivingShelf>
                                   center: const Alignment(0, .2),
                                   radius: .75,
                                   colors: [
-                                    ambient.withValues(
-                                      alpha:
-                                          widget.library.option<String>(
-                                                'quality',
-                                                'high',
-                                              ) ==
-                                              'low'
-                                          ? .035
-                                          : .13,
-                                    ),
+                                    (widget.library.option<bool>(
+                                              'coverColor',
+                                              true,
+                                            )
+                                            ? ambient
+                                            : const Color(0xff8baf99))
+                                        .withValues(
+                                          alpha:
+                                              widget.library.option<String>(
+                                                    'quality',
+                                                    'high',
+                                                  ) ==
+                                                  'low'
+                                              ? .035
+                                              : .13,
+                                        ),
                                     Colors.transparent,
                                   ],
                                 ),

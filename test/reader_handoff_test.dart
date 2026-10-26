@@ -25,6 +25,63 @@ const comic = Comic(
 const a = Chapter('/old/', 'Old chapter'), b = Chapter('/new/', 'New chapter');
 const c = Chapter('/third/', 'Third chapter');
 void main() {
+  testWidgets(
+    'warmth changes the reading canvas and can be reset without changing the page',
+    (tester) async {
+      final f = await _Fixture.start(tester);
+      Future<Uint8List> centerPixel() async {
+        late Uint8List value;
+        await tester.runAsync(() async {
+          final render =
+              f.boundary.currentContext!.findRenderObject()!
+                  as RenderRepaintBoundary;
+          final image = await render.toImage(pixelRatio: 1);
+          final bytes = (await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          ))!.buffer.asUint8List();
+          final at = ((image.height ~/ 2) * image.width + image.width ~/ 2) * 4;
+          value = Uint8List.fromList(bytes.sublist(at, at + 4));
+          image.dispose();
+        });
+        return value;
+      }
+
+      final neutral = await centerPixel();
+      await tester.tap(find.byTooltip('阅读设置'));
+      await tester.pumpAndSettle();
+      final warmth = find
+          .ancestor(of: find.text('护眼暖色'), matching: find.byType(Column))
+          .first;
+      final slider = find
+          .descendant(of: warmth, matching: find.byType(Slider))
+          .first;
+      await tester.ensureVisible(slider);
+      tester.widget<Slider>(slider).onChanged!(.8);
+      await tester.pumpAndSettle();
+      expect(f.library.readerOptions(comic)['warmth'], .8);
+      final tint = find.byKey(const ValueKey('reader-warmth'));
+      expect(tint, findsOneWidget);
+      expect(tester.widget<ColoredBox>(tint).color.a, greaterThan(0));
+      await f.capture(tester, 'reader-warmth-settings');
+      Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+      await tester.pumpAndSettle();
+      final warm = await centerPixel();
+      expect(warm[0], greaterThan(neutral[0] + 20));
+      await f.capture(tester, 'reader-warmth-page');
+      await tester.tap(find.byTooltip('阅读设置'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(slider);
+      tester.widget<Slider>(slider).onChanged!(0);
+      await tester.pumpAndSettle();
+      expect(tester.widget<ColoredBox>(tint).color.a, 0);
+      Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+      await tester.pumpAndSettle();
+      expect(await centerPixel(), neutral);
+      await f.capture(tester, 'reader-neutral-page');
+      expect(f.library.record(comic)!.page, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
   setUpAll(() async {
     await (FontLoader('ArchiveSerif')..addFont(
           rootBundle.load('assets/fonts/SourceHanSerifCN-Regular.otf'),
@@ -50,7 +107,7 @@ void main() {
           textScale: scale,
         );
         String label(String text) => translate(text, locale);
-        await tester.tap(find.byTooltip('阅读设置'));
+        await tester.tap(find.byTooltip(label('阅读设置')));
         await tester.pumpAndSettle();
         expect(find.text(label('横向')), findsOneWidget);
         expect(find.text(label('连续条漫')), findsOneWidget);
@@ -77,7 +134,7 @@ void main() {
         expect(find.text(label('自动滚动速度（0 为关闭）')), findsOneWidget);
         Navigator.of(tester.element(find.byType(BottomSheet))).pop();
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('章节与书签'));
+        await tester.tap(find.byTooltip(label('章节与书签')));
         await tester.pumpAndSettle();
         expect(find.text(label('章节目录')), findsOneWidget);
         expect(find.text(label('我的书签')), findsOneWidget);

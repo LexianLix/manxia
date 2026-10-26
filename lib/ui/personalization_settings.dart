@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/library.dart';
 import '../data/plugin.dart';
 import 'glass_navigation.dart';
+import 'localized_text.dart';
 
 List<int> navigationIds(Library library) {
   final manual = library.options['navigation'];
@@ -35,8 +36,8 @@ class PersonalizationSettings extends StatelessWidget {
     Widget toggle(String key, String title, String hint, bool fallback) =>
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: Text(title),
-          subtitle: Text(hint, style: const TextStyle(fontSize: 12)),
+          title: LocalizedText(title),
+          subtitle: LocalizedText(hint, style: const TextStyle(fontSize: 12)),
           value: library.option<bool>(key, fallback),
           onChanged: (v) => library.setOption(key, v),
         );
@@ -44,7 +45,7 @@ class PersonalizationSettings extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 26),
-        Text(
+        LocalizedText(
           '定制你的阅读室',
           style: TextStyle(
             color: Theme.of(context).colorScheme.primary,
@@ -56,13 +57,13 @@ class PersonalizationSettings extends StatelessWidget {
         toggle('bookOpening', '翻开实体书', '封面与书页绕书脊展开，返回时合书归位', true),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('书架疏密'),
+          title: const LocalizedText('书架疏密'),
           trailing: DropdownButton<String>(
             value: library.option<String>('shelfDensity', 'balanced'),
             items: const [
-              DropdownMenuItem(value: 'compact', child: Text('紧凑')),
-              DropdownMenuItem(value: 'balanced', child: Text('均衡')),
-              DropdownMenuItem(value: 'airy', child: Text('舒展')),
+              DropdownMenuItem(value: 'compact', child: LocalizedText('紧凑')),
+              DropdownMenuItem(value: 'balanced', child: LocalizedText('均衡')),
+              DropdownMenuItem(value: 'airy', child: LocalizedText('舒展')),
             ],
             onChanged: (v) {
               if (v != null) library.setOption('shelfDensity', v);
@@ -71,7 +72,7 @@ class PersonalizationSettings extends StatelessWidget {
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('启动后打开'),
+          title: const LocalizedText('启动后打开'),
           trailing: DropdownButton<int>(
             value: ids.contains(library.option<int>('startTab', 0))
                 ? library.option<int>('startTab', 0)
@@ -80,7 +81,7 @@ class PersonalizationSettings extends StatelessWidget {
                 .map(
                   (id) => DropdownMenuItem(
                     value: id,
-                    child: Text(roomDestinations[id].label),
+                    child: LocalizedText(roomDestinations[id].label),
                   ),
                 )
                 .toList(),
@@ -91,8 +92,8 @@ class PersonalizationSettings extends StatelessWidget {
         ),
         ExpansionTile(
           tilePadding: EdgeInsets.zero,
-          title: const Text('底部入口与顺序'),
-          subtitle: const Text(
+          title: const LocalizedText('底部入口与顺序'),
+          subtitle: const LocalizedText(
             '3–6 个入口；书架和设置常驻。拖动已选入口排序。',
             style: TextStyle(fontSize: 11),
           ),
@@ -109,12 +110,12 @@ class PersonalizationSettings extends StatelessWidget {
               itemBuilder: (context, i) => ListTile(
                 key: ValueKey('nav-${ids[i]}'),
                 leading: Icon(roomDestinations[ids[i]].icon),
-                title: Text(roomDestinations[ids[i]].label),
+                title: LocalizedText(roomDestinations[ids[i]].label),
               ),
             ),
             ...roomDestinations.map(
               (d) => CheckboxListTile(
-                title: Text(d.label),
+                title: LocalizedText(d.label),
                 value: ids.contains(d.id),
                 onChanged: [0, 3].contains(d.id)
                     ? null
@@ -131,12 +132,12 @@ class PersonalizationSettings extends StatelessWidget {
             ),
             TextButton(
               onPressed: () => library.setOption('navigation', null),
-              child: const Text('恢复插件 / 默认布局'),
+              child: const LocalizedText('恢复插件 / 默认布局'),
             ),
           ],
         ),
         const SizedBox(height: 20),
-        Text(
+        LocalizedText(
           '阅读默认习惯',
           style: TextStyle(
             color: Theme.of(context).colorScheme.primary,
@@ -144,28 +145,31 @@ class PersonalizationSettings extends StatelessWidget {
           ),
         ),
         const Divider(),
-        const Text('逐本设置优先；已启用的阅读插件可提供默认预设。', style: TextStyle(fontSize: 11)),
+        const LocalizedText(
+          '逐本设置优先；已启用的阅读插件可提供默认预设。',
+          style: TextStyle(fontSize: 11),
+        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('阅读时保持亮屏'),
+          title: const LocalizedText('阅读时保持亮屏'),
           value: defaults['keepAwake'] == true,
           onChanged: (v) => reader('keepAwake', v),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('宽屏默认双页'),
+          title: const LocalizedText('宽屏默认双页'),
           value: defaults['doublePage'] != false,
           onChanged: (v) => reader('doublePage', v),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('阅读默认背景'),
+          title: const LocalizedText('阅读默认背景'),
           trailing: DropdownButton<String>(
             value: defaults['background'] as String? ?? 'ink',
             items: const [
-              DropdownMenuItem(value: 'ink', child: Text('夜墨')),
-              DropdownMenuItem(value: 'paper', child: Text('纸白')),
-              DropdownMenuItem(value: 'sepia', child: Text('旧纸')),
+              DropdownMenuItem(value: 'ink', child: LocalizedText('夜墨')),
+              DropdownMenuItem(value: 'paper', child: LocalizedText('纸白')),
+              DropdownMenuItem(value: 'sepia', child: LocalizedText('旧纸')),
             ],
             onChanged: (v) {
               if (v != null) reader('background', v);
@@ -174,14 +178,14 @@ class PersonalizationSettings extends StatelessWidget {
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('阅读工具栏自动收起'),
+          title: const LocalizedText('阅读工具栏自动收起'),
           trailing: DropdownButton<int>(
             value: library.option<int>('chromeTimeout', 0),
             items: const [
-              DropdownMenuItem(value: 0, child: Text('手动控制')),
-              DropdownMenuItem(value: 3, child: Text('3 秒')),
-              DropdownMenuItem(value: 5, child: Text('5 秒')),
-              DropdownMenuItem(value: 8, child: Text('8 秒')),
+              DropdownMenuItem(value: 0, child: LocalizedText('手动控制')),
+              DropdownMenuItem(value: 3, child: LocalizedText('3 秒')),
+              DropdownMenuItem(value: 5, child: LocalizedText('5 秒')),
+              DropdownMenuItem(value: 8, child: LocalizedText('8 秒')),
             ],
             onChanged: (v) {
               if (v != null) library.setOption('chromeTimeout', v);

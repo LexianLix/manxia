@@ -15,8 +15,99 @@ import 'package:manxia/data/library.dart';
 import 'package:manxia/data/source_catalog.dart';
 import 'package:manxia/ui/app_shell.dart';
 import 'package:manxia/ui/discovery_page.dart';
+import 'package:manxia/ui/localized_text.dart';
 
 void main() {
+  testWidgets(
+    'refresh keeps the visible catalog and scroll until new content is accepted',
+    (tester) async {
+      late Library library;
+      late Discovery old;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        library = Library(await SharedPreferences.getInstance());
+        await library.load();
+        old = Discovery.fromJson(
+          jsonDecode(await rootBundle.loadString('assets/discovery.json')),
+        );
+        await library.prefs.setString(
+          'discovery.cache.dm5',
+          jsonEncode(old.toJson()),
+        );
+      });
+      final source = _RefreshSource();
+      addTearDown(source.close);
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              controller: scroll,
+              child: DiscoveryPage(
+                library: library,
+                source: source,
+                web: false,
+                onOpen: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      scroll.jumpTo(300);
+      await tester.pump();
+      final oldTitles = tester
+          .widgetList<ComicGrid>(find.byType(ComicGrid))
+          .expand((g) => g.books)
+          .map((b) => b.path)
+          .toList();
+      const replacement = Comic(
+        path: '/fresh/',
+        title: 'New catalog book',
+        cover: 'offline:fresh',
+      );
+      source.responses.last.complete(
+        Discovery(
+          books: const [replacement],
+          sections: const {},
+          ranks: const {},
+          capturedAt: 'now',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(scroll.offset, 300);
+      expect(
+        tester
+            .widgetList<ComicGrid>(find.byType(ComicGrid))
+            .expand((g) => g.books)
+            .map((b) => b.path)
+            .toList(),
+        oldTitles,
+      );
+      expect(find.text('New catalog book'), findsNothing);
+      final updates = find.text(translate('查看新内容', const Locale('en')));
+      expect(updates, findsOneWidget);
+      await tester.ensureVisible(updates);
+      await tester.tap(updates);
+      await tester.pumpAndSettle();
+      expect(scroll.offset, 0);
+      expect(find.text('New catalog book'), findsWidgets);
+      expect(updates, findsNothing);
+      await tester.tap(find.byTooltip('Refresh discovery'));
+      await tester.pump();
+      source.responses.last.completeError(StateError('offline'));
+      await tester.pumpAndSettle();
+      expect(find.text('New catalog book'), findsWidgets);
+      expect(
+        find.text(translate('刷新失败，已保留当前目录', const Locale('en'))),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'a source with different ranking names selects its first real ranking',
     (tester) async {
@@ -246,6 +337,16 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+}
+
+class _RefreshSource extends Dm5Source {
+  final responses = <Completer<Discovery>>[];
+  @override
+  Future<Discovery> discover() {
+    final response = Completer<Discovery>();
+    responses.add(response);
+    return response.future;
+  }
 }
 
 class _Source extends Dm5Source {

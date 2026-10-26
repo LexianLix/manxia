@@ -488,6 +488,20 @@ class _ReaderPageState extends State<ReaderPage>
             if (currentBody != null)
               layer(current!, currentBody, t, active: true),
             if (preparedBody != null) layer(prepared!, preparedBody, 0),
+            TweenAnimationBuilder<double>(
+              tween: Tween(
+                begin: (options['warmth'] as num? ?? 0).toDouble(),
+                end: (options['warmth'] as num? ?? 0).toDouble().clamp(0, 1),
+              ),
+              duration: RoomMotion.duration(context, RoomMotion.feedback),
+              curve: RoomMotion.ease,
+              builder: (_, value, _) => IgnorePointer(
+                child: ColoredBox(
+                  key: const ValueKey('reader-warmth'),
+                  color: const Color(0xffffbb70).withValues(alpha: value * .24),
+                ),
+              ),
+            ),
             if ((options['brightness'] as num) < 1)
               IgnorePointer(
                 child: ColoredBox(
@@ -535,7 +549,8 @@ class _ReaderPageState extends State<ReaderPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LocalizedText(
-                  '正在打开 ${pendingChapter!.title}',
+                  '正在打开 {chapter}',
+                  arguments: {'chapter': pendingChapter!.title},
                   style: const TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 7),
@@ -659,7 +674,10 @@ class _ReaderPageState extends State<ReaderPage>
                         child: Row(
                           children: [
                             IconButton(
-                              tooltip: '返回目录',
+                              tooltip: translate(
+                                '返回目录',
+                                Localizations.localeOf(context),
+                              ),
                               onPressed: () => Navigator.pop(context),
                               icon: const Icon(Icons.arrow_back, size: 21),
                             ),
@@ -668,14 +686,14 @@ class _ReaderPageState extends State<ReaderPage>
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  LocalizedText(
+                                  Text(
                                     widget.comic.title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                   ContentHandoff(
-                                    child: LocalizedText(
+                                    child: Text(
                                       chapter.title,
                                       key: ValueKey(chapter.path),
                                       maxLines: 1,
@@ -690,7 +708,10 @@ class _ReaderPageState extends State<ReaderPage>
                               ),
                             ),
                             IconButton(
-                              tooltip: '章节与书签',
+                              tooltip: translate(
+                                '章节与书签',
+                                Localizations.localeOf(context),
+                              ),
                               onPressed: catalog,
                               icon: const Icon(
                                 Icons.format_list_bulleted,
@@ -698,7 +719,10 @@ class _ReaderPageState extends State<ReaderPage>
                               ),
                             ),
                             IconButton(
-                              tooltip: '添加书签',
+                              tooltip: translate(
+                                '添加书签',
+                                Localizations.localeOf(context),
+                              ),
                               onPressed: total > 0 ? bookmark : null,
                               icon: const Icon(
                                 Icons.bookmark_add_outlined,
@@ -706,7 +730,10 @@ class _ReaderPageState extends State<ReaderPage>
                               ),
                             ),
                             IconButton(
-                              tooltip: '阅读设置',
+                              tooltip: translate(
+                                '阅读设置',
+                                Localizations.localeOf(context),
+                              ),
                               onPressed: settings,
                               icon: const Icon(Icons.tune, size: 20),
                             ),
@@ -736,7 +763,10 @@ class _ReaderPageState extends State<ReaderPage>
                             Row(
                               children: [
                                 IconButton(
-                                  tooltip: '上一页',
+                                  tooltip: translate(
+                                    '上一页',
+                                    Localizations.localeOf(context),
+                                  ),
                                   onPressed: page > 0 ? () => turn(-1) : null,
                                   icon: const Icon(Icons.chevron_left),
                                 ),
@@ -775,7 +805,10 @@ class _ReaderPageState extends State<ReaderPage>
                                   )
                                 else
                                   IconButton(
-                                    tooltip: '下一页',
+                                    tooltip: translate(
+                                      '下一页',
+                                      Localizations.localeOf(context),
+                                    ),
                                     onPressed: lastVisiblePage < total - 1
                                         ? () => turn(1)
                                         : null,
@@ -823,7 +856,11 @@ class _ReaderPageState extends State<ReaderPage>
           content: TextField(
             controller: input,
             decoration: InputDecoration(
-              hintText: '${chapter.title} · 第 ${page + 1} 页，可添加备注',
+              hintText: translate(
+                '{chapter} · 第 {page} 页，可添加备注',
+                Localizations.localeOf(context),
+                arguments: {'chapter': chapter.title, 'page': page + 1},
+              ),
             ),
           ),
           actions: [
@@ -895,7 +932,7 @@ class _ReaderPageState extends State<ReaderPage>
                           itemBuilder: (c, i) {
                             final ch = chapters[i];
                             return ListTile(
-                              title: LocalizedText(
+                              title: Text(
                                 ch.title,
                                 style: const TextStyle(fontSize: 13),
                               ),
@@ -923,11 +960,18 @@ class _ReaderPageState extends State<ReaderPage>
                                 final mark = marks[i];
                                 return ListTile(
                                   title: LocalizedText(
-                                    '${mark['chapterTitle']} · 第 ${(mark['page'] as int) + 1} 页',
+                                    '{chapter} · 第 {page} 页',
+                                    arguments: {
+                                      'chapter': mark['chapterTitle'],
+                                      'page': (mark['page'] as int) + 1,
+                                    },
                                   ),
                                   subtitle: LocalizedText(mark['note'] ?? ''),
                                   trailing: IconButton(
-                                    tooltip: '删除书签',
+                                    tooltip: translate(
+                                      '删除书签',
+                                      Localizations.localeOf(context),
+                                    ),
                                     onPressed: () => widget.library
                                         .removeBookmark(mark['id']),
                                     icon: const Icon(Icons.delete_outline),

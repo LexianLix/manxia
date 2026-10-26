@@ -3,6 +3,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:manxia/ui/localized_text.dart';
 
 void main() {
+  test('dynamic UI templates preserve source titles and notes literally', () {
+    const title = '火影忍者 {page}';
+    expect(
+      translate(
+        '{chapter} · 第 {page} 页',
+        const Locale('en'),
+        arguments: {'chapter': title, 'page': 12},
+      ),
+      '$title · Page 12',
+    );
+    expect(
+      translate(
+        '{chapter} · 第 {page} 页\n{note}',
+        const Locale('zh', 'TW'),
+        arguments: {'chapter': title, 'page': 12, 'note': '简体笔记 {chapter}'},
+      ),
+      '$title · 第 12 頁\n简体笔记 {chapter}',
+    );
+    expect(
+      translate('{count} 册', const Locale('en'), arguments: {'count': 7}),
+      '7 books',
+    );
+  });
   test('reader and search labels match the current interface wording', () {
     for (final locale in [const Locale('zh', 'TW'), const Locale('en')]) {
       for (final label in [

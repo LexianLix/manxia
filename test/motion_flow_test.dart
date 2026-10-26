@@ -13,8 +13,73 @@ import 'package:manxia/ui/room_motion.dart';
 import 'package:manxia/ui/collection_motion.dart';
 import 'package:manxia/ui/detail_page.dart';
 import 'package:manxia/ui/glass_navigation.dart';
+import 'package:manxia/ui/app_shell.dart';
+import 'package:manxia/ui/collection_target.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
+  for (final width in [390.0, 1800.0]) {
+    testWidgets(
+      'collection lands on the rendered shelf entry at width $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        late Library library;
+        await tester.runAsync(() async {
+          SharedPreferences.setMockInitialValues({});
+          library = Library(await SharedPreferences.getInstance());
+          await library.load();
+          await library.setOption('navigation', [1, 3, 0]);
+        });
+        const comic = Comic(
+          path: '/anchor/',
+          title: 'Anchor',
+          cover: 'offline:anchor',
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh', 'CN'),
+            supportedLocales: const [Locale('zh', 'CN')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Stack(
+                  children: [
+                    AppShell(library: library, web: false),
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: TextButton(
+                        onPressed: () => collectWithMotion(
+                          context,
+                          comic,
+                          library,
+                          false,
+                          origin: Rect.fromLTWH(width - 150, 100, 100, 150),
+                        ),
+                        child: const Text('Collect'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final target = tester.getCenter(find.byKey(shelfAnchor(library)));
+        await tester.tap(find.text('Collect'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 435));
+        final arrived = tester.getCenter(find.byType(ComicCover));
+        expect((arrived - target).distance, lessThan(4));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
   testWidgets('collection flies to the actual reordered shelf slot', (
     tester,
   ) async {

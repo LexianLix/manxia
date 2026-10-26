@@ -98,10 +98,15 @@ class _HistoryPageState extends State<HistoryPage> {
               ListTile(
                 title: LocalizedText(b['comic']['title']),
                 subtitle: LocalizedText(
-                  '${b['chapterTitle']} · 第 ${(b['page'] as int) + 1} 页\n${b['note']}',
+                  '{chapter} · 第 {page} 页\n{note}',
+                  arguments: {
+                    'chapter': b['chapterTitle'],
+                    'page': (b['page'] as int) + 1,
+                    'note': b['note'] ?? '',
+                  },
                 ),
                 trailing: IconButton(
-                  tooltip: '删除书签',
+                  tooltip: translate('删除书签', Localizations.localeOf(context)),
                   icon: const Icon(Icons.bookmark_remove_outlined),
                   onPressed: () => widget.library.removeBookmark(b['id']),
                 ),
@@ -148,13 +153,18 @@ class _HistoryPageState extends State<HistoryPage> {
                   height: 62,
                   child: ComicCover(r.comic, web: widget.web),
                 ),
-                title: LocalizedText(r.comic.title),
+                title: Text(r.comic.title),
                 subtitle: LocalizedText(
-                  '${r.chapterTitle} · 第 ${r.page + 1} / ${r.total} 页',
+                  '{chapter} · 第 {page} / {total} 页',
+                  arguments: {
+                    'chapter': r.chapterTitle,
+                    'page': r.page + 1,
+                    'total': r.total,
+                  },
                 ),
                 onTap: () => read(r),
                 trailing: IconButton(
-                  tooltip: '移除这条足迹',
+                  tooltip: translate('移除这条足迹', Localizations.localeOf(context)),
                   icon: const Icon(Icons.close, size: 18),
                   onPressed: () => widget.library.removeHistory(r.comic),
                 ),

@@ -30,7 +30,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(translate('我的书架', locale)), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text(translate('设置', locale)));
+      await tester.tap(find.byTooltip(translate('设置', locale)));
       await tester.pumpAndSettle();
       expect(find.text(translate('偏好设置', locale)), findsOneWidget);
       expect(tester.takeException(), isNull);

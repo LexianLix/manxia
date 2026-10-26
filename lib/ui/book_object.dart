@@ -364,8 +364,7 @@ class BookObject extends StatefulWidget {
   State<BookObject> createState() => _BookObjectState();
 }
 
-class _BookObjectState extends State<BookObject>
-    with SingleTickerProviderStateMixin {
+class _BookObjectState extends State<BookObject> with TickerProviderStateMixin {
   late final arrival =
       AnimationController(vsync: this, duration: RoomMotion.cover)
         ..addStatusListener((status) {
@@ -374,7 +373,13 @@ class _BookObjectState extends State<BookObject>
           }
         });
   ui.Image? bitmap;
-  Color? bindingColor;
+  static const neutralBinding = Color(0xffe7e8db);
+  Color bindingFrom = neutralBinding, bindingTo = neutralBinding;
+  late final binding = AnimationController(
+    vsync: this,
+    duration: RoomMotion.cover,
+    value: 1,
+  );
   ImageInfo? frame;
   ImageStream? stream;
   ImageStreamListener? listener;
@@ -393,6 +398,7 @@ class _BookObjectState extends State<BookObject>
     if (bitmap != null && MediaQuery.disableAnimationsOf(context)) {
       arrival.value = 1;
     }
+    if (MediaQuery.disableAnimationsOf(context)) binding.value = 1;
     _load();
   }
 
@@ -407,7 +413,8 @@ class _BookObjectState extends State<BookObject>
     if (old.comic.cover != widget.comic.cover || old.web != widget.web) {
       _invalidateArtwork();
       bitmap = null;
-      bindingColor = null;
+      bindingFrom = bindingTo = neutralBinding;
+      binding.value = 1;
       arrival.value = 0;
       _load();
     } else if (old.onColor == null &&
@@ -494,11 +501,20 @@ class _BookObjectState extends State<BookObject>
     final cover = widget.comic.cover;
     final color = await CoverPalette.average(cover, image);
     if (mounted && cover == widget.comic.cover && color != null) {
-      if (bindingColor != color) {
+      if (bindingTo != color) {
         setState(() {
-          bindingColor = color;
-          _invalidateArtwork();
+          bindingFrom = Color.lerp(
+            bindingFrom,
+            bindingTo,
+            RoomMotion.ease.transform(binding.value),
+          )!;
+          bindingTo = color;
         });
+        if (!widget.animateCover || MediaQuery.disableAnimationsOf(context)) {
+          binding.value = 1;
+        } else {
+          binding.forward(from: 0);
+        }
       }
       widget.onColor?.call(color);
     }
@@ -509,6 +525,7 @@ class _BookObjectState extends State<BookObject>
     generation++;
     _unsubscribe();
     arrival.dispose();
+    binding.dispose();
     frame?.dispose();
     _invalidateArtwork();
     super.dispose();
@@ -522,7 +539,6 @@ class _BookObjectState extends State<BookObject>
         widget.comic.title,
         widget.number,
         widget.bookmark,
-        bindingColor,
       ),
       exposure: widget.exposure,
       light: widget.light,
@@ -530,6 +546,9 @@ class _BookObjectState extends State<BookObject>
       flattening: widget.flattening,
       transparentBody: widget.transparentBody,
       arrival: arrival,
+      binding: binding,
+      bindingFrom: bindingFrom,
+      bindingTo: bindingTo,
     ),
     size: const Size(200, 300),
   );
@@ -538,24 +557,11 @@ class _BookObjectState extends State<BookObject>
 /// Immutable pictures retain paragraph layout and cover draw commands. The
 /// animation only changes the projection and light; it does not lay out type.
 class _BookArtwork {
-  _BookArtwork(this.image, String title, int number, bool bookmark, Color? tone)
+  _BookArtwork(this.image, String title, int number, bool bookmark)
     : hasCover = image != null {
     final spineRecorder = ui.PictureRecorder();
-    tone ??= const Color(0xffe7e8db);
     final spineCanvas = Canvas(spineRecorder);
     final spineRect = const Rect.fromLTWH(0, 0, 23, 226);
-    spineCanvas.drawRect(
-      spineRect,
-      Paint()
-        ..shader = LinearGradient(
-          colors: [
-            Color.lerp(const Color(0xffe7e8db), tone, .24)!,
-            Color.lerp(const Color(0xfffcfcf6), tone, .18)!,
-            Color.lerp(const Color(0xffdedfd1), tone, .30)!,
-          ],
-          stops: [0, .45, 1],
-        ).createShader(spineRect),
-    );
     spineCanvas.drawRect(
       spineRect,
       Paint()
@@ -716,8 +722,12 @@ class _BookPainter extends CustomPainter {
     required this.flattening,
     required this.transparentBody,
     required this.arrival,
-  }) : super(repaint: arrival);
-  final Animation<double> arrival;
+    required this.binding,
+    required this.bindingFrom,
+    required this.bindingTo,
+  }) : super(repaint: Listenable.merge([arrival, binding]));
+  final Animation<double> arrival, binding;
+  final Color bindingFrom, bindingTo;
   final _BookArtwork artwork;
   final double exposure, light, opening;
   final double flattening;
@@ -776,6 +786,24 @@ class _BookPainter extends CustomPainter {
     canvas.save();
     canvas.translate(x, y);
     canvas.scale(spine / 23, 1);
+    final tone = Color.lerp(
+      bindingFrom,
+      bindingTo,
+      RoomMotion.ease.transform(binding.value),
+    )!;
+    const spineRect = Rect.fromLTWH(0, 0, 23, 226);
+    canvas.drawRect(
+      spineRect,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            Color.lerp(const Color(0xffe7e8db), tone, .24)!,
+            Color.lerp(const Color(0xfffcfcf6), tone, .18)!,
+            Color.lerp(const Color(0xffdedfd1), tone, .30)!,
+          ],
+          stops: const [0, .45, 1],
+        ).createShader(spineRect),
+    );
     canvas.drawPicture(artwork.spine);
     canvas.restore();
     canvas.save();
@@ -888,6 +916,8 @@ class _BookPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BookPainter old) =>
+      old.bindingFrom != bindingFrom ||
+      old.bindingTo != bindingTo ||
       old.artwork != artwork ||
       old.exposure != exposure ||
       old.light != light ||

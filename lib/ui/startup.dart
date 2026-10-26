@@ -7,6 +7,7 @@ import '../data/library.dart';
 import '../data/offline_library.dart';
 import '../data/source_hub.dart';
 import '../platform/storage.dart';
+import 'content_handoff.dart';
 
 typedef StartupProgress = void Function(String stage);
 typedef StartupLoader = Future<Library> Function(StartupProgress report);
@@ -79,8 +80,32 @@ class _ManxiaStartupState extends State<ManxiaStartup> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (_library case final library?) return widget.builder(library);
+  Widget build(BuildContext context) => MediaQuery.fromView(
+    view: View.of(context),
+    child: Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          disableAnimations:
+              MediaQuery.disableAnimationsOf(context) ||
+              _library?.motion == false,
+        ),
+        child: ContentHandoff(
+          fill: true,
+          child: _library != null
+              ? KeyedSubtree(
+                  key: const ValueKey('startup-ready'),
+                  child: widget.builder(_library!),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('startup-waiting'),
+                  child: startupSurface(),
+                ),
+        ),
+      ),
+    ),
+  );
+
+  Widget startupSurface() {
     final failed = _diagnostics != null;
     return MaterialApp(
       debugShowCheckedModeBanner: false,

@@ -20,6 +20,8 @@ import 'plugins_page.dart';
 import 'personalization_settings.dart';
 import 'book_link.dart';
 import 'book_navigation.dart';
+import 'collection_target.dart';
+import 'content_handoff.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 const green = Color(0xff47775e);
@@ -125,7 +127,9 @@ class _AppShellState extends State<AppShell> {
                 child: ValueListenableBuilder<Color>(
                   valueListenable: atmosphere,
                   builder: (_, color, _) => ReadingAtmosphere(
-                    color: color,
+                    color: widget.library.option<bool>('coverColor', true)
+                        ? color
+                        : const Color(0xff8baf99),
                     highQuality:
                         widget.library.option<String>('quality', 'high') ==
                         'high',
@@ -262,6 +266,7 @@ class _AppShellState extends State<AppShell> {
           bottomNavigationBar: wide
               ? null
               : FrostedNavigation(
+                  anchors: {0: shelfAnchor(widget.library)},
                   selectedIndex: math.max(0, ids.indexOf(tab)),
                   destinations: ids.map((id) => roomDestinations[id]).toList(),
                   onSelected: (index) => navigate(ids[index]),
@@ -330,6 +335,7 @@ class _AppShellState extends State<AppShell> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 9),
                   child: Material(
+                    key: item.id == 0 ? shelfAnchor(widget.library) : null,
                     color: tab == item.id
                         ? green.withValues(alpha: .1)
                         : Colors.transparent,
@@ -423,7 +429,7 @@ class _AppShellState extends State<AppShell> {
       ),
       const SizedBox(width: 8),
       IconButton(
-        tooltip: '下载与本地书库',
+        tooltip: translate('下载与本地书库', Localizations.localeOf(context)),
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -437,7 +443,7 @@ class _AppShellState extends State<AppShell> {
         icon: const Icon(Icons.download_outlined, size: 21),
       ),
       IconButton(
-        tooltip: '搜索漫画',
+        tooltip: translate('搜索漫画', Localizations.localeOf(context)),
         onPressed: () {
           navigate(1);
         },
@@ -480,7 +486,7 @@ class _AppShellState extends State<AppShell> {
         ),
       );
   Widget _shelf(bool compact) {
-    final books = widget.library.books;
+    final books = List<Comic>.of(widget.library.books);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -488,7 +494,10 @@ class _AppShellState extends State<AppShell> {
           '我的书架',
           '把喜欢的故事，留在手边。',
           trailing: IconButton(
-            tooltip: widget.library.grid ? '切换立体书架' : '切换封面网格',
+            tooltip: translate(
+              widget.library.grid ? '切换立体书架' : '切换封面网格',
+              Localizations.localeOf(context),
+            ),
             onPressed: () =>
                 widget.library.setting('grid', !widget.library.grid),
             icon: Icon(
@@ -515,14 +524,17 @@ class _AppShellState extends State<AppShell> {
                     ),
                   ),
                   LocalizedText(
-                    '${books.length.toString().padLeft(2, '0')} 册',
+                    '{count} 册',
+                    arguments: {
+                      'count': books.length.toString().padLeft(2, '0'),
+                    },
                     style: small(context),
                   ),
                 ],
               ),
             ),
             IconButton(
-              tooltip: '整理收藏',
+              tooltip: translate('整理收藏', Localizations.localeOf(context)),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -539,33 +551,38 @@ class _AppShellState extends State<AppShell> {
         ),
         const SizedBox(height: 10),
         Divider(color: Theme.of(context).dividerColor, height: 1),
-        if (books.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 36),
-            child: EmptyState(
-              icon: Icons.auto_stories_outlined,
-              title: '书架，等你放上第一本漫画',
-              message: '去发现页搜索喜欢的漫画，加入收藏。',
-              action: () => navigate(1),
-              actionLabel: '发现漫画',
-            ),
-          )
-        else if (widget.library.grid)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 28),
-            child: ComicGrid(books: books, web: widget.web, onOpen: open),
-          )
-        else
-          LivingShelf(
-            books: books,
-            library: widget.library,
-            web: widget.web,
-            onOpen: open,
-            onAmbientColor: (color) {
-              if (mounted) atmosphere.value = color;
-            },
-            onBookOrigin: (comic, rect) => openingOrigin = (comic.path, rect),
-          ),
+        ContentHandoff(
+          child: books.isEmpty
+              ? Padding(
+                  key: const ValueKey('empty-shelf'),
+                  padding: const EdgeInsets.symmetric(vertical: 36),
+                  child: EmptyState(
+                    icon: Icons.auto_stories_outlined,
+                    title: '书架，等你放上第一本漫画',
+                    message: '去发现页搜索喜欢的漫画，加入收藏。',
+                    action: () => navigate(1),
+                    actionLabel: '发现漫画',
+                  ),
+                )
+              : widget.library.grid
+              ? Padding(
+                  key: const ValueKey('grid-shelf'),
+                  padding: const EdgeInsets.symmetric(vertical: 28),
+                  child: ComicGrid(books: books, web: widget.web, onOpen: open),
+                )
+              : LivingShelf(
+                  key: const ValueKey('living-shelf'),
+                  books: books,
+                  library: widget.library,
+                  web: widget.web,
+                  onOpen: open,
+                  onAmbientColor: (color) {
+                    if (mounted) atmosphere.value = color;
+                  },
+                  onBookOrigin: (comic, rect) =>
+                      openingOrigin = (comic.path, rect),
+                ),
+        ),
         const SizedBox(height: 34),
         Row(
           children: [
@@ -625,14 +642,24 @@ class _AppShellState extends State<AppShell> {
                 LocalizedText(
                   record == null
                       ? '开始阅读后，书签会替你记住这一页。'
-                      : '${record.chapterTitle} · 第 ${record.page + 1} / ${record.total} 页',
+                      : '{chapter} · 第 {page} / {total} 页',
+                  arguments: record == null
+                      ? const {}
+                      : {
+                          'chapter': record.chapterTitle,
+                          'page': record.page + 1,
+                          'total': record.total,
+                        },
                   style: small(context),
                 ),
               ],
             ),
           ),
           IconButton(
-            tooltip: record == null ? '去选一本漫画' : '继续阅读',
+            tooltip: translate(
+              record == null ? '去选一本漫画' : '继续阅读',
+              Localizations.localeOf(context),
+            ),
             onPressed: () {
               if (record == null) {
                 navigate(1);

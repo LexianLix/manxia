@@ -7,6 +7,41 @@ import 'package:manxia/ui/room_motion.dart';
 import 'package:manxia/data/comic.dart';
 
 void main() {
+  testWidgets(
+    'changing page order during a drag cannot select a removed destination',
+    (tester) async {
+      var order = [0, 1, 2, 3];
+      late StateSetter update;
+      final selected = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (c, set) {
+              update = set;
+              return Scaffold(
+                body: RetainedPages(
+                  index: 0,
+                  order: order,
+                  onSelected: selected.add,
+                  builder: (i) => Center(child: Text('Page $i')),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(const Offset(650, 250));
+      await gesture.moveTo(const Offset(180, 250));
+      await tester.pump();
+      update(() => order = [0, 4, 5, 3]);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(selected, isEmpty);
+      expect(find.text('Page 0').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('page direction follows destination order rather than IDs', (
     tester,
   ) async {

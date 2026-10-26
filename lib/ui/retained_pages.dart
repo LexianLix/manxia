@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'room_motion.dart';
 
 /// Retarget from the rendered poses instead of replaying a transition at zero.
@@ -136,6 +137,7 @@ class _RetainedPagesState extends State<RetainedPages>
   @override
   void didUpdateWidget(RetainedPages old) {
     super.didUpdateWidget(old);
+    if (dragging && !listEquals(old.order, widget.order)) endDrag();
     if (old.index != widget.index) {
       if (dragging) captureDrag();
       final from = widget.order.indexOf(old.index);

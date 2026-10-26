@@ -4,8 +4,9 @@ import 'room_motion.dart';
 /// Current content determines the target height. Retiring content cannot
 /// receive a second tap or remain in accessibility traversal during the fade.
 class ContentHandoff extends StatelessWidget {
-  const ContentHandoff({super.key, required this.child});
+  const ContentHandoff({super.key, required this.child, this.fill = false});
   final Widget child;
+  final bool fill;
   @override
   Widget build(BuildContext context) {
     if (MediaQuery.disableAnimationsOf(context)) return child;
@@ -41,13 +42,22 @@ class ContentHandoff extends StatelessWidget {
         },
         layoutBuilder: (current, previous) => Stack(
           alignment: Alignment.topLeft,
+          fit: fill ? StackFit.expand : StackFit.loose,
           children: [
             for (final old in previous)
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
-                child: IgnorePointer(child: ExcludeSemantics(child: old)),
+                bottom: fill ? 0 : null,
+                child: IgnorePointer(
+                  child: ExcludeFocus(
+                    child: HeroMode(
+                      enabled: false,
+                      child: ExcludeSemantics(child: old),
+                    ),
+                  ),
+                ),
               ),
             ?current,
           ],

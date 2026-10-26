@@ -18,6 +18,7 @@ class LocalizedText extends StatelessWidget {
     this.locale,
     this.strutStyle,
     this.selectionColor,
+    this.arguments = const {},
   });
   final String data;
   final TextStyle? style;
@@ -33,9 +34,10 @@ class LocalizedText extends StatelessWidget {
   final Locale? locale;
   final StrutStyle? strutStyle;
   final Color? selectionColor;
+  final Map<String, Object> arguments;
   @override
   Widget build(BuildContext context) => Text(
-    translate(data, Localizations.localeOf(context)),
+    translate(data, Localizations.localeOf(context), arguments: arguments),
     style: style,
     textAlign: textAlign,
     maxLines: maxLines,
@@ -52,10 +54,22 @@ class LocalizedText extends StatelessWidget {
   );
 }
 
-String translate(String text, Locale locale) {
-  if (locale.languageCode == 'en') return english[text] ?? text;
-  if (locale.countryCode == 'TW') return traditional[text] ?? text;
-  return text;
+String translate(
+  String text,
+  Locale locale, {
+  Map<String, Object> arguments = const {},
+}) {
+  final template = locale.languageCode == 'en'
+      ? english[text] ?? text
+      : locale.countryCode == 'TW'
+      ? traditional[text] ?? text
+      : text;
+  // Replace only explicit UI placeholders in one pass. Source titles and notes
+  // are values and must never be translated or parsed as another template.
+  return template.replaceAllMapped(
+    RegExp(r'\{(\w+)\}'),
+    (match) => arguments[match[1]]?.toString() ?? match[0]!,
+  );
 }
 
 const english = <String, String>{
@@ -290,6 +304,51 @@ const english = <String, String>{
   '插件': 'Plugins',
   '下载书库': 'Downloads',
   '插件商城': 'Plugin store',
+  '刷新发现页': 'Refresh discovery',
+  '查看新内容': 'Show updates',
+  '发现页有新内容，当前列表已保留': 'Updates available; your current list is kept',
+  '刷新失败，已保留当前目录': 'Refresh failed; your catalog is kept',
+  '正在刷新，仍可继续浏览': 'Refreshing; keep browsing',
+  '正在浏览离线目录': 'Browsing the offline catalog',
+  '目录已更新': 'Catalog up to date',
+  '正在打开 {chapter}': 'Opening {chapter}',
+  '{chapter} · 第 {page} 页，可添加备注': '{chapter} · Page {page}, add a note',
+  '{chapter} · 第 {page} 页': '{chapter} · Page {page}',
+  '{chapter} · 第 {page} 页\n{note}': '{chapter} · Page {page}\n{note}',
+  '{chapter} · 第 {page} / {total} 页': '{chapter} · Page {page} / {total}',
+  '{count} 册': '{count} books',
+  '返回目录': 'Back to details',
+  '整理收藏': 'Organize library',
+  '搜索漫画': 'Search comics',
+  '切换立体书架': 'Switch to 3D shelf',
+  '切换封面网格': 'Switch to cover grid',
+  '去选一本漫画': 'Find a comic',
+  '移除这条足迹': 'Remove this reading record',
+  '定制你的阅读室': 'Your reading room',
+  '水滴导航': 'Liquid navigation',
+  '拖动时拉伸连接，松手后吸附归位': 'Stretch while dragging and settle on release',
+  '翻开实体书': 'Open a physical book',
+  '封面与书页绕书脊展开，返回时合书归位': 'Open around the spine and close on return',
+  '书架疏密': 'Shelf spacing',
+  '紧凑': 'Compact',
+  '均衡': 'Balanced',
+  '舒展': 'Airy',
+  '启动后打开': 'Start page',
+  '底部入口与顺序': 'Navigation and order',
+  '3–6 个入口；书架和设置常驻。拖动已选入口排序。':
+      '3–6 tabs; Library and Settings stay. Drag to reorder.',
+  '恢复插件 / 默认布局': 'Restore plugin / default layout',
+  '阅读默认习惯': 'Reading defaults',
+  '逐本设置优先；已启用的阅读插件可提供默认预设。':
+      'Per-comic settings take priority over reading presets.',
+  '阅读时保持亮屏': 'Keep screen awake',
+  '宽屏默认双页': 'Two pages on wide screens',
+  '阅读默认背景': 'Default page background',
+  '阅读工具栏自动收起': 'Hide reading toolbar after',
+  '手动控制': 'Manually',
+  '3 秒': '3 seconds',
+  '5 秒': '5 seconds',
+  '8 秒': '8 seconds',
 };
 const traditional = <String, String>{
   '当前书源没有版权': '當前書源沒有版權',
@@ -520,4 +579,47 @@ const traditional = <String, String>{
   '插件': '外掛',
   '下载书库': '下載書庫',
   '插件商城': '外掛市集',
+  '刷新发现页': '重新整理探索頁',
+  '查看新内容': '查看新內容',
+  '发现页有新内容，当前列表已保留': '探索頁有新內容，目前清單已保留',
+  '刷新失败，已保留当前目录': '重新整理失敗，已保留目前目錄',
+  '正在刷新，仍可继续浏览': '正在重新整理，仍可繼續瀏覽',
+  '正在浏览离线目录': '正在瀏覽離線目錄',
+  '目录已更新': '目錄已更新',
+  '正在打开 {chapter}': '正在開啟 {chapter}',
+  '{chapter} · 第 {page} 页，可添加备注': '{chapter} · 第 {page} 頁，可新增備註',
+  '{chapter} · 第 {page} 页': '{chapter} · 第 {page} 頁',
+  '{chapter} · 第 {page} 页\n{note}': '{chapter} · 第 {page} 頁\n{note}',
+  '{chapter} · 第 {page} / {total} 页': '{chapter} · 第 {page} / {total} 頁',
+  '{count} 册': '{count} 冊',
+  '返回目录': '返回目錄',
+  '整理收藏': '整理收藏',
+  '搜索漫画': '搜尋漫畫',
+  '切换立体书架': '切換立體書架',
+  '切换封面网格': '切換封面網格',
+  '去选一本漫画': '去選一本漫畫',
+  '移除这条足迹': '移除此閱讀紀錄',
+  '定制你的阅读室': '自訂你的閱讀室',
+  '水滴导航': '水滴導覽',
+  '拖动时拉伸连接，松手后吸附归位': '拖曳時拉伸連接，放開後吸附歸位',
+  '翻开实体书': '翻開實體書',
+  '封面与书页绕书脊展开，返回时合书归位': '封面與書頁繞書脊展開，返回時闔書歸位',
+  '书架疏密': '書架疏密',
+  '紧凑': '緊密',
+  '均衡': '均衡',
+  '舒展': '寬鬆',
+  '启动后打开': '啟動後開啟',
+  '底部入口与顺序': '底部入口與順序',
+  '3–6 个入口；书架和设置常驻。拖动已选入口排序。': '3–6 個入口；書架和設定常駐。拖曳已選入口排序。',
+  '恢复插件 / 默认布局': '還原外掛／預設配置',
+  '阅读默认习惯': '閱讀預設習慣',
+  '逐本设置优先；已启用的阅读插件可提供默认预设。': '單本設定優先；已啟用的閱讀外掛可提供預設值。',
+  '阅读时保持亮屏': '閱讀時保持螢幕開啟',
+  '宽屏默认双页': '寬螢幕預設雙頁',
+  '阅读默认背景': '閱讀預設背景',
+  '阅读工具栏自动收起': '閱讀工具列自動收合',
+  '手动控制': '手動控制',
+  '3 秒': '3 秒',
+  '5 秒': '5 秒',
+  '8 秒': '8 秒',
 };

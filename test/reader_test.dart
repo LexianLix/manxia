@@ -11,6 +11,7 @@ import 'package:manxia/data/comic.dart';
 import 'package:manxia/data/dm5_source.dart';
 import 'package:manxia/data/library.dart';
 import 'package:manxia/ui/reader_page.dart';
+import 'package:manxia/ui/localized_text.dart';
 import 'package:manxia/ui/reader_surfaces.dart';
 
 void main() {
@@ -51,7 +52,7 @@ void main() {
       );
       await settleFirstFrame(tester);
       for (var i = 0; i < 3; i++) {
-        await tester.tap(find.byTooltip('下一页'));
+        await tester.tap(find.byTooltip(translate('下一页', const Locale('en'))));
         await tester.pump(const Duration(milliseconds: 30));
       }
       await settleFirstFrame(tester);
@@ -61,13 +62,13 @@ void main() {
         reason:
             'Three taps must not collapse into one target while the first page is moving.',
       );
-      await tester.tap(find.byTooltip('上一页'));
+      await tester.tap(find.byTooltip(translate('上一页', const Locale('en'))));
       await tester.pump(const Duration(milliseconds: 45));
       final controller = tester
           .widget<PageView>(find.byType(PageView))
           .controller!;
       final pose = controller.page!;
-      await tester.tap(find.byTooltip('下一页'));
+      await tester.tap(find.byTooltip(translate('下一页', const Locale('en'))));
       await tester.pump();
       expect(controller.page, closeTo(pose, .001));
       await settleFirstFrame(tester);
@@ -106,7 +107,7 @@ void main() {
         ),
       );
       await settleFirstFrame(tester);
-      await tester.tap(find.byTooltip('下一页'));
+      await tester.tap(find.byTooltip(translate('下一页', const Locale('en'))));
       await settleFirstFrame(tester);
       final viewport = tester.getRect(find.byType(PagedSurface));
       for (var i = 0; i < 3; i++) {
@@ -115,7 +116,10 @@ void main() {
         expect(tester.getRect(find.byType(PagedSurface)), viewport);
       }
       await settleFirstFrame(tester);
-      expect(find.byTooltip('返回目录'), findsNothing);
+      expect(
+        find.byTooltip(translate('返回目录', const Locale('en'))),
+        findsNothing,
+      );
       expect(find.text('2 / 2'), findsOneWidget);
       expect(library.record(comic)!.page, 1);
       expect(tester.takeException(), isNull);
@@ -160,10 +164,10 @@ void main() {
       );
       await settleFirstFrame(tester);
       expect(find.text('4–5 / 6'), findsOneWidget);
-      await tester.tap(find.byTooltip('下一页'));
+      await tester.tap(find.byTooltip(translate('下一页', const Locale('en'))));
       await settleFirstFrame(tester);
       expect(find.text('6 / 6'), findsOneWidget);
-      await tester.tap(find.byTooltip('上一页'));
+      await tester.tap(find.byTooltip(translate('上一页', const Locale('en'))));
       await settleFirstFrame(tester);
       expect(find.text('4–5 / 6'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -206,11 +210,11 @@ void main() {
         ),
       );
       await settleFirstFrame(tester);
-      await tester.tap(find.byTooltip('下一页'));
+      await tester.tap(find.byTooltip(translate('下一页', const Locale('en'))));
       await settleFirstFrame(tester);
       expect(find.text('2–3 / 3'), findsOneWidget);
       final button = find.ancestor(
-        of: find.byTooltip('下一页'),
+        of: find.byTooltip(translate('下一页', const Locale('en'))),
         matching: find.byType(IconButton),
       );
       expect(tester.widget<IconButton>(button).onPressed, isNull);
@@ -252,7 +256,7 @@ void main() {
     );
     await settleFirstFrame(tester);
     expect(find.text('1 / 2'), findsOneWidget);
-    await tester.tap(find.byTooltip('下一页'));
+    await tester.tap(find.byTooltip(translate('下一页', const Locale('en'))));
     await settleFirstFrame(tester);
     expect(find.text('2 / 2'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 300));

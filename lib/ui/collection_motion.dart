@@ -5,6 +5,7 @@ import '../data/library.dart';
 import 'book_object.dart';
 import 'room_motion.dart';
 import 'personalization_settings.dart' show navigationIds;
+import 'collection_target.dart';
 
 final _flights = Expando<Map<String, OverlayEntry>>();
 
@@ -29,7 +30,7 @@ Future<void> collectWithMotion(
     final ids = navigationIds(library);
     final shelfSlot = ids.indexOf(0);
     final navWidth = math.min(size.width - 32, 520.0);
-    final destination = size.width < 1000
+    final fallback = size.width < 1000
         ? Offset(
             (size.width - navWidth) / 2 +
                 7 +
@@ -54,6 +55,7 @@ Future<void> collectWithMotion(
           child: Material(elevation: 8, child: ComicCover(comic, web: web)),
           builder: (c, t, child) {
             final eased = RoomMotion.travel.transform(t);
+            final destination = shelfDestination(library, overlay) ?? fallback;
             final point =
                 Offset.lerp(start, destination, eased)! -
                 Offset(0, math.sin(t * math.pi) * 60);
