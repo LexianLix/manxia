@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manxia/data/library.dart';
@@ -7,6 +9,48 @@ import 'package:manxia/ui/startup.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('startup keeps an opaque surface through the loading handoff', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final library = Library(await SharedPreferences.getInstance());
+    final ready = Completer<Library>();
+    final boundary = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: boundary,
+        child: ManxiaStartup(
+          load: (_) => ready.future,
+          builder: (_) => const MaterialApp(
+            home: Scaffold(body: Center(child: Text('Room'))),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    ready.complete(library);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    var alpha = 0;
+    await tester.runAsync(() async {
+      final render =
+          boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await render.toImage(pixelRatio: 1);
+      final bytes = (await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!.buffer.asUint8List();
+      alpha = bytes[(20 * image.width + 20) * 4 + 3];
+      image.dispose();
+    });
+    expect(
+      alpha,
+      255,
+      reason:
+          'Do not expose the platform background between loading and the room.',
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('first frame is visible while native preferences are pending', (
     tester,
   ) async {

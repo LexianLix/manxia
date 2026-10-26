@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/library.dart';
 import '../data/offline_library.dart';
 import '../data/source_hub.dart';
+import '../data/plugin.dart';
 import '../platform/storage.dart';
 import 'content_handoff.dart';
 
@@ -89,21 +90,39 @@ class _ManxiaStartupState extends State<ManxiaStartup> {
               MediaQuery.disableAnimationsOf(context) ||
               _library?.motion == false,
         ),
-        child: ContentHandoff(
-          fill: true,
-          child: _library != null
-              ? KeyedSubtree(
-                  key: const ValueKey('startup-ready'),
-                  child: widget.builder(_library!),
-                )
-              : KeyedSubtree(
-                  key: const ValueKey('startup-waiting'),
-                  child: startupSurface(),
-                ),
+        child: ColoredBox(
+          color: handoffColor(),
+          child: ContentHandoff(
+            fill: true,
+            child: _library != null
+                ? KeyedSubtree(
+                    key: const ValueKey('startup-ready'),
+                    child: widget.builder(_library!),
+                  )
+                : KeyedSubtree(
+                    key: const ValueKey('startup-waiting'),
+                    child: startupSurface(),
+                  ),
+          ),
         ),
       ),
     ),
   );
+
+  Color handoffColor() {
+    final library = _library;
+    final dark = library?.dark == true;
+    final surface = library == null
+        ? null
+        : PluginSnapshot(library.options).theme[dark
+              ? 'darkSurface'
+              : 'lightSurface'];
+    return surface is String
+        ? Color(0xff000000 | int.parse(surface.substring(1), radix: 16))
+        : dark
+        ? const Color(0xff171d1a)
+        : const Color(0xfff7f7f2);
+  }
 
   Widget startupSurface() {
     final failed = _diagnostics != null;
