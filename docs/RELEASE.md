@@ -87,7 +87,9 @@ flutter build apk --release --split-per-abi
 脚本核对输入哈希、版本、包名、架构与版本码，先执行 16 KB ZIP 对齐，再签名、验证签名和对齐。密码通过环境变量传递；输出包含 APK、`SHA256SUMS.txt`、`release-manifest.json` 及各架构的验证日志。已有 APK 不会被覆盖。
 
 5. 核对三包签名一致且与既往发行版相同。Flutter 分包会为构建号增加架构偏移，例如构建号 19 对应 ARMv7 `1019`、ARM64 `2019`、x86_64 `4019`，不要把这些值误认为版本不一致。
-6. 在 GitHub 创建关联标签的 Release 草稿，上传三个已签名 APK、哈希清单和发行清单。检查附件名称与 README 链接一致，再发布并确认公开下载可用。发布后不替换同名安装包；修订应用需增加构建号并发布新版本。
+6. 在 GitHub 创建关联标签的 Release 草稿，上传三个已签名 APK、哈希清单和发行清单。检查附件名称、大小和 SHA-256 与本机一致，先保留草稿。
+7. 运行 `Verify installed Android startup` 验证签名候选。草稿不可被只读 CI 令牌直接读取时，维护者可提供 GitHub 资产的短时下载地址 `candidate_url` 和本机已核对的 `candidate_sha256`；地址仅接受 HTTPS 的 `release-assets.githubusercontent.com`，工作流先校验文件和签名，再安装。不要传入账户令牌。`upgrade_from` 可检查从旧正式版覆盖安装的数据保留。
+8. 验证成功后发布草稿，并确认公开下载可用。发布后不替换同名安装包；修订应用需增加构建号并发布新版本。
 
 签名密钥保留本机，没有上传到 GitHub Secrets。CI 通过显式环境变量 `MANXIA_UNSIGNED_RELEASE=true` 准备未签名产物；只有维护者签名、核对并发布后的附件才是发行包。
 
