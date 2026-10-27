@@ -72,6 +72,7 @@ class AppUpdateDownload {
       }
       sink = partial.openWrite();
       var bytes = 0;
+      var flushedBytes = 0;
       final watch = Stopwatch()..start();
       chunks = StreamIterator(stream.stream);
       while (await control.wait(
@@ -79,12 +80,16 @@ class AppUpdateDownload {
       )) {
         final chunk = chunks.current;
         control.ensureActive();
-        if (watch.elapsed > const Duration(minutes: 5)) {
+        if (watch.elapsed > const Duration(minutes: 30)) {
           throw const FormatException('下载超时，请重试。');
         }
         bytes += chunk.length;
         if (bytes > package.bytes) throw const FormatException('安装包超出清单大小。');
         sink.add(chunk);
+        if (bytes - flushedBytes >= 256 * 1024) {
+          await control.wait(sink.flush().timeout(const Duration(seconds: 25)));
+          flushedBytes = bytes;
+        }
         progress(bytes, package.bytes);
       }
       await sink.flush();
