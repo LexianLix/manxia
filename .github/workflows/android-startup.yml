@@ -15,6 +15,14 @@ on:
         description: Optional older public version for signed in-place data retention check
         default: ''
         required: false
+      candidate_url:
+        description: Optional short-lived GitHub release asset URL for an unpublished signed candidate
+        default: ''
+        required: false
+      candidate_sha256:
+        description: Required SHA-256 when candidate_url is provided
+        default: ''
+        required: false
       arm64_translation:
         description: Experimental Android 11 ARM64 translation instead of native x86 tests
         type: boolean
@@ -54,7 +62,25 @@ jobs:
             [[ "$UPGRADE_FROM" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
             gh release download "v$UPGRADE_FROM" --pattern "Manxia-$UPGRADE_FROM-$ABI.apk" --output previous-public.apk
           fi
-          if [ -n "$BUILD_RUN" ]; then
+          # Read the temporary URL from the event file instead of printing it
+          # in a step's environment. Draft access does not need a write token.
+          CANDIDATE_URL=$(python3 -c 'import json,os; print(json.load(open(os.environ["GITHUB_EVENT_PATH"]))["inputs"].get("candidate_url", ""))')
+          if [ -n "$CANDIDATE_URL" ]; then
+            [ -z "$BUILD_RUN" ]
+            python3 - <<'PY'
+          import json, os, re, urllib.parse
+          data = json.load(open(os.environ['GITHUB_EVENT_PATH']))['inputs']
+          url = urllib.parse.urlsplit(data['candidate_url'])
+          assert url.scheme == 'https' and url.hostname == 'release-assets.githubusercontent.com'
+          assert not url.username and not url.password and not url.fragment and not url.port
+          assert re.fullmatch(r'[0-9a-f]{64}', data.get('candidate_sha256', ''))
+          PY
+            curl --fail --location --proto '=https' --max-time 180 "$CANDIDATE_URL" --output startup.apk
+            CANDIDATE_SHA=$(python3 -c 'import json,os; print(json.load(open(os.environ["GITHUB_EVENT_PATH"]))["inputs"]["candidate_sha256"])')
+            printf '%s  startup.apk\n' "$CANDIDATE_SHA" | sha256sum --check
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs startup.apk
+            if [ -f previous-public.apk ]; then cp previous-public.apk previous.apk; fi
+          elif [ -n "$BUILD_RUN" ]; then
             [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
             gh run download "$BUILD_RUN" --name manxia-unsigned-release --dir unsigned
             cp "unsigned/app-$ABI-release.apk" startup.apk
