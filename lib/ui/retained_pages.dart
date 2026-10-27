@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'room_motion.dart';
+import 'paper_leaf.dart';
 
 /// Retarget from the rendered poses instead of replaying a transition at zero.
 /// Only visited pages are built; hidden scenes retain state without ticking.
@@ -32,6 +33,7 @@ class _RetainedPagesState extends State<RetainedPages>
   late final visited = <int>{widget.index};
   final starts = <int, (double, double)>{};
   final ends = <int, (double, double)>{};
+  final hinges = <int, bool>{};
   bool dragging = false;
   int dragFrom = 0;
   int? dragTarget;
@@ -83,6 +85,8 @@ class _RetainedPagesState extends State<RetainedPages>
     }
     setState(() {
       dragTarget = widget.order[at];
+      hinges[dragFrom] = direction < 0;
+      hinges[dragTarget!] = direction > 0;
       visited.add(dragTarget!);
       if ((dragStarts[dragTarget]?.$1 ?? 0) < .001) {
         dragStarts[dragTarget!] = (0, direction * 48);
@@ -157,6 +161,9 @@ class _RetainedPagesState extends State<RetainedPages>
             ? (0.0, 48 * direction)
             : snapshot ?? (0.0, 48 * direction);
         starts[index] = start;
+        if (start.$1 >= .999 || start.$1 <= .001) {
+          hinges[index] = index == widget.index ? direction > 0 : direction < 0;
+        }
         ends[index] = index == widget.index
             ? (1.0, 0.0)
             : (0.0, index == old.index ? -48 * direction : start.$2);
@@ -203,16 +210,10 @@ class _RetainedPagesState extends State<RetainedPages>
                       excluding: !current,
                       child: IgnorePointer(
                         ignoring: !current,
-                        child: Opacity(
-                          opacity: alpha.clamp(0, 1),
-                          child: Transform.translate(
-                            offset: Offset(dx / 6, dx.abs() * .28),
-                            child: Transform.scale(
-                              scale: .985 + .015 * alpha.clamp(0, 1),
-                              alignment: Alignment.topCenter,
-                              child: child,
-                            ),
-                          ),
+                        child: PaperLeaf(
+                          amount: 1 - alpha.clamp(0, 1),
+                          reverse: hinges[index] ?? dx > 0,
+                          child: child!,
                         ),
                       ),
                     ),

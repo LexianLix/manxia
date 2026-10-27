@@ -7,6 +7,7 @@ import '../data/library.dart';
 import '../data/offline_library.dart';
 import '../data/source_hub.dart';
 import '../data/plugin.dart';
+import '../data/appearance.dart';
 import '../platform/storage.dart';
 import 'content_handoff.dart';
 
@@ -112,6 +113,12 @@ class _ManxiaStartupState extends State<ManxiaStartup> {
   Color handoffColor() {
     final library = _library;
     final dark = library?.dark == true;
+    if (library != null) {
+      final appearance = RoomAppearance(library.options);
+      if (appearance.wallpaper != null && appearance.follow) {
+        return RoomAppearance.surface(appearance.seed, dark);
+      }
+    }
     final surface = library == null
         ? null
         : PluginSnapshot(library.options).theme[dark
@@ -120,8 +127,8 @@ class _ManxiaStartupState extends State<ManxiaStartup> {
     return surface is String
         ? Color(0xff000000 | int.parse(surface.substring(1), radix: 16))
         : dark
-        ? const Color(0xff171d1a)
-        : const Color(0xfff7f7f2);
+        ? const Color(0xff12171b)
+        : const Color(0xfff7f9fa);
   }
 
   Widget startupSurface() {
@@ -129,9 +136,11 @@ class _ManxiaStartupState extends State<ManxiaStartup> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff47775e)),
-        scaffoldBackgroundColor: const Color(0xfff7f7f2),
-        fontFamily: 'ArchiveSerif',
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: RoomAppearance.defaultSeed,
+        ),
+        scaffoldBackgroundColor: const Color(0xfff7f9fa),
+        fontFamily: 'RoomSans',
       ),
       home: Scaffold(
         body: SafeArea(

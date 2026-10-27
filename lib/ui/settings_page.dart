@@ -4,6 +4,7 @@ import '../data/dm5_source.dart';
 import 'advanced_settings.dart';
 import 'localized_text.dart';
 import 'room_motion.dart';
+import 'appearance_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -37,7 +38,11 @@ class SettingsPage extends StatelessWidget {
         children: [
           const LocalizedText(
             '偏好设置',
-            style: TextStyle(fontSize: 24, height: 1.4),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 6),
           LocalizedText(
@@ -49,7 +54,7 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           for (final entry in const [
-            ('appearance', '外观与动效', '主题、书架、导航与可读性', Icons.palette_outlined),
+            ('appearance', '外观与动效', '背景图片、随图配色、导航与动效', Icons.palette_outlined),
             ('reading', '阅读习惯', '背景、双页与工具栏', Icons.auto_stories_outlined),
             ('sources', '漫画源', '默认来源、管理与连接检查', Icons.public),
             ('storage', '下载与缓存', '预载、下载并行与图片缓存', Icons.download_outlined),
@@ -108,6 +113,7 @@ class SettingsSection extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
               children: [
                 if (section == 'appearance') ...[
+                  AppearanceSettings(library: library),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const LocalizedText('夜间阅读室'),

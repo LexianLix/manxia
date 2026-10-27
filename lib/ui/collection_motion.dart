@@ -29,13 +29,13 @@ Future<void> collectWithMotion(
     final safe = MediaQuery.paddingOf(context);
     final ids = navigationIds(library);
     final shelfSlot = ids.indexOf(0);
-    final navWidth = math.min(size.width - 32, 520.0);
+    final navWidth = math.min(size.width - 32, ids.length * 60.0 + 14);
     final fallback = size.width < 1000
         ? Offset(
             (size.width - navWidth) / 2 +
                 7 +
                 (shelfSlot + .5) * (navWidth - 14) / ids.length,
-            size.height - safe.bottom - 50,
+            size.height - safe.bottom - 46,
           )
         : Offset(53, safe.top + 188);
     final start = origin?.center ?? Offset(size.width / 2, size.height * .42);

@@ -73,6 +73,25 @@ String translate(
 }
 
 const english = <String, String>{
+  '晴昼玻璃': 'Daylight glass',
+  '清透的阅读室，换上你的背景。': 'A clear reading room, with your own background.',
+  '选择背景图片': 'Choose background image',
+  '跟随背景配色': 'Match background colors',
+  '从图片提取主题色，统一导航、按钮与阅读工具栏':
+      'Use image colors for navigation, buttons and reading tools',
+  '背景遮罩': 'Background veil',
+  '背景柔化': 'Background softness',
+  '图片只保存在本机；备份中的外观设置不包含背景图片文件。':
+      'Images stay on this device. Appearance backups do not include the image file.',
+  '恢复默认背景': 'Reset background',
+  '跟随应用': 'Follow app theme',
+  '背景图片、随图配色、导航与动效': 'Background, colors, navigation and motion',
+  '请选择 20 MB 以内的背景图片。': 'Choose a background image smaller than 20 MB.',
+  '图片尺寸过大，请先缩小图片。': 'This image is too large. Resize it first.',
+  '无法读取这张图片。': 'Unable to read this image.',
+  '无法导入这张背景图片，请选择其他图片。':
+      'Unable to import this background. Choose another image.',
+
   '增强边框与文字对比': 'Increase text and border contrast',
   '书架可 Tab 聚焦，阅读器用方向键翻页、空格显示控制栏、Esc 返回；动画跟随系统减少动画设置。':
       'Use Tab to focus books. In the reader, arrow keys turn pages, Space toggles controls, and Esc goes back. Motion respects system preferences.',
@@ -448,6 +467,22 @@ const english = <String, String>{
   '8 秒': '8 seconds',
 };
 const traditional = <String, String>{
+  '晴昼玻璃': '晴晝玻璃',
+  '清透的阅读室，换上你的背景。': '清透的閱讀室，換上你的背景。',
+  '选择背景图片': '選擇背景圖片',
+  '跟随背景配色': '跟隨背景配色',
+  '从图片提取主题色，统一导航、按钮与阅读工具栏': '從圖片擷取主題色，統一導覽、按鈕與閱讀工具列',
+  '背景遮罩': '背景遮罩',
+  '背景柔化': '背景柔化',
+  '图片只保存在本机；备份中的外观设置不包含背景图片文件。': '圖片只儲存在本機；備份中的外觀設定不包含背景圖片檔案。',
+  '恢复默认背景': '恢復預設背景',
+  '跟随应用': '跟隨應用程式',
+  '背景图片、随图配色、导航与动效': '背景圖片、隨圖配色、導覽與動效',
+  '请选择 20 MB 以内的背景图片。': '請選擇 20 MB 以內的背景圖片。',
+  '图片尺寸过大，请先缩小图片。': '圖片尺寸過大，請先縮小圖片。',
+  '无法读取这张图片。': '無法讀取這張圖片。',
+  '无法导入这张背景图片，请选择其他图片。': '無法匯入這張背景圖片，請選擇其他圖片。',
+
   '增强边框与文字对比': '增強邊框與文字對比',
   '书架可 Tab 聚焦，阅读器用方向键翻页、空格显示控制栏、Esc 返回；动画跟随系统减少动画设置。':
       '書架可 Tab 聚焦，閱讀器用方向鍵翻頁、空白鍵顯示控制列、Esc 返回；動畫跟隨系統減少動畫設定。',

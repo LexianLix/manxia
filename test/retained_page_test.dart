@@ -25,7 +25,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('下一本'));
       await tester.pumpAndSettle();
-      expect(find.text('05 / 07'), findsOneWidget);
+      expect(find.text('02 / 07'), findsOneWidget);
       await tester.tap(find.text('设置'));
       await tester.pumpAndSettle();
       expect(find.text('WebDAV 同步'), findsNothing);
@@ -38,7 +38,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('书架'));
       await tester.pumpAndSettle();
-      expect(find.text('05 / 07'), findsOneWidget);
+      expect(find.text('02 / 07'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

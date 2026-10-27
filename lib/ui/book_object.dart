@@ -20,10 +20,10 @@ class BookFlightPose {
   }
 
   double get travel => phase(progress, 0, 1);
-  double get unfold => phase(progress, .08, .88);
-  double get flatten => phase(progress, .06, .68);
-  double get reveal => phase(progress, .36, .96);
-  double get departing => 1 - phase(progress, .60, 1);
+  double get unfold => phase(progress, .08, .84);
+  double get flatten => phase(progress, .32, .96);
+  double get reveal => phase(progress, .48, .98);
+  double get departing => 1 - phase(progress, .70, 1);
   double get lift => math.pow(math.sin(math.pi * progress), 2).toDouble();
 }
 
@@ -744,10 +744,10 @@ class _BookPainter extends CustomPainter {
       f,
     )!;
     final x = ui.lerpDouble(ui.lerpDouble(22, 92, spread), 0, f)!;
-    final spine = ui.lerpDouble(ui.lerpDouble(23, 5, spread), 0, f)!;
+    final spine = ui.lerpDouble(ui.lerpDouble(15, 4, spread), 0, f)!;
     final y = ui.lerpDouble(49, 0, f)!, h = ui.lerpDouble(226, 300, f)!;
     final dy = ui.lerpDouble(
-      ui.lerpDouble(-28 - 12 * exposure + light * 4, -8, spread),
+      ui.lerpDouble(-18 - 8 * exposure + light * 3, -6, spread),
       0,
       f,
     )!;

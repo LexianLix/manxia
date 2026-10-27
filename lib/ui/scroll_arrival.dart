@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'room_motion.dart';
+import 'paper_leaf.dart';
 
 /// Reveal on first paint inside the viewport, rather than when the full
 /// shrink-wrapped catalog is built. Its short-lived scroll listener detaches
@@ -86,13 +87,7 @@ class _ScrollArrivalState extends State<ScrollArrival>
         child: widget.child,
         builder: (_, child) {
           final t = RoomMotion.ease.transform(clock.value);
-          return Opacity(
-            opacity: .35 + .65 * t,
-            child: Transform.translate(
-              offset: Offset(0, 12 * (1 - t)),
-              child: child,
-            ),
-          );
+          return PaperLeaf(amount: .10 * (1 - t), child: child!);
         },
       ),
     ),

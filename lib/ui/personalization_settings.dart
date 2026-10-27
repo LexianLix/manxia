@@ -175,8 +175,9 @@ class PersonalizationSettings extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             title: const LocalizedText('阅读默认背景'),
             trailing: DropdownButton<String>(
-              value: defaults['background'] as String? ?? 'ink',
+              value: defaults['background'] as String? ?? 'theme',
               items: const [
+                DropdownMenuItem(value: 'theme', child: LocalizedText('跟随应用')),
                 DropdownMenuItem(value: 'ink', child: LocalizedText('夜墨')),
                 DropdownMenuItem(value: 'paper', child: LocalizedText('纸白')),
                 DropdownMenuItem(value: 'sepia', child: LocalizedText('旧纸')),

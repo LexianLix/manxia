@@ -7,6 +7,7 @@ import 'localized_text.dart';
 import 'materials.dart';
 import 'room_motion.dart';
 import 'content_handoff.dart';
+import 'destination_icon.dart';
 
 class RoomDestination {
   const RoomDestination(this.id, this.label, this.icon, this.activeIcon);
@@ -69,6 +70,8 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   final starts = <int, _Slot>{}, ends = <int, _Slot>{};
   final items = <int, RoomDestination>{};
   double widthFrom = 0, widthTo = 0, innerWidth = 1;
+  double barHeight = 54;
+  static const iconY = 20.0;
   int? preview;
   bool cancelled = false, reduced = false;
   double get lensWidth =>
@@ -245,10 +248,16 @@ class _FrostedNavigationState extends State<FrostedNavigation>
         child: Center(
           heightFactor: 1,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: BoxConstraints(
+              maxWidth: widget.destinations.length * 60 + 14,
+            ),
             child: LayoutBuilder(
               builder: (context, box) {
                 innerWidth = box.maxWidth - 14;
+                barHeight = math.max(
+                  54,
+                  38 + MediaQuery.textScalerOf(context).scale(11) * 1.35,
+                );
                 final labels = widget.destinations
                     .map(
                       (item) => translate(
@@ -295,16 +304,16 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                     },
                     onHorizontalDragCancel: cancel,
                     child: SizedBox(
-                      height: 64,
+                      height: barHeight,
                       child: Stack(
                         children: [
                           Positioned.fill(
                             child: RepaintBoundary(
                               child: MilkGlass(
-                                radius: 35,
+                                radius: 28,
                                 high: widget.highQuality,
-                                blurSigma: 22,
-                                tintOpacity: dark ? .52 : .36,
+                                blurSigma: 16,
+                                tintOpacity: dark ? .74 : .62,
                                 shadow: true,
                                 child: const SizedBox.expand(),
                               ),
@@ -331,7 +340,11 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                                       ? tail.value
                                                       : lens.value) *
                                                   innerWidth,
-                                          width: lensWidth * innerWidth - 3,
+                                          width: math.min(
+                                            34,
+                                            lensWidth * innerWidth - 8,
+                                          ),
+                                          centerY: iconY,
                                           press: reduced ? 0 : contact.value,
                                           color: scheme.primary,
                                           dark: dark,
@@ -340,13 +353,10 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                     ),
                                   ),
                                   Positioned(
-                                    left:
-                                        7 +
-                                        (lens.value - lensWidth / 2) *
-                                            innerWidth,
-                                    top: 8,
-                                    bottom: 8,
-                                    width: lensWidth * innerWidth,
+                                    left: 7 + lens.value * innerWidth - 17,
+                                    top: iconY - 17,
+                                    height: 34,
+                                    width: 34,
                                     child: const IgnorePointer(
                                       child: SizedBox(
                                         key: ValueKey('navigation-lens'),
@@ -366,7 +376,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                                 innerWidth - labelWidth,
                                               ),
                                       width: labelWidth,
-                                      top: 47,
+                                      top: 36,
                                       bottom: 0,
                                       child: IgnorePointer(
                                         child: ExcludeSemantics(
@@ -450,43 +460,42 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                   onTapCancel: () => contact.reverse(),
                   child: SizedBox(
                     key: active ? widget.anchors[item.id] : null,
-                    height: 64,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    height: barHeight,
+                    child: Stack(
+                      alignment: Alignment.topCenter,
                       children: [
-                        Transform.translate(
-                          offset: Offset(0, -2 * focus),
-                          child: Transform.scale(
-                            scale: 1 + .1 * focus,
-                            child: Icon(
-                              focus > .5 ? item.activeIcon : item.icon,
-                              size: 21,
-                              color: Color.lerp(
-                                scheme.onSurface.withValues(alpha: .58),
-                                scheme.primary,
-                                focus,
-                              ),
-                            ),
+                        Positioned(
+                          top: iconY - 11,
+                          child: DestinationMotionIcon(
+                            key: ValueKey('navigation-icon-${item.id}'),
+                            destination: item,
+                            selected: widget.selectedIndex == index,
+                            reduced: reduced,
+                            color: Color.lerp(
+                              scheme.onSurface.withValues(alpha: .58),
+                              scheme.primary,
+                              focus,
+                            )!,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        if (compactLabels)
-                          SizedBox(
-                            height:
-                                MediaQuery.textScalerOf(context).scale(11) *
-                                1.4,
-                          )
-                        else
-                          Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.fade,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color.lerp(
-                                scheme.onSurface.withValues(alpha: .60),
-                                scheme.primary,
-                                focus,
+                        if (!compactLabels)
+                          Positioned(
+                            top: 36,
+                            left: 0,
+                            right: 0,
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.fade,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.25,
+                                color: Color.lerp(
+                                  scheme.onSurface.withValues(alpha: .60),
+                                  scheme.primary,
+                                  focus,
+                                ),
                               ),
                             ),
                           ),
@@ -513,35 +522,50 @@ class WaterDropPainter extends CustomPainter {
     required this.press,
     required this.color,
     required this.dark,
+    this.centerY = 20,
   });
-  final double head, tail, width, press;
+  final double head, tail, width, press, centerY;
   final Color color;
   final bool dark;
   Path contour() {
     final distance = (head - tail).abs();
-    final half = 28 - press * 1.2;
+    final half = 17 - press;
     final path = Path()
       ..addRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
-            center: Offset(head, 38),
+            center: Offset(head, centerY),
             width: width,
             height: half * 2,
           ),
-          const Radius.circular(28),
+          const Radius.circular(17),
         ),
       );
     if (distance < .6) return path;
-    final radius = math.min(21.0, distance * .55);
+    final radius = math.min(12.0, distance * .40);
     final droplet = Path()
-      ..addOval(Rect.fromCircle(center: Offset(tail, 38), radius: radius));
+      ..addOval(Rect.fromCircle(center: Offset(tail, centerY), radius: radius));
     final mid = (head + tail) / 2;
-    final neck = (18 - distance * .10).clamp(4.0, 17.0);
+    final neck = (12 - distance * .10).clamp(3.0, 11.0);
     final bridge = Path()
-      ..moveTo(tail, 38 - radius * .85)
-      ..cubicTo(mid, 38 - neck, mid, 38 - neck, head, 38 - half * .8)
-      ..lineTo(head, 38 + half * .8)
-      ..cubicTo(mid, 38 + neck, mid, 38 + neck, tail, 38 + radius * .85)
+      ..moveTo(tail, centerY - radius * .85)
+      ..cubicTo(
+        mid,
+        centerY - neck,
+        mid,
+        centerY - neck,
+        head,
+        centerY - half * .8,
+      )
+      ..lineTo(head, centerY + half * .8)
+      ..cubicTo(
+        mid,
+        centerY + neck,
+        mid,
+        centerY + neck,
+        tail,
+        centerY + radius * .85,
+      )
       ..close();
     return Path.combine(
       PathOperation.union,
@@ -580,6 +604,7 @@ class WaterDropPainter extends CustomPainter {
       head != old.head ||
       tail != old.tail ||
       width != old.width ||
+      centerY != old.centerY ||
       press != old.press ||
       color != old.color ||
       dark != old.dark;

@@ -26,7 +26,7 @@
 
 ## 简介
 
-漫匣面向 Android 手机与平板，将漫画发现、个人书架、本地导入与离线阅读放在一起。奶白与墨绿构成界面的底色，立体书脊、翻开封面的过渡和悬浮毛玻璃导航，让收藏与阅读保留一点实体书的手感。
+漫匣面向 Android 手机与平板，将漫画发现、个人书架、本地导入与离线阅读放在一起。以清透的晴昼玻璃为默认外观，立体书脊、纸页卷曲与紧凑的悬浮导航，让收藏与阅读保留实体书的手感。可使用自己的背景图片，并让导航、按钮和阅读工具栏跟随图片配色。
 
 默认接入动漫屋，支持每日精选、完整栏目浏览、分类搜索和原站榜单；也可以导入自己的图片、CBZ 或 PDF，整理成随身书库。收藏、进度和离线内容保存在本机，可手动备份或配置 WebDAV。
 
@@ -52,7 +52,8 @@
 ## 功能特性
 
 - **立体书架**：漫画封面满幅装订，书脊随封面取色；封面和书页沿书脊展开，返回时合书归位。支持惯性滚动、弹簧吸附、疏密调整与列表展示。
-- **玻璃界面**：悬浮毛玻璃底栏、水滴连接与吸附回弹；页面随手势过渡，快速切换承接当前画面。支持减少动效与材质质量调整。
+- **玻璃界面**：紧凑居中底栏、水滴连接与吸附回弹、选中图标短动画；页面与封面以纸页卷曲过渡，快速切换承接当前画面。支持减少动效与材质质量调整。
+- **背景与配色**：从本机选择图片，自动提取主题色，也可保留默认蓝色；支持遮罩、柔化和恢复默认背景。图片只保存在本机，缺失时使用默认外观。阅读界面的工具栏、目录和设置沿用同一套设计。
 - **插件阅读室**：插件商城支持安装、启停、更新、配置和卸载；可组合主题、阅读预设、漫画源与导航布局，支持本地插件文件和自定义在线仓库。
 - **清晰的设置**：外观、阅读、漫画源、下载缓存、备份同步与更新各自独立；语言与可读性进一步分层，保留大字号选择。
 - **个性化入口**：默认书架、发现、下载、插件和设置五个入口；可添加足迹、调整顺序与启动页面。阅读可设置亮屏、双页默认值、背景及工具栏自动收起。
@@ -74,16 +75,16 @@
 
 ## 下载与更新
 
-当前发行版：**[v0.3.10](https://github.com/LexianLix/manxia/releases/tag/v0.3.10)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
+当前发行版：**[v0.4.0](https://github.com/LexianLix/manxia/releases/tag/v0.4.0)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
 
 | 设备 | 安装包 |
 | --- | --- |
-| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.3.10/Manxia-0.3.10-arm64-v8a.apk) |
-| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.3.10/Manxia-0.3.10-armeabi-v7a.apk) |
-| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.3.10/Manxia-0.3.10-x86_64.apk) |
-| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.3.10/SHA256SUMS.txt) |
+| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.4.0/Manxia-0.4.0-arm64-v8a.apk) |
+| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.4.0/Manxia-0.4.0-armeabi-v7a.apk) |
+| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.4.0/Manxia-0.4.0-x86_64.apk) |
+| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.4.0/SHA256SUMS.txt) |
 
-下载对应 APK 后安装即可。同签名、同架构的新版 APK 可以直接覆盖安装，无需卸载。安装 v0.3.10 后，可从“设置 → 关于与更新 → 检查 GitHub 更新”下载后续版本；应用匹配设备架构并校验安装包，随后交给 Android 系统确认安装。首次使用可能需要允许漫匣安装应用。浏览器版提供发行页入口。历史版本、源码归档和发行说明见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
+下载对应 APK 后安装即可。同签名、同架构的新版 APK 可以直接覆盖安装，无需卸载。安装 v0.4.0 后，可从“设置 → 关于与更新 → 检查 GitHub 更新”下载后续版本；应用匹配设备架构并校验安装包，随后交给 Android 系统确认安装。首次使用可能需要允许漫匣安装应用。浏览器版提供发行页入口。历史版本、源码归档和发行说明见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
 **从旧测试包迁移**：旧 Debug／Profile 包使用临时证书，无法保证覆盖安装。请先在旧版导出完整离线书库 ZIP 和资料 JSON，保存到应用外，再卸载旧包、安装发行版并导入备份。WebDAV 密码需重新填写。详见 [升级与恢复](docs/RELEASE.md#升级与恢复)。
 

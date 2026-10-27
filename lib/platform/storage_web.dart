@@ -4,10 +4,12 @@ import 'package:web/web.dart' as web;
 import 'blob_store.dart';
 
 class WebBlobStore implements BlobStore {
+  WebBlobStore({this.namespace = 'offline'});
+  final String namespace;
   String address(String key) =>
-      '${web.window.location.origin}/offline-data/$key';
+      '${web.window.location.origin}/$namespace-data/$key';
   Future<web.Cache> get cache =>
-      web.window.caches.open('manxia-offline-v1').toDart;
+      web.window.caches.open('manxia-$namespace-v1').toDart;
   @override
   Future<void> write(String key, Uint8List bytes) async {
     await (await cache)
@@ -31,5 +33,7 @@ class WebBlobStore implements BlobStore {
 }
 
 Future<BlobStore> createBlobStore() async => WebBlobStore();
+Future<BlobStore> createWallpaperStore() async =>
+    WebBlobStore(namespace: 'appearance');
 Future<List<({String name, Uint8List bytes})>> readImageFolder(String path) =>
     throw UnsupportedError('浏览器请使用多选图片导入。');

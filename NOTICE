@@ -9,6 +9,10 @@ Licensed under SIL Open Font License 1.1, retained in assets/fonts/OFL.txt.
 Upstream: https://github.com/adobe-fonts/source-han-serif
 Font file obtained from the reference repository's unmodified font assets.
 
+Bundled UI font: Noto Sans SC, Copyright Adobe.
+Licensed under SIL Open Font License 1.1, retained in assets/fonts/NotoSansSC-OFL.txt.
+Unmodified variable font from https://github.com/google/fonts/tree/main/ofl/notosanssc
+
 assets/catalog.json contains a small public DM5 metadata snapshot for the
 development and compatibility fixtures. The personal shelf displays actual favorites only. The repository does not bundle comic cover
 or chapter image files as reading resources. Project UI screenshots may show

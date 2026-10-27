@@ -12,6 +12,7 @@ import 'book_object.dart';
 import 'collection_motion.dart';
 import 'materials.dart';
 import 'room_motion.dart';
+import 'room_backdrop.dart';
 
 class LivingShelf extends StatefulWidget {
   const LivingShelf({
@@ -39,9 +40,7 @@ class _LivingShelfState extends State<LivingShelf>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   late final position = AnimationController.unbounded(
     vsync: this,
-    value:
-        widget.books.length * 1000 +
-        math.min(3, widget.books.length - 1).toDouble(),
+    value: widget.books.length * 1000.0,
   )..addListener(_detent);
   final pointer = ValueNotifier(Offset.zero);
   final bookKeys = <int, GlobalKey>{};
@@ -246,10 +245,10 @@ class _LivingShelfState extends State<LivingShelf>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: MediaQuery.sizeOf(context).width < 600 ? 330 : 365,
+          height: MediaQuery.sizeOf(context).width < 600 ? 278 : 330,
           child: LayoutBuilder(
             builder: (context, box) {
-              gap = box.maxWidth < 500 ? 33 : 53;
+              gap = box.maxWidth < 500 ? 48 : 58;
               gap *= switch (widget.library.option<String>(
                 'shelfDensity',
                 'balanced',
@@ -322,12 +321,14 @@ class _LivingShelfState extends State<LivingShelf>
                       bookKeys.removeWhere(
                         (logical, _) => (logical - center).abs() > 7,
                       );
-                      final order = List.generate(11, (i) => center + i - 5)
-                        ..sort(
-                          (a, b) => (b - position.value).abs().compareTo(
-                            (a - position.value).abs(),
-                          ),
-                        );
+                      final count = math.min(7, widget.books.length);
+                      final order =
+                          List.generate(count, (i) => center + i - count ~/ 2)
+                            ..sort(
+                              (a, b) => (b - position.value).abs().compareTo(
+                                (a - position.value).abs(),
+                              ),
+                            );
                       return Stack(
                         clipBehavior: Clip.hardEdge,
                         children: [
@@ -561,7 +562,10 @@ class _LivingShelfState extends State<LivingShelf>
                   children: [
                     LocalizedText(
                       comic.title,
-                      style: const TextStyle(fontSize: 22, letterSpacing: 1),
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     LocalizedText(
@@ -590,7 +594,7 @@ class _LivingShelfState extends State<LivingShelf>
             ),
           ],
         ),
-        const SizedBox(height: 21),
+        const SizedBox(height: 12),
         Row(
           children: [
             FilledButton.icon(
@@ -656,12 +660,14 @@ class OpenBookTransition extends StatelessWidget {
     required this.web,
     required this.child,
     this.origin,
+    this.library,
   });
   final Animation<double> animation;
   final Comic comic;
   final bool web;
   final Widget child;
   final Rect? origin;
+  final Library? library;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -687,9 +693,12 @@ class OpenBookTransition extends StatelessWidget {
             children: [
               Opacity(
                 opacity: background,
-                child: ColoredBox(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                ),
+                child: library == null
+                    ? ColoredBox(color: Theme.of(context).colorScheme.surface)
+                    : RoomBackdrop(
+                        library: library!,
+                        child: const SizedBox.expand(),
+                      ),
               ),
               Opacity(opacity: t, child: child),
             ],

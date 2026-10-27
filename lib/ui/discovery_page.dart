@@ -232,7 +232,10 @@ class _DiscoveryPageState extends State<DiscoveryPage>
             children: [
               LocalizedText(
                 title,
-                style: const TextStyle(fontSize: 24, letterSpacing: 1),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 8),
               LocalizedText(sub, style: small(context)),

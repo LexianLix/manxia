@@ -76,14 +76,14 @@ void main() {
       final gesture = await tester.startGesture(
         tester.getCenter(find.text('Library')),
       );
-      await gesture.moveTo(tester.getCenter(find.text('Settings')));
+      await gesture.moveTo(tester.getCenter(find.byTooltip('Settings')));
       await tester.pump(const Duration(milliseconds: 60));
       update(() => ids = [3, 0, 4]);
       await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
       expect(selections, isEmpty);
-      await tester.tap(find.text('Downloads'));
+      await tester.tap(find.byTooltip('Downloads'));
       await tester.pumpAndSettle();
       expect(selections, [4]);
       expect(tester.takeException(), isNull);
@@ -123,7 +123,10 @@ void main() {
     await tester.pump();
     expect(
       tester.getCenter(find.byKey(const ValueKey('navigation-lens'))).dx,
-      closeTo(tester.getCenter(find.text('Library')).dx, 1),
+      closeTo(
+        tester.getCenter(find.byKey(const ValueKey('navigation-icon-0'))).dx,
+        1,
+      ),
     );
     expect(tester.hasRunningAnimations, isFalse);
     expect(tester.takeException(), isNull);
@@ -166,7 +169,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getCenter(find.byKey(const ValueKey('navigation-lens'))).dx,
-      closeTo(tester.getCenter(find.text('Library')).dx, 1),
+      closeTo(
+        tester.getCenter(find.byKey(const ValueKey('navigation-icon-0'))).dx,
+        1,
+      ),
     );
     expect(tester.takeException(), isNull);
   });
@@ -269,7 +275,7 @@ void main() {
       find.byKey(const ValueKey('navigation-lens')),
     );
     final gesture = await tester.startGesture(initial);
-    await gesture.moveTo(tester.getCenter(find.text('History')));
+    await gesture.moveTo(tester.getCenter(find.byTooltip('History')));
     await tester.pump();
     await gesture.cancel();
     await tester.pumpAndSettle();
@@ -315,7 +321,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.hasRunningAnimations, isFalse);
     expect(tester.takeException(), isNull);
-    final label = tester.getRect(find.text('Settings'));
+    final label = tester.getRect(find.byTooltip('Settings'));
     expect(label.bottom, lessThan(tester.view.physicalSize.height - 34));
   });
 }

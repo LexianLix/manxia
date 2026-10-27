@@ -20,7 +20,7 @@ PageRoute<void> comicDetailRoute(
 }) {
   final animate = library.motion && !MediaQuery.disableAnimationsOf(context);
   return PageRouteBuilder<void>(
-    opaque: false,
+    opaque: true,
     transitionDuration: animate ? RoomMotion.book : Duration.zero,
     reverseTransitionDuration: animate ? RoomMotion.bookReturn : Duration.zero,
     pageBuilder: (_, _, _) => DetailPage(
@@ -39,6 +39,7 @@ PageRoute<void> comicDetailRoute(
       comic: comic,
       web: web,
       origin: origin,
+      library: library,
       child: child,
     ),
   );

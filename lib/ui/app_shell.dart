@@ -24,6 +24,8 @@ import 'book_navigation.dart';
 import 'collection_target.dart';
 import 'content_handoff.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'materials.dart';
+import 'book_object.dart' show ComicCover;
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -124,19 +126,6 @@ class _AppShellState extends State<AppShell> {
           extendBody: true,
           body: Stack(
             children: [
-              Positioned.fill(
-                child: ValueListenableBuilder<Color>(
-                  valueListenable: atmosphere,
-                  builder: (_, color, _) => ReadingAtmosphere(
-                    color: widget.library.option<bool>('coverColor', true)
-                        ? color
-                        : const Color(0xff8baf99),
-                    highQuality:
-                        widget.library.option<String>('quality', 'high') ==
-                        'high',
-                  ),
-                ),
-              ),
               SafeArea(
                 bottom: false,
                 child: Center(
@@ -149,15 +138,16 @@ class _AppShellState extends State<AppShell> {
                         Expanded(
                           child: Column(
                             children: [
-                              Padding(
-                                padding: EdgeInsets.fromLTRB(
-                                  compact ? 18 : 36,
-                                  compact ? 6 : 16,
-                                  compact ? 18 : 44,
-                                  0,
+                              if (wide)
+                                Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    compact ? 18 : 36,
+                                    compact ? 6 : 16,
+                                    compact ? 18 : 44,
+                                    0,
+                                  ),
+                                  child: _topbar(wide),
                                 ),
-                                child: _topbar(wide),
-                              ),
                               Expanded(
                                 child: RetainedPages(
                                   index: tab,
@@ -192,8 +182,8 @@ class _AppShellState extends State<AppShell> {
                                             'reading-room-$page',
                                           ),
                                           padding: EdgeInsets.fromLTRB(
-                                            compact ? 18 : 36,
-                                            compact ? 16 : 24,
+                                            compact ? 20 : 36,
+                                            compact ? 12 : 24,
                                             compact ? 18 : 36,
                                             140,
                                           ),
@@ -451,20 +441,21 @@ class _AppShellState extends State<AppShell> {
                   LocalizedText(
                     title,
                     style: const TextStyle(
-                      fontSize: 25,
-                      letterSpacing: 2,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
                       height: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  LocalizedText(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: quiet(context),
-                      height: 1.6,
+                  if (description.isNotEmpty) const SizedBox(height: 6),
+                  if (description.isNotEmpty)
+                    LocalizedText(
+                      description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: quiet(context),
+                        height: 1.6,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -479,20 +470,44 @@ class _AppShellState extends State<AppShell> {
       children: [
         _heading(
           '我的书架',
-          '把喜欢的故事，留在手边。',
-          trailing: IconButton(
-            tooltip: translate(
-              widget.library.grid ? '切换立体书架' : '切换封面网格',
-              Localizations.localeOf(context),
-            ),
-            onPressed: () =>
-                widget.library.setting('grid', !widget.library.grid),
-            icon: Icon(
-              widget.library.grid
-                  ? Icons.view_carousel_outlined
-                  : Icons.grid_view_outlined,
-              size: 20,
-            ),
+          '',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MilkGlass(
+                radius: 24,
+                padding: EdgeInsets.zero,
+                child: IconButton(
+                  tooltip: translate('搜索漫画', Localizations.localeOf(context)),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ComicSearchPage(
+                        library: widget.library,
+                        source: source,
+                        web: widget.web,
+                        onOpen: open,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.search, size: 21),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: translate(
+                  widget.library.grid ? '切换立体书架' : '切换封面网格',
+                  Localizations.localeOf(context),
+                ),
+                onPressed: () =>
+                    widget.library.setting('grid', !widget.library.grid),
+                icon: Icon(
+                  widget.library.grid
+                      ? Icons.view_carousel_outlined
+                      : Icons.grid_view_outlined,
+                  size: 20,
+                ),
+              ),
+            ],
           ),
         ),
         Row(
@@ -570,27 +585,43 @@ class _AppShellState extends State<AppShell> {
                       openingOrigin = (comic.path, rect),
                 ),
         ),
-        const SizedBox(height: 34),
-        Row(
-          children: [
-            const Expanded(
-              child: LocalizedText('留一枚书签', style: TextStyle(fontSize: 21)),
-            ),
-            TextButton(
-              onPressed: () => navigate(2),
-              child: const LocalizedText(
-                '阅读足迹  ↗',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11),
+        if (widget.library.history.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _continueCard(),
+        ],
+        if (books.isNotEmpty && !widget.library.grid) ...[
+          const SizedBox(height: 26),
+          Row(
+            children: [
+              const Expanded(
+                child: LocalizedText(
+                  '我的收藏',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        _continueCard(),
-        const SizedBox(height: 32),
-        Center(child: LocalizedText('故事很长，慢慢读。', style: small(context))),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LibraryManager(
+                      library: widget.library,
+                      web: widget.web,
+                      onOpen: open,
+                    ),
+                  ),
+                ),
+                child: const LocalizedText('查看全部'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ComicGrid(
+            books: books.take(6).toList(),
+            web: widget.web,
+            onOpen: open,
+            minItemWidth: 100,
+          ),
+        ],
       ],
     );
   }
@@ -598,25 +629,28 @@ class _AppShellState extends State<AppShell> {
   Widget _continueCard() {
     final record = widget.library.history.firstOrNull;
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: green.withValues(alpha: .055),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: .68),
         border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
-          Container(
-            width: 35,
-            height: 56,
-            alignment: Alignment.topCenter,
-            child: Icon(
-              Icons.bookmark,
-              size: 38,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          SizedBox(
+            width: 36,
+            height: 50,
+            child: record == null
+                ? Icon(
+                    Icons.bookmark_outline,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: ComicCover(record.comic, web: widget.web),
+                  ),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

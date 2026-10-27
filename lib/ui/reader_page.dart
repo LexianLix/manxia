@@ -14,6 +14,7 @@ import 'app_shell.dart' show EmptyState, friendlyError;
 import 'reader_surfaces.dart';
 import 'reader_layout.dart';
 import 'content_handoff.dart';
+import 'materials.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -542,7 +543,9 @@ class _ReaderPageState extends State<ReaderPage>
             key: ValueKey((pendingChapter!.path, chapterError == null)),
             padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
             decoration: BoxDecoration(
-              color: const Color(0xf21c2b20),
+              color: readerTheme.colorScheme.surfaceContainerHigh.withValues(
+                alpha: .95,
+              ),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
@@ -608,13 +611,7 @@ class _ReaderPageState extends State<ReaderPage>
     super.dispose();
   }
 
-  ThemeData get readerTheme => ThemeData.dark(useMaterial3: true).copyWith(
-    textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'ArchiveSerif'),
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xff9cbaa0),
-      brightness: Brightness.dark,
-    ),
-  );
+  ThemeData get readerTheme => Theme.of(context);
 
   Widget readerContent(Widget child) => Theme(
     data: readerTheme,
@@ -630,6 +627,7 @@ class _ReaderPageState extends State<ReaderPage>
       data: readerTheme,
       child: Scaffold(
         backgroundColor: switch (options['background']) {
+          'theme' => Colors.transparent,
           'paper' => const Color(0xfff3f1e9),
           'sepia' => const Color(0xffdaceb9),
           _ => const Color(0xff111512),
@@ -665,8 +663,16 @@ class _ReaderPageState extends State<ReaderPage>
                     child: ReaderChrome(
                       visible: controls,
                       top: true,
-                      child: Container(
-                        color: const Color(0xff1c231e),
+                      child: MilkGlass(
+                        radius: 22,
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        high:
+                            widget.library.option<String>('quality', 'high') ==
+                            'high',
+                        tintOpacity: .90,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 5,
@@ -698,9 +704,11 @@ class _ReaderPageState extends State<ReaderPage>
                                       key: ValueKey(chapter.path),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 10,
-                                        color: Color(0xff9cab9d),
+                                        color: readerTheme
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                       ),
                                     ),
                                   ),
@@ -747,8 +755,16 @@ class _ReaderPageState extends State<ReaderPage>
                     child: ReaderChrome(
                       visible: controls,
                       top: false,
-                      child: Container(
-                        color: const Color(0xff1c231e),
+                      child: MilkGlass(
+                        radius: 22,
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        high:
+                            widget.library.option<String>('quality', 'high') ==
+                            'high',
+                        tintOpacity: .90,
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -772,16 +788,21 @@ class _ReaderPageState extends State<ReaderPage>
                                 ),
                                 Expanded(
                                   child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       LocalizedText(
                                         total == 0 ? '加载章节中' : pageLabel,
                                         style: const TextStyle(fontSize: 12),
                                       ),
-                                      const LocalizedText(
+                                      LocalizedText(
                                         '轻触中间收起工具栏 · 长按图片缩放',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           fontSize: 9,
-                                          color: Color(0xff8b9a8c),
+                                          color: readerTheme
+                                              .colorScheme
+                                              .onSurfaceVariant,
                                         ),
                                       ),
                                     ],
@@ -829,9 +850,9 @@ class _ReaderPageState extends State<ReaderPage>
                       top: false,
                       child: LocalizedText(
                         pageLabel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
-                          color: Color(0xff8b9a8c),
+                          color: readerTheme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -900,10 +921,17 @@ class _ReaderPageState extends State<ReaderPage>
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        backgroundColor: const Color(0xf51c231e),
+        backgroundColor: Colors.transparent,
         useSafeArea: true,
         sheetAnimationStyle: RoomMotion.sheet(context),
-        builder: (c) => readerContent(builder(c)),
+        builder: (c) => readerContent(
+          MilkGlass(
+            radius: 24,
+            tintOpacity: .94,
+            high: widget.library.option<String>('quality', 'high') == 'high',
+            child: builder(c),
+          ),
+        ),
       );
 
   void catalog() => showReaderSheet(
@@ -1101,6 +1129,7 @@ class _ReaderPageState extends State<ReaderPage>
                   toggle('自动裁白边', 'autoCrop'),
                   toggle('分区点击翻页', 'tapZones'),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: options['turn'] as String,
                     decoration: const InputDecoration(
                       label: LocalizedText('翻页效果'),
@@ -1143,11 +1172,16 @@ class _ReaderPageState extends State<ReaderPage>
                     action: (v) => native('volumeKeys', v),
                   ),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: options['background'] as String,
                     decoration: const InputDecoration(
                       label: LocalizedText('阅读背景'),
                     ),
                     items: const [
+                      DropdownMenuItem(
+                        value: 'theme',
+                        child: LocalizedText('跟随应用'),
+                      ),
                       DropdownMenuItem(
                         value: 'ink',
                         child: LocalizedText('夜墨'),

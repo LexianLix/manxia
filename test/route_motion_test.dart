@@ -1,3 +1,4 @@
+import 'package:manxia/ui/paper_leaf.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -98,13 +99,42 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       final home = find.byKey(const ValueKey('home'));
       final settings = find.byKey(const ValueKey('settings'));
-      expect(tester.getTopLeft(home).dx, lessThan(0));
-      expect(tester.getTopLeft(settings).dx, greaterThan(0));
+      expect(
+        tester
+            .widget<PaperLeaf>(
+              find.ancestor(of: home, matching: find.byType(PaperLeaf)).first,
+            )
+            .amount,
+        greaterThan(0),
+      );
+      expect(
+        tester
+            .widget<PaperLeaf>(
+              find
+                  .ancestor(of: settings, matching: find.byType(PaperLeaf))
+                  .first,
+            )
+            .amount,
+        inExclusiveRange(0, 1),
+      );
       await capture('route-forward-50');
-      final before = tester.getTopLeft(settings);
+      final before = tester
+          .widget<PaperLeaf>(
+            find.ancestor(of: settings, matching: find.byType(PaperLeaf)).first,
+          )
+          .amount;
       navigator.currentState!.pop();
       await tester.pump();
-      expect(tester.getTopLeft(settings), before);
+      expect(
+        tester
+            .widget<PaperLeaf>(
+              find
+                  .ancestor(of: settings, matching: find.byType(PaperLeaf))
+                  .first,
+            )
+            .amount,
+        before,
+      );
       await capture('route-reverse-start');
       await tester.pumpAndSettle();
       expect(settings, findsNothing);

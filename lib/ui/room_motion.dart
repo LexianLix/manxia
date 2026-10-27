@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'paper_leaf.dart';
 
 /// A shared rhythm: direct manipulation, short feedback, then spatial travel.
 abstract final class RoomMotion {
   static const press = Duration(milliseconds: 110);
   static const feedback = Duration(milliseconds: 180);
-  static const page = Duration(milliseconds: 260);
+  static const page = Duration(milliseconds: 340);
   static const arrival = Duration(milliseconds: 420);
   static const cover = Duration(milliseconds: 320);
-  static const book = Duration(milliseconds: 760);
-  static const bookReturn = Duration(milliseconds: 580);
+  static const book = Duration(milliseconds: 620);
+  static const bookReturn = Duration(milliseconds: 500);
   static const flight = Duration(milliseconds: 440);
   static const settle = SpringDescription(mass: 1, stiffness: 360, damping: 32);
   static const ease = Cubic(.22, 1, .36, 1);
@@ -52,36 +53,10 @@ class RoomPageTransitions extends PageTransitionsBuilder {
       builder: (_, child) {
         final t = RoomMotion.ease.transform(animation.value);
         final depth = RoomMotion.ease.transform(secondaryAnimation.value);
-        final surface = t;
-        final content = t;
-        return Transform.translate(
-          offset: Offset(-8 * depth, 0),
-          child: Transform.scale(
-            scale: 1 - .018 * depth,
-            alignment: Alignment.topCenter,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Opacity(
-                  opacity: surface,
-                  child: ColoredBox(
-                    color: Theme.of(context).colorScheme.surface,
-                  ),
-                ),
-                Opacity(
-                  opacity: content,
-                  child: Transform.translate(
-                    offset: Offset(8 * (1 - t), 18 * (1 - t)),
-                    child: Transform.scale(
-                      scale: .985 + .015 * t,
-                      alignment: Alignment.topCenter,
-                      child: child,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return PaperLeaf(
+          amount: (1 - t) + depth * .025 * t,
+          reverse: true,
+          child: child!,
         );
       },
     );

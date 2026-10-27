@@ -1,3 +1,4 @@
+import 'package:manxia/ui/paper_leaf.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manxia/ui/scroll_arrival.dart';
@@ -38,25 +39,25 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final opacity = find.descendant(
+        final leaf = find.descendant(
           of: find.byType(ScrollArrival),
-          matching: find.byType(Opacity),
+          matching: find.byType(PaperLeaf),
         );
-        expect(tester.widget<Opacity>(opacity).opacity, reduced ? 1 : .35);
+        expect(tester.widget<PaperLeaf>(leaf).amount, reduced ? 0 : .10);
         controller.jumpTo(700);
         await tester.pump();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 80));
-        final midway = tester.widget<Opacity>(opacity).opacity;
-        expect(midway, greaterThan(.35));
-        if (!reduced) expect(midway, lessThan(1));
+        final midway = tester.widget<PaperLeaf>(leaf).amount;
+        expect(midway, lessThan(.10));
+        if (!reduced) expect(midway, greaterThan(0));
         await tester.pumpAndSettle();
-        expect(tester.widget<Opacity>(opacity).opacity, 1);
+        expect(tester.widget<PaperLeaf>(leaf).amount, 0);
         controller.jumpTo(0);
         await tester.pumpAndSettle();
         controller.jumpTo(700);
         await tester.pump();
-        expect(tester.widget<Opacity>(opacity).opacity, 1);
+        expect(tester.widget<PaperLeaf>(leaf).amount, 0);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },

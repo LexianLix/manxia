@@ -38,6 +38,13 @@ Future<BlobStore> createBlobStore() async {
   );
 }
 
+Future<BlobStore> createWallpaperStore() async {
+  final root = await getApplicationDocumentsDirectory();
+  return NativeBlobStore(
+    await Directory('${root.path}/manxia/appearance').create(recursive: true),
+  );
+}
+
 Future<List<({String name, Uint8List bytes})>> readImageFolder(
   String path,
 ) async {

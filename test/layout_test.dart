@@ -61,7 +61,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip('下一本'));
       await tester.pumpAndSettle();
-      expect(find.text('05 / 07'), findsOneWidget);
+      expect(find.text('02 / 07'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip('切换封面网格'));
       await tester.pumpAndSettle();
@@ -77,7 +77,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('夜间阅读室'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byType(Switch).first);
+      await tester.tap(find.byType(Switch).at(1));
       await tester.pumpAndSettle();
       expect(library.dark, true);
       expect(tester.takeException(), isNull);

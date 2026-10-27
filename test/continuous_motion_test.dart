@@ -1,3 +1,4 @@
+import 'package:manxia/ui/paper_leaf.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manxia/ui/retained_pages.dart';
@@ -69,15 +70,33 @@ void main() {
     change(() => selected = 3);
     await tester.pump();
     expect(
-      tester.getTopLeft(find.byKey(const ValueKey('ordered-page-3'))).dx,
-      greaterThan(0),
+      tester
+          .widget<PaperLeaf>(
+            find
+                .ancestor(
+                  of: find.byKey(const ValueKey('ordered-page-3')),
+                  matching: find.byType(PaperLeaf),
+                )
+                .first,
+          )
+          .reverse,
+      isTrue,
     );
     await tester.pumpAndSettle();
     change(() => selected = 5);
     await tester.pump();
     expect(
-      tester.getTopLeft(find.byKey(const ValueKey('ordered-page-5'))).dx,
-      lessThan(0),
+      tester
+          .widget<PaperLeaf>(
+            find
+                .ancestor(
+                  of: find.byKey(const ValueKey('ordered-page-5')),
+                  matching: find.byType(PaperLeaf),
+                )
+                .first,
+          )
+          .reverse,
+      isFalse,
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -115,8 +134,17 @@ void main() {
       await tester.pump();
       expect(selected, 0);
       expect(
-        tester.getTopLeft(find.byKey(const ValueKey('page-0'))).dx,
-        lessThan(first.dx),
+        tester
+            .widget<PaperLeaf>(
+              find
+                  .ancestor(
+                    of: find.byKey(const ValueKey('page-0')),
+                    matching: find.byType(PaperLeaf),
+                  )
+                  .first,
+            )
+            .amount,
+        inExclusiveRange(0, 1),
       );
       expect(find.byKey(const ValueKey('page-4')), findsOneWidget);
       await gesture.cancel();
@@ -153,16 +181,18 @@ void main() {
           .map((w) => w.painter)
           .whereType<WaterDropPainter>()
           .single;
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.byTooltip('Settings'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       final before = painter();
       expect((before.head - before.tail).abs(), greaterThan(1));
       expect(
-        before.contour().contains(Offset((before.head + before.tail) / 2, 38)),
+        before.contour().contains(
+          Offset((before.head + before.tail) / 2, before.centerY),
+        ),
         true,
       );
-      await tester.tap(find.text('Library'));
+      await tester.tap(find.byTooltip('Library'));
       await tester.pump();
       expect(painter().head, closeTo(before.head, .01));
       expect(painter().tail, closeTo(before.tail, .01));

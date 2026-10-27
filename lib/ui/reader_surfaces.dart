@@ -776,10 +776,10 @@ class _PagePictureState extends State<PagePicture> {
     if (image == null) {
       return SizedBox(
         height: widget.strip ? 300 : null,
-        child: const Center(
+        child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: Color(0xff9cbaa0),
+            color: Theme.of(c).colorScheme.primary,
           ),
         ),
       );

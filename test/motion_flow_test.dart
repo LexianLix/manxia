@@ -1,3 +1,4 @@
+import 'package:manxia/ui/paper_leaf.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +73,7 @@ void main() {
         await tester.tap(find.text('Collect'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 435));
-        final arrived = tester.getCenter(find.byType(ComicCover));
+        final arrived = tester.getCenter(find.byType(ComicCover).last);
         expect((arrived - target).distance, lessThan(4));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
@@ -124,7 +125,7 @@ void main() {
       ),
     );
     final destination = tester.getCenter(
-      find.byIcon(Icons.auto_stories_outlined),
+      find.byKey(const ValueKey('navigation-icon-0')),
     );
     await tester.tap(find.text('Collect'));
     await tester.pump();
@@ -311,16 +312,18 @@ void main() {
         ),
       ),
     );
-    double opacity(int index) => tester
-        .widget<Opacity>(
-          find
-              .ancestor(
-                of: find.byKey(ValueKey('scene-$index')),
-                matching: find.byType(Opacity),
-              )
-              .first,
-        )
-        .opacity;
+    double opacity(int index) =>
+        1 -
+        tester
+            .widget<PaperLeaf>(
+              find
+                  .ancestor(
+                    of: find.byKey(ValueKey('scene-$index')),
+                    matching: find.byType(PaperLeaf),
+                  )
+                  .first,
+            )
+            .amount;
     for (final next in [1, 2, 0, 2, 1]) {
       final visible = <int, (double, Offset)>{
         for (final i in [0, 1, 2])
@@ -375,7 +378,7 @@ void main() {
     }
     await tester.tap(find.byTooltip('上一本'));
     await tester.pumpAndSettle();
-    expect(find.text('06 / 07'), findsOneWidget);
+    expect(find.text('03 / 07'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

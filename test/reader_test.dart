@@ -293,10 +293,17 @@ Future<void> cacheReaderImages(Library library) async {
 }
 
 Future<void> settleFirstFrame(WidgetTester tester) async {
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 250));
-  await tester.runAsync(() async {
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-  });
+  // Image codecs complete outside the fake clock. Let their actual futures
+  // run before asking an indeterminate loading indicator to settle.
+  for (var attempt = 0; attempt < 20; attempt++) {
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 35)),
+    );
+    if (find.byType(CircularProgressIndicator).evaluate().isEmpty &&
+        attempt >= 2) {
+      break;
+    }
+  }
   await tester.pumpAndSettle();
 }
