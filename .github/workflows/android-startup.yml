@@ -51,8 +51,8 @@ jobs:
         run: |
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           if [ -n "$UPGRADE_FROM" ]; then
-            [[ -z "$BUILD_RUN" && "$UPGRADE_FROM" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-            gh release download "v$UPGRADE_FROM" --pattern "Manxia-$UPGRADE_FROM-$ABI.apk" --output previous.apk
+            [[ "$UPGRADE_FROM" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            gh release download "v$UPGRADE_FROM" --pattern "Manxia-$UPGRADE_FROM-$ABI.apk" --output previous-public.apk
           fi
           if [ -n "$BUILD_RUN" ]; then
             [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
@@ -60,8 +60,12 @@ jobs:
             cp "unsigned/app-$ABI-release.apk" startup.apk
             keytool -genkeypair -keystore "$RUNNER_TEMP/smoke.jks" -storepass android -keypass android -alias smoke -dname 'CN=Manxia CI smoke only' -keyalg RSA -validity 7 -noprompt
             "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/smoke.jks" --ks-pass pass:android --key-pass pass:android --ks-key-alias smoke startup.apk
+            if [ -f previous-public.apk ]; then
+              "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/smoke.jks" --ks-pass pass:android --key-pass pass:android --ks-key-alias smoke --out previous.apk previous-public.apk
+            fi
           else
             gh release download "v$VERSION" --pattern "Manxia-$VERSION-$ABI.apk" --output startup.apk
+            if [ -f previous-public.apk ]; then cp previous-public.apk previous.apk; fi
           fi
           python3 -m pip install Pillow
       - name: Enable KVM

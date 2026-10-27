@@ -24,10 +24,10 @@ def adb(*args, binary=False):
     return output if binary else output.decode('utf-8', 'replace')
 
 def uid():
-    match = re.search(r'userId=(\d+)', adb('shell', 'dumpsys', 'package', PACKAGE))
-    if not match:
+    value = adb('shell', 'stat', '-c', '%u', DATA).strip()
+    if not re.fullmatch(r'\d+', value) or int(value) < 10000:
         raise RuntimeError('Package UID unavailable')
-    return match[1]
+    return value
 
 def read_preferences():
     root = ET.fromstring(adb('shell', 'cat', PREFS))
@@ -52,7 +52,7 @@ def main():
     parser.add_argument('--output', type=pathlib.Path, default=pathlib.Path('startup-evidence/upgrade'))
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    print(adb('install', '-r', str(args.old_apk)), flush=True)
+    print(adb('install', '--no-incremental', '-r', str(args.old_apk)), flush=True)
     launch()
     adb('root')
     adb('wait-for-device')
@@ -94,7 +94,7 @@ def main():
         raise RuntimeError('Old release did not load the synthetic library')
     before = read_preferences()
     adb('shell', 'am', 'force-stop', PACKAGE)
-    install = adb('install', '-r', str(args.new_apk))
+    install = adb('install', '--no-incremental', '-r', str(args.new_apk))
     if 'Success' not in install:
         raise RuntimeError('In-place installation failed')
     launch()
