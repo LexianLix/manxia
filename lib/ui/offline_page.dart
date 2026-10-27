@@ -57,7 +57,7 @@ class _OfflinePageState extends State<OfflinePage> {
     final offline = OfflineLibrary.instance;
     return Scaffold(
       appBar: AppBar(
-        title: const LocalizedText('下载与本地书库', style: TextStyle(fontSize: 21)),
+        title: const LocalizedText('下载与本地书库', style: TextStyle(fontSize: 18)),
         actions: [
           PopupMenuButton<String>(
             tooltip: '导入漫画',

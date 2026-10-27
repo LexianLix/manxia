@@ -52,33 +52,35 @@ class RoomPageTransitions extends PageTransitionsBuilder {
       builder: (_, child) {
         final t = RoomMotion.ease.transform(animation.value);
         final depth = RoomMotion.ease.transform(secondaryAnimation.value);
-        final surface = const Interval(
-          0,
-          .36,
-          curve: RoomMotion.ease,
-        ).transform(animation.value);
-        final content = const Interval(
-          .24,
-          1,
-          curve: RoomMotion.ease,
-        ).transform(animation.value);
+        final surface = t;
+        final content = t;
         return Transform.translate(
           offset: Offset(-8 * depth, 0),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Opacity(
-                opacity: surface,
-                child: ColoredBox(color: Theme.of(context).colorScheme.surface),
-              ),
-              Opacity(
-                opacity: content,
-                child: Transform.translate(
-                  offset: Offset(18 * (1 - t), 0),
-                  child: child,
+          child: Transform.scale(
+            scale: 1 - .018 * depth,
+            alignment: Alignment.topCenter,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Opacity(
+                  opacity: surface,
+                  child: ColoredBox(
+                    color: Theme.of(context).colorScheme.surface,
+                  ),
                 ),
-              ),
-            ],
+                Opacity(
+                  opacity: content,
+                  child: Transform.translate(
+                    offset: Offset(8 * (1 - t), 18 * (1 - t)),
+                    child: Transform.scale(
+                      scale: .985 + .015 * t,
+                      alignment: Alignment.topCenter,
+                      child: child,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

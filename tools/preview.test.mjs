@@ -1,6 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { imageAllowed, sourceAllowed, createServer } from './preview.mjs';
+import { latestRelease, publicRelease } from './update-check.mjs';
+
+test('update check recovers from anonymous rate limits using only the same repository', async () => {
+  const calls=[];
+  const result=await latestRelease(async(url)=>{calls.push(url);return calls.length===1
+    ? new Response('{}',{status:403})
+    : new Response(null,{status:302,headers:{location:'/LexianLix/manxia/releases/tag/v0.3.10'}});});
+  assert.equal(result.tag_name,'v0.3.10');assert.equal(result.source,'public-page');
+  assert.equal(calls.length,2);
+  for(const url of ['https://evil.com/LexianLix/manxia/releases/tag/v1.0.0',
+    'https://github.com/other/repo/releases/tag/v1.0.0','/LexianLix/manxia/releases/tag/latest'])
+    assert.throws(()=>publicRelease(url));
+});
+test('web update endpoint returns version metadata and rejects arbitrary targets', async()=>{
+  let reads=0; const server=createServer({updateRequest:async()=>{reads++;return Response.json({tag_name:'v0.3.9',assets:[]});}});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const base=`http://127.0.0.1:${server.address().port}/api/update`;
+    assert.equal((await (await fetch(base)).json()).tag_name,'v0.3.9');
+    assert.equal((await fetch(`${base}?url=https://evil.com`)).status,400);assert.equal(reads,1);
+  } finally {await new Promise(resolve=>server.close(resolve));}
+});
 
 test('gateway only proxies known source routes and image hosts', () => {
   for (const path of ['/', '/search?title=test', '/manhua-bingzhichengbi/', '/m12345/']) assert.equal(sourceAllowed(path),true,path);

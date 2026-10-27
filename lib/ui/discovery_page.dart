@@ -17,6 +17,7 @@ import 'book_link.dart';
 import 'retained_sections.dart';
 import 'content_handoff.dart';
 import 'room_motion.dart';
+import 'search_page.dart';
 
 class DiscoveryPage extends StatefulWidget {
   const DiscoveryPage({
@@ -45,9 +46,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
     value: 1,
   );
 
-  String tab = '精选', rank = '人气', query = '';
-  bool authors = false, busy = false;
-  final input = TextEditingController();
+  String tab = '精选', rank = '人气';
   final tabsKey = GlobalKey();
   void selectTab(String value) {
     setState(() => tab = value);
@@ -63,13 +62,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
     });
   }
 
-  List<Comic>? searchResults;
-  String resultQuery = '';
-  String? searchError;
-  int resultRevision = 0;
   String? error;
-  int searchRequest = 0;
-  String typing = '';
   bool checking = false;
   List<Comic> dailyPicks(Discovery snapshot, DateTime date) => snapshot.daily(
     date,
@@ -225,52 +218,8 @@ class _DiscoveryPageState extends State<DiscoveryPage>
 
   @override
   void dispose() {
-    input.dispose();
     reveal.dispose();
     super.dispose();
-  }
-
-  Future<void> search(String value) async {
-    final generation = ++searchRequest;
-    query = value.trim();
-    if (query.isEmpty) {
-      setState(() {
-        busy = false;
-      });
-      return;
-    }
-    final requested = query;
-    final byAuthor = authors;
-    setState(() {
-      busy = true;
-      searchError = null;
-    });
-    await widget.library.rememberSearch(requested);
-    if (!mounted || generation != searchRequest) return;
-    try {
-      final result =
-          byAuthor && widget.library.option<String>('source', 'dm5') == 'dm5'
-          ? Dm5Source.parseCatalog(
-              await widget.source.fetchPage(
-                '/search?title=${Uri.encodeComponent(requested)}&f=2',
-              ),
-            )
-          : await widget.source.search(requested);
-      if (mounted && generation == searchRequest) {
-        setState(() {
-          searchResults = result;
-          resultQuery = requested;
-          resultRevision++;
-          searchError = null;
-        });
-      }
-    } catch (e) {
-      if (mounted && generation == searchRequest) {
-        setState(() => searchError = friendlyError(e));
-      }
-    } finally {
-      if (mounted && generation == searchRequest) setState(() => busy = false);
-    }
   }
 
   Widget heading(String title, String sub, {Widget? trailing}) => Padding(
@@ -283,7 +232,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
             children: [
               LocalizedText(
                 title,
-                style: const TextStyle(fontSize: 30, letterSpacing: 2),
+                style: const TextStyle(fontSize: 24, letterSpacing: 1),
               ),
               const SizedBox(height: 8),
               LocalizedText(sub, style: small(context)),
@@ -342,14 +291,6 @@ class _DiscoveryPageState extends State<DiscoveryPage>
       ...widget.library.favorites,
       ...widget.library.history.map((r) => r.comic),
     ], count: snapshot.books.length);
-    final suggestions = typing.isNotEmpty && typing != query
-        ? snapshot.books
-              .where(
-                (b) => b.title.toLowerCase().contains(typing.toLowerCase()),
-              )
-              .take(5)
-              .toList()
-        : <Comic>[];
     final editorial = snapshot.sections.entries
         .where((e) => !e.key.contains('VIP'))
         .toList();
@@ -387,596 +328,382 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                     ),
             ),
           ),
-          TextField(
-            controller: input,
-            onSubmitted: search,
-            onChanged: (v) => setState(() => typing = v.trim()),
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hint: LocalizedText(authors ? '搜索漫画作者' : '搜索漫画名称'),
-              prefixIcon: PopupMenuButton<bool>(
-                tooltip: '搜索方式',
-                initialValue: authors,
-                onSelected: (value) => setState(() => authors = value),
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: false,
-                    child: LocalizedText('搜索漫画名称'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              key: const ValueKey('open-comic-search'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ComicSearchPage(
+                    library: widget.library,
+                    source: widget.source,
+                    web: widget.web,
+                    onOpen: widget.onOpen,
                   ),
-                  if (widget.library.option<String>('source', 'dm5') == 'dm5')
-                    const PopupMenuItem(
-                      value: true,
-                      child: LocalizedText('搜索漫画作者'),
-                    ),
-                ],
-                icon: const Icon(Icons.search, size: 20),
+                ),
               ),
-              suffixIcon: IconButton(
-                tooltip: '开始搜索',
-                onPressed: () => search(input.text),
-                icon: const Icon(Icons.arrow_forward, size: 20),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: .045),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, size: 19, color: quiet(context)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: LocalizedText(
+                        '搜索漫画名称',
+                        style: TextStyle(fontSize: 13, color: quiet(context)),
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward, size: 16, color: quiet(context)),
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          ContentHandoff(
-            child: Column(
-              key: ValueKey(
-                '${query.isNotEmpty}:${suggestions.map((b) => b.path).join(',')}:${query.isEmpty && typing.isNotEmpty ? widget.library.searchHistory.take(6).join(',') : ''}',
-              ),
-              crossAxisAlignment: CrossAxisAlignment.start,
+          SingleChildScrollView(
+            key: tabsKey,
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
-                if (suggestions.isNotEmpty)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      for (final book in suggestions)
-                        ActionChip(
-                          label: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 190),
-                            child: Text(
-                              book.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                for (final label in ['精选', '排行', '更新', '分类', '书单'])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 20),
+                    child: Semantics(
+                      selected: tab == label,
+                      child: InkWell(
+                        onTap: () => selectTab(label),
+                        child: AnimatedContainer(
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: tab == label
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
                             ),
                           ),
-                          onPressed: () {
-                            input.text = book.title;
-                            search(book.title);
-                          },
-                        ),
-                    ],
-                  ),
-                if (query.isNotEmpty)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        input.clear();
-                        searchRequest++;
-                        setState(() {
-                          query = '';
-                          typing = '';
-
-                          busy = false;
-                        });
-                      },
-                      icon: const Icon(Icons.arrow_back, size: 16),
-                      label: const LocalizedText('返回发现'),
-                    ),
-                  ),
-                if (widget.library.searchHistory.isNotEmpty &&
-                    query.isEmpty &&
-                    typing.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
-                    child: Wrap(
-                      spacing: 7,
-                      runSpacing: 5,
-                      children: widget.library.searchHistory
-                          .take(6)
-                          .map(
-                            (q) => ActionChip(
-                              label: LocalizedText(
-                                q,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              onPressed: () {
-                                input.text = q;
-                                search(q);
-                              },
+                          child: LocalizedText(
+                            label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: tab == label
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: tab == label
+                                  ? Theme.of(context).colorScheme.primary
+                                  : quiet(context),
                             ),
-                          )
-                          .toList(),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ContentHandoff(
+              child: Row(
+                key: ValueKey((
+                  pending != null,
+                  error != null,
+                  refreshing,
+                  snapshot.cached,
+                )),
+                children: [
+                  Icon(
+                    pending != null
+                        ? Icons.update
+                        : error != null
+                        ? Icons.cloud_off_outlined
+                        : Icons.check_circle_outline,
+                    size: 14,
+                    color: quiet(context),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LocalizedText(
+                      pending != null
+                          ? '发现页有新内容，当前列表已保留'
+                          : error != null
+                          ? '刷新失败，已保留当前目录'
+                          : refreshing
+                          ? '正在刷新，仍可继续浏览'
+                          : snapshot.cached
+                          ? '正在浏览离线目录'
+                          : '目录已更新',
+                      style: small(context),
+                    ),
+                  ),
+                  if (error != null && !refreshing)
+                    TextButton(
+                      onPressed: refresh,
+                      child: const LocalizedText('重试'),
+                    ),
+                ],
+              ),
             ),
           ),
           RetainedSections(
-            index: query.isEmpty ? 'discover' : 'search',
-            order: const ['discover', 'search'],
+            index: tab,
+            order: const ['精选', '排行', '更新', '分类', '书单'],
             animate: widget.library.motion,
-            builder: (view) => Column(
+            builder: (section) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (view == 'search') ...[
-                  ContentHandoff(
-                    child: busy
-                        ? Padding(
-                            key: const ValueKey('searching'),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const LinearProgressIndicator(minHeight: 2),
-                                const SizedBox(height: 8),
-                                LocalizedText(
-                                  '正在搜索“$query”',
-                                  style: small(context),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(key: ValueKey('search-idle')),
+                if (section == '精选') ...[
+                  if (daily.isNotEmpty)
+                    _dailyHero(
+                      daily.first,
+                      day,
+                      companions: daily.skip(1).take(3).toList(),
+                    ),
+                  const SizedBox(height: 28),
+                  _sectionTitle(
+                    '每日精选',
+                    '${daily.length} 部故事，换一组新灵感',
+                    () => openCollection('每日精选', daily),
+                    actionLabel: '查看全部',
                   ),
-                  const SizedBox(height: 12),
-                  LocalizedText(
-                    '“${resultQuery.isEmpty ? query : resultQuery}”的搜索结果',
-                    style: const TextStyle(fontSize: 22),
+                  preview(daily.skip(1).toList()),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        await widget.library.setOption(
+                          'dailyEdition',
+                          widget.library.option<int>('dailyEdition', 0) + 1,
+                        );
+                        if (mounted) setState(() {});
+                      },
+                      icon: const Icon(Icons.refresh, size: 15),
+                      label: const LocalizedText('换一组'),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _sectionTitle(
+                    '大家都在读',
+                    '从人气榜开始，找到下一本',
+                    () => selectTab('排行'),
+                    actionLabel: '看榜单',
+                  ),
+                  for (final entry
+                      in (snapshot.ranks['人气'] ??
+                              snapshot.ranks.values.firstOrNull ??
+                              <Comic>[])
+                          .take(3)
+                          .indexed)
+                    _rankRow(entry.$2, entry.$1 + 1),
+                  const SizedBox(height: 24),
+                  _sectionTitle(
+                    '你可能还喜欢',
+                    widget.library.favorites.isEmpty &&
+                            widget.library.history.isEmpty
+                        ? '从更多故事里，找到你的偏爱'
+                        : '沿着你喜欢的题材，继续发现',
+                    () => openCollection('你可能还喜欢', personal),
+                    actionLabel: '查看全部',
+                  ),
+                  preview(personal),
+                  const SizedBox(height: 24),
+                  if (editorial.isNotEmpty) ...[
+                    _sectionTitle(
+                      editorial.first.key,
+                      '编辑栏目 · 再多看一些',
+                      () => openCollection(
+                        editorial.first.key,
+                        editorial.first.value,
+                        path: snapshot.sectionPaths[editorial.first.key],
+                      ),
+                      actionLabel: '查看全部',
+                    ),
+                    preview(editorial.first.value),
+                    const SizedBox(height: 24),
+                  ],
+                  _browseLink(snapshot.books),
+                ],
+                if (section == '排行') ...[
+                  _sectionTitle(
+                    '故事的人气榜',
+                    '源站首页榜单 · ${ranks.length} 部',
+                    snapshot.rankPaths[activeRank] == null
+                        ? null
+                        : () => openCollection(
+                            '$activeRank榜',
+                            ranks,
+                            path: snapshot.rankPaths[activeRank],
+                          ),
+                    actionLabel: '完整榜单',
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: snapshot.ranks.keys
+                        .map(
+                          (r) => ChoiceChip(
+                            label: LocalizedText(r),
+                            selected: r == activeRank,
+                            onSelected: (_) => setState(() => rank = r),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 18),
+                  RetainedSections(
+                    index: activeRank,
+                    order: snapshot.ranks.keys.toList(),
+                    animate: widget.library.motion,
+                    builder: (category) {
+                      final items = snapshot.ranks[category] ?? [];
+                      return Column(
+                        children: [
+                          for (final entry in items.indexed)
+                            _rankRow(entry.$2, entry.$1 + 1),
+                          if (items.isEmpty)
+                            const EmptyState(
+                              icon: Icons.leaderboard_outlined,
+                              title: '这个来源暂未提供榜单',
+                              message: '可以先去分类找找喜欢的漫画。',
+                            ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 20),
-                  ContentHandoff(
-                    child: searchError == null
-                        ? const SizedBox.shrink(
-                            key: ValueKey('no-search-error'),
-                          )
-                        : Padding(
-                            key: ValueKey('search-error-$query'),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: .035),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.cloud_off_outlined,
-                                    size: 22,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const LocalizedText(
-                                          '搜索暂时不可用',
-                                          style: TextStyle(fontSize: 14),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        LocalizedText(
-                                          searchError!,
-                                          style: small(context),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  TextButton(
-                                    onPressed: () => search(query),
-                                    child: const LocalizedText('重新搜索'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                  _browseLink(snapshot.books),
+                ],
+                if (section == '更新') ...[
+                  _sectionTitle(
+                    '收藏追更',
+                    checking ? '正在检查收藏…' : '检查收藏是否出现新章节',
+                    checking || widget.library.favorites.isEmpty
+                        ? null
+                        : () => checkUpdates(),
+                    actionLabel: '检查更新',
                   ),
-                  IgnorePointer(
-                    ignoring: busy,
-                    child: AnimatedOpacity(
-                      duration: RoomMotion.duration(
-                        context,
-                        RoomMotion.feedback,
-                      ),
-                      opacity: busy ? .55 : 1,
-                      child: ContentHandoff(
-                        child: Column(
-                          key: ValueKey(
-                            searchResults == null
-                                ? 'pending-search'
-                                : 'result-$resultRevision',
-                          ),
-                          children: [
-                            if (searchResults != null &&
-                                searchResults!.isNotEmpty)
-                              ComicGrid(
-                                books: searchResults!,
-                                web: widget.web,
-                                onOpen: widget.onOpen,
-                              )
-                            else if (!busy && searchError == null)
-                              const EmptyState(
-                                icon: Icons.search_off,
-                                title: '没有找到漫画',
-                                message: '试试更短的关键词。',
-                              )
-                            else
-                              const SizedBox(height: 100),
-                          ],
+                  for (final book in widget.library.favorites.where(
+                    (b) => widget.library.updates[b.path]?['changed'] == true,
+                  ))
+                    BookLink(
+                      comic: book,
+                      web: widget.web,
+                      onOpen: widget.onOpen,
+                      builder: (cover, open) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: SizedBox(width: 38, height: 54, child: cover),
+                        title: Text(book.title),
+                        subtitle: LocalizedText(
+                          '新章 · ${widget.library.updates[book.path]!['latest']}',
                         ),
+                        trailing: const Icon(Icons.bookmark_added_outlined),
+                        onTap: open,
                       ),
                     ),
-                  ),
-                ] else ...[
-                  SingleChildScrollView(
-                    key: tabsKey,
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final label in ['精选', '排行', '更新', '分类', '书单'])
-                          Padding(
-                            padding: const EdgeInsets.only(right: 24),
-                            child: Semantics(
-                              selected: tab == label,
-                              child: InkWell(
-                                onTap: () => selectTab(label),
-                                child: AnimatedContainer(
-                                  duration:
-                                      MediaQuery.disableAnimationsOf(context)
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 180),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: tab == label
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.primary
-                                            : Colors.transparent,
-                                        width: 2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: LocalizedText(
-                                    label,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: tab == label
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      color: tab == label
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.primary
-                                          : quiet(context),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: 48,
-                    child: ContentHandoff(
-                      child: Row(
-                        key: ValueKey((
-                          pending != null,
-                          error != null,
-                          refreshing,
-                          snapshot.cached,
-                        )),
-                        children: [
-                          Icon(
-                            pending != null
-                                ? Icons.update
-                                : error != null
-                                ? Icons.cloud_off_outlined
-                                : Icons.check_circle_outline,
-                            size: 14,
-                            color: quiet(context),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: LocalizedText(
-                              pending != null
-                                  ? '发现页有新内容，当前列表已保留'
-                                  : error != null
-                                  ? '刷新失败，已保留当前目录'
-                                  : refreshing
-                                  ? '正在刷新，仍可继续浏览'
-                                  : snapshot.cached
-                                  ? '正在浏览离线目录'
-                                  : '目录已更新',
-                              style: small(context),
-                            ),
-                          ),
-                          if (error != null && !refreshing)
-                            TextButton(
-                              onPressed: refresh,
-                              child: const LocalizedText('重试'),
-                            ),
-                        ],
+                  if (widget.library.favorites.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 28),
+                      child: LocalizedText(
+                        '收藏喜欢的漫画后，在这里检查新章节。',
+                        style: small(context),
                       ),
                     ),
+                  _sectionTitle(
+                    '追更精选',
+                    '来自源站的「万人追更」栏目',
+                    () => openCollection(
+                      '追更精选',
+                      updated,
+                      path: snapshot.sectionPaths['万人追更'],
+                    ),
+                    actionLabel: '查看全部',
                   ),
-                  RetainedSections(
-                    index: tab,
-                    order: const ['精选', '排行', '更新', '分类', '书单'],
-                    animate: widget.library.motion,
-                    builder: (section) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (section == '精选') ...[
-                          if (daily.isNotEmpty)
-                            _dailyHero(
-                              daily.first,
-                              day,
-                              companions: daily.skip(1).take(3).toList(),
-                            ),
-                          const SizedBox(height: 28),
-                          _sectionTitle(
-                            '每日精选',
-                            '${daily.length} 部故事，换一组新灵感',
-                            () => openCollection('每日精选', daily),
-                            actionLabel: '查看全部',
-                          ),
-                          preview(daily.skip(1).toList()),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () async {
-                                await widget.library.setOption(
-                                  'dailyEdition',
-                                  widget.library.option<int>(
-                                        'dailyEdition',
-                                        0,
-                                      ) +
-                                      1,
-                                );
-                                if (mounted) setState(() {});
-                              },
-                              icon: const Icon(Icons.refresh, size: 15),
-                              label: const LocalizedText('换一组'),
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          _sectionTitle(
-                            '大家都在读',
-                            '从人气榜开始，找到下一本',
-                            () => selectTab('排行'),
-                            actionLabel: '看榜单',
-                          ),
-                          for (final entry
-                              in (snapshot.ranks['人气'] ??
-                                      snapshot.ranks.values.firstOrNull ??
-                                      <Comic>[])
-                                  .take(3)
-                                  .indexed)
-                            _rankRow(entry.$2, entry.$1 + 1),
-                          const SizedBox(height: 32),
-                          _sectionTitle(
-                            '你可能还喜欢',
-                            widget.library.favorites.isEmpty &&
-                                    widget.library.history.isEmpty
-                                ? '从更多故事里，找到你的偏爱'
-                                : '沿着你喜欢的题材，继续发现',
-                            () => openCollection('你可能还喜欢', personal),
-                            actionLabel: '查看全部',
-                          ),
-                          preview(personal),
-                          const SizedBox(height: 36),
-                          if (editorial.isNotEmpty) ...[
-                            _sectionTitle(
-                              editorial.first.key,
-                              '编辑栏目 · 再多看一些',
-                              () => openCollection(
-                                editorial.first.key,
-                                editorial.first.value,
-                                path:
-                                    snapshot.sectionPaths[editorial.first.key],
-                              ),
-                              actionLabel: '查看全部',
-                            ),
-                            preview(editorial.first.value),
-                            const SizedBox(height: 30),
-                          ],
-                          _browseLink(snapshot.books),
-                        ],
-                        if (section == '排行') ...[
-                          _sectionTitle(
-                            '故事的人气榜',
-                            '源站首页榜单 · ${ranks.length} 部',
-                            snapshot.rankPaths[activeRank] == null
-                                ? null
-                                : () => openCollection(
-                                    '$activeRank榜',
-                                    ranks,
-                                    path: snapshot.rankPaths[activeRank],
-                                  ),
-                            actionLabel: '完整榜单',
-                          ),
-                          Wrap(
-                            spacing: 8,
-                            children: snapshot.ranks.keys
-                                .map(
-                                  (r) => ChoiceChip(
-                                    label: LocalizedText(r),
-                                    selected: r == activeRank,
-                                    onSelected: (_) => setState(() => rank = r),
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                          const SizedBox(height: 18),
-                          RetainedSections(
-                            index: activeRank,
-                            order: snapshot.ranks.keys.toList(),
-                            animate: widget.library.motion,
-                            builder: (category) {
-                              final items = snapshot.ranks[category] ?? [];
-                              return Column(
-                                children: [
-                                  for (final entry in items.indexed)
-                                    _rankRow(entry.$2, entry.$1 + 1),
-                                  if (items.isEmpty)
-                                    const EmptyState(
-                                      icon: Icons.leaderboard_outlined,
-                                      title: '这个来源暂未提供榜单',
-                                      message: '可以先去分类找找喜欢的漫画。',
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          _browseLink(snapshot.books),
-                        ],
-                        if (section == '更新') ...[
-                          _sectionTitle(
-                            '收藏追更',
-                            checking ? '正在检查收藏…' : '检查收藏是否出现新章节',
-                            checking || widget.library.favorites.isEmpty
-                                ? null
-                                : () => checkUpdates(),
-                            actionLabel: '检查更新',
-                          ),
-                          for (final book in widget.library.favorites.where(
-                            (b) =>
-                                widget.library.updates[b.path]?['changed'] ==
-                                true,
-                          ))
-                            BookLink(
-                              comic: book,
-                              web: widget.web,
-                              onOpen: widget.onOpen,
-                              builder: (cover, open) => ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: SizedBox(
-                                  width: 38,
-                                  height: 54,
-                                  child: cover,
-                                ),
-                                title: Text(book.title),
-                                subtitle: LocalizedText(
-                                  '新章 · ${widget.library.updates[book.path]!['latest']}',
-                                ),
-                                trailing: const Icon(
-                                  Icons.bookmark_added_outlined,
-                                ),
-                                onTap: open,
-                              ),
-                            ),
-                          if (widget.library.favorites.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 28),
-                              child: LocalizedText(
-                                '收藏喜欢的漫画后，在这里检查新章节。',
-                                style: small(context),
-                              ),
-                            ),
-                          _sectionTitle(
-                            '追更精选',
-                            '来自源站的「万人追更」栏目',
-                            () => openCollection(
-                              '追更精选',
-                              updated,
-                              path: snapshot.sectionPaths['万人追更'],
-                            ),
-                            actionLabel: '查看全部',
-                          ),
-                          ComicGrid(
-                            books: updated,
-                            web: widget.web,
-                            onOpen: widget.onOpen,
-                          ),
-                        ],
-                        if (section == '分类')
-                          if (widget.library.option<String>('source', 'dm5') ==
-                              'dm5')
-                            SourceBrowser(
-                              source: widget.source,
-                              library: widget.library,
-                              web: widget.web,
-                              onOpen: widget.onOpen,
+                  ComicGrid(
+                    books: updated,
+                    web: widget.web,
+                    onOpen: widget.onOpen,
+                  ),
+                ],
+                if (section == '分类')
+                  if (widget.library.option<String>('source', 'dm5') == 'dm5')
+                    SourceBrowser(
+                      source: widget.source,
+                      library: widget.library,
+                      web: widget.web,
+                      onOpen: widget.onOpen,
+                    )
+                  else
+                    ComicGrid(
+                      books: snapshot.books,
+                      web: widget.web,
+                      onOpen: widget.onOpen,
+                    ),
+                if (section == '书单') ...[
+                  for (final group in widget.library.groups.where(
+                    (g) => g != '全部',
+                  )) ...[
+                    _sectionTitle(
+                      group,
+                      '我的主题书单',
+                      () => openCollection(
+                        group,
+                        widget.library.favorites
+                            .where(
+                              (b) => widget.library.meta(b)['group'] == group,
                             )
-                          else
-                            ComicGrid(
-                              books: snapshot.books,
-                              web: widget.web,
-                              onOpen: widget.onOpen,
-                            ),
-                        if (section == '书单') ...[
-                          for (final group in widget.library.groups.where(
-                            (g) => g != '全部',
-                          )) ...[
-                            _sectionTitle(
-                              group,
-                              '我的主题书单',
-                              () => openCollection(
-                                group,
-                                widget.library.favorites
-                                    .where(
-                                      (b) =>
-                                          widget.library.meta(b)['group'] ==
-                                          group,
-                                    )
-                                    .toList(),
-                              ),
-                              actionLabel: '查看全部',
-                            ),
-                            preview(
-                              widget.library.favorites
-                                  .where(
-                                    (b) =>
-                                        widget.library.meta(b)['group'] ==
-                                        group,
-                                  )
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 32),
-                          ],
-                          for (final entry in editorial) ...[
-                            _sectionTitle(
-                              entry.key,
-                              '${entry.value.length} 部 · 源站栏目',
-                              () => openCollection(
-                                entry.key,
-                                entry.value,
-                                path: snapshot.sectionPaths[entry.key],
-                              ),
-                              actionLabel: '查看全部',
-                            ),
-                            preview(entry.value),
-                            const SizedBox(height: 36),
-                          ],
-                          if (editorial.isEmpty)
-                            const EmptyState(
-                              icon: Icons.collections_bookmark_outlined,
-                              title: '还没有书单',
-                              message: '在书库整理收藏，创建自己的主题书单。',
-                            ),
-                        ],
-                      ],
+                            .toList(),
+                      ),
+                      actionLabel: '查看全部',
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                    preview(
+                      widget.library.favorites
+                          .where(
+                            (b) => widget.library.meta(b)['group'] == group,
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  for (final entry in editorial) ...[
+                    _sectionTitle(
+                      entry.key,
+                      '${entry.value.length} 部 · 源站栏目',
+                      () => openCollection(
+                        entry.key,
+                        entry.value,
+                        path: snapshot.sectionPaths[entry.key],
+                      ),
+                      actionLabel: '查看全部',
+                    ),
+                    preview(entry.value),
+                    const SizedBox(height: 24),
+                  ],
+                  if (editorial.isEmpty)
+                    const EmptyState(
+                      icon: Icons.collections_bookmark_outlined,
+                      title: '还没有书单',
+                      message: '在书库整理收藏，创建自己的主题书单。',
+                    ),
                 ],
               ],
             ),
           ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -995,7 +722,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              LocalizedText(title, style: const TextStyle(fontSize: 21)),
+              LocalizedText(title, style: const TextStyle(fontSize: 18)),
               const SizedBox(height: 7),
               LocalizedText(subtitle, style: small(context)),
             ],
@@ -1074,7 +801,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
           tintOpacity: .52,
           padding: EdgeInsets.symmetric(
             horizontal: wide ? 30 : 18,
-            vertical: 24,
+            vertical: 18,
           ),
           child: Row(
             children: [
@@ -1084,11 +811,11 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                   child: Row(
                     children: [
                       SizedBox(
-                        width: wide ? 144 : 112,
-                        height: wide ? 208 : 172,
+                        width: wide ? 120 : 88,
+                        height: wide ? 178 : 132,
                         child: cover,
                       ),
-                      SizedBox(width: wide ? 30 : 22),
+                      SizedBox(width: wide ? 24 : 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1119,7 +846,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: wide ? 28 : 23,
+                                fontSize: wide ? 24 : 19,
                                 height: 1.4,
                               ),
                             ),
@@ -1227,7 +954,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
             SizedBox(width: 60, height: 80, child: cover),
             const SizedBox(width: 18),
             Expanded(
-              child: Text(comic.title, style: const TextStyle(fontSize: 16)),
+              child: Text(comic.title, style: const TextStyle(fontSize: 14)),
             ),
             const Icon(Icons.north_east, size: 18),
           ],

@@ -110,9 +110,12 @@ class _RetainedSectionsState extends State<RetainedSections>
                         // Fade through a shared paper surface: two text-heavy
                         // sections must never be legible over each other.
                         // Height still follows the continuous section weights.
-                        opacity: (poses[i].$1 * 2 - 1).clamp(0, 1),
+                        opacity: poses[i].$1.clamp(0, 1),
                         child: Transform.translate(
-                          offset: Offset(poses[i].$2, 0),
+                          offset: Offset(
+                            poses[i].$2 / 3,
+                            poses[i].$2.abs() * .6,
+                          ),
                           child: RepaintBoundary(child: children[i]),
                         ),
                       ),

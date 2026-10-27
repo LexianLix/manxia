@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { latestRelease } from './update-check.mjs';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const webRoot = resolve(root, 'build/web');
@@ -33,7 +34,7 @@ async function upstream(url, referer = 'https://m.dm5.com/', timeout = 18000, op
   return response;
 }
 
-export function createServer({load = upstream, dav = fetch} = {}) {
+export function createServer({load = upstream, dav = fetch, updateRequest = fetch} = {}) {
   const profiles = new Map();
   async function jsonBody(req) {
     if (!req.headers['content-type']?.startsWith('application/json')) throw new Error('JSON required');
@@ -73,6 +74,13 @@ export function createServer({load = upstream, dav = fetch} = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if(url.pathname.startsWith('/api/'))res.setHeader('Content-Security-Policy',"default-src 'none'; sandbox");
     try {
+      if (url.pathname === '/api/update') {
+        if (req.method !== 'GET' || url.search) { res.writeHead(400); return res.end('Invalid update request'); }
+        res.setHeader('Content-Type','application/json; charset=utf-8');
+        res.setHeader('Cache-Control','no-store');
+        try { return res.end(JSON.stringify(await latestRelease(updateRequest))); }
+        catch { res.statusCode=502; return res.end(JSON.stringify({error:'GitHub release unavailable'})); }
+      }
       if (url.pathname === '/api/health') {
         res.setHeader('Content-Type','application/json');
         return res.end(JSON.stringify({ ok:true, app:'manxia', source:'dm5' }));

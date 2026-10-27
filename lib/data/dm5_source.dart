@@ -11,10 +11,14 @@ class Dm5Source {
   static Future<List<String>?> Function(String path)? offlinePages;
   static Future<ComicDetail?> Function(Comic comic)? offlineDetail;
   static final Map<String, List<Chapter>> chapterCatalogs = {};
-  Dm5Source({this.gateway, http.Client? client})
+  Dm5Source({this.gateway, http.Client? client, this.allowOffline = true})
     : _client = client ?? http.Client();
   final Uri? gateway;
   final http.Client _client;
+  final bool allowOffline;
+
+  /// A diagnostic owns its transport and reads the network rather than saved chapters.
+  Dm5Source forkForCheck() => Dm5Source(gateway: gateway, allowOffline: false);
   final detailDiagnostics = <String, Map<String, Object?>>{};
   static const origin = 'https://m.dm5.com';
   static final Map<String, String> imageOrigins = {};
@@ -104,7 +108,7 @@ class Dm5Source {
       chapterCatalogs[comic.path] = result.chapters;
       return result;
     } catch (_) {
-      final stored = await offlineDetail?.call(comic);
+      final stored = allowOffline ? await offlineDetail?.call(comic) : null;
       if (stored != null) return stored;
       rethrow;
     }

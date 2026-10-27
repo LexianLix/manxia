@@ -22,6 +22,10 @@ Get-FileHash .\Manxia-0.3.8-arm64-v8a.apk -Algorithm SHA256
 
 ## 升级与恢复
 
+固定项目签名的正式发行版可直接覆盖升级，无需卸载。v0.3.9 起，在“设置 → 关于与更新 → 检查 GitHub 更新”查看版本并下载更新；应用按架构选包，核对发行清单、文件大小与 SHA-256，系统安装前检查包名、签名和递增版本码。首次需允许漫匣安装应用，返回后再点击“安装更新”，由系统确认覆盖安装。网络失败可重试或从发行页手动下载相同架构 APK。下载取消不删除书库。
+
+从尚无应用内更新功能的旧版升级到 v0.3.9，可直接下载本次 APK 覆盖安装；新功能需安装后才会出现。
+
 旧 Debug／Profile 测试包使用构建环境的临时证书，与项目发行签名不同。换装前请依次：
 
 1. 在旧版“设置 → 备份与同步 → 导出完整离线书库”保存 ZIP，再导出一份资料 JSON。确认文件已保存在应用外可访问的位置。
@@ -32,7 +36,7 @@ Get-FileHash .\Manxia-0.3.8-arm64-v8a.apk -Algorithm SHA256
 
 0.2 保留旧 favorites/history 键，旧记录没有图片内位置时按 0 恢复；新分组、书签与删除标记使用 features.v2，离线索引使用 offline.v1。备份格式带 schema，遇到更新的不支持版本会拒绝导入。
 
-设置中的“检查更新”读取本仓库最新发行版，并打开 GitHub 下载入口，不在后台自行安装 APK。
+更新检查读取本仓库最新正式版，API 受限时尝试本仓库公开发行页；不会静默安装，也不使用第三方 APK 镜像。
 
 ## 自行构建
 
@@ -90,5 +94,7 @@ flutter build apk --release --split-per-abi
 签名工具使用方式参考 Android 官方的 [apksigner](https://developer.android.com/tools/apksigner) 与 [zipalign](https://developer.android.com/tools/zipalign) 文档。
 
 ## 验证范围
+
+公开签名包可通过 `android-startup.yml` 的 `upgrade_from` 参数额外检查从旧正式版覆盖安装后，合成收藏、进度、偏好和应用文件是否保留；该模拟器检查不等于真机或应用内权限流程验收。
 
 发布前使用 `android-startup.yml` 检查 Release 安装后的首屏、日志及连续冷启动；发布后以公开下载的签名包复查。代码分析、自动测试、各架构 Release 编译、APK 签名与 ZIP 对齐另行检查，发行清单记录确切构建出处。模拟器不能证明各厂商真机上的持续阅读、体感、音量键、旋转、升级与回滚均通过；WebDAV 协议测试也不能代替真实网盘账号验收。

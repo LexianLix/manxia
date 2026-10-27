@@ -206,8 +206,12 @@ class _RetainedPagesState extends State<RetainedPages>
                         child: Opacity(
                           opacity: alpha.clamp(0, 1),
                           child: Transform.translate(
-                            offset: Offset(dx, 0),
-                            child: child,
+                            offset: Offset(dx / 6, dx.abs() * .28),
+                            child: Transform.scale(
+                              scale: .985 + .015 * alpha.clamp(0, 1),
+                              alignment: Alignment.topCenter,
+                              child: child,
+                            ),
                           ),
                         ),
                       ),

@@ -561,7 +561,7 @@ class _LivingShelfState extends State<LivingShelf>
                   children: [
                     LocalizedText(
                       comic.title,
-                      style: const TextStyle(fontSize: 26, letterSpacing: 1),
+                      style: const TextStyle(fontSize: 22, letterSpacing: 1),
                     ),
                     const SizedBox(height: 8),
                     LocalizedText(

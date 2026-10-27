@@ -149,7 +149,7 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                   children: [
                     const LocalizedText(
                       '在其他书源中寻找',
-                      style: TextStyle(fontSize: 26),
+                      style: TextStyle(fontSize: 22),
                     ),
                     const SizedBox(height: 10),
                     LocalizedText(

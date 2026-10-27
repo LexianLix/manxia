@@ -2,6 +2,11 @@ name: Prepare Android release
 
 on:
   workflow_dispatch:
+    inputs:
+      upgrade_from:
+        description: Optional older public version for data retention smoke test
+        default: ''
+        required: false
 
 permissions:
   contents: read
@@ -83,11 +88,19 @@ jobs:
           path: unsigned
       - name: Make a disposable signed copy for emulator testing
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPGRADE_FROM: ${{ inputs.upgrade_from }}
         run: |
           python3 -m pip install Pillow
           cp unsigned/app-x86_64-release.apk startup.apk
           keytool -genkeypair -keystore "$RUNNER_TEMP/smoke.jks" -storepass android -keypass android -alias smoke -dname 'CN=Manxia CI smoke only' -keyalg RSA -validity 7 -noprompt
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/smoke.jks" --ks-pass pass:android --key-pass pass:android --ks-key-alias smoke startup.apk
+          if [ -n "$UPGRADE_FROM" ]; then
+            [[ "$UPGRADE_FROM" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            gh release download "v$UPGRADE_FROM" --pattern "Manxia-$UPGRADE_FROM-x86_64.apk" --output previous-public.apk
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/smoke.jks" --ks-pass pass:android --key-pass pass:android --ks-key-alias smoke --out previous.apk previous-public.apk
+          fi
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -103,6 +116,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
+            if [ -f previous.apk ]; then python3 tools/android-upgrade-smoke.py previous.apk startup.apk; fi
             python3 tools/android-startup-smoke.py startup.apk
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third

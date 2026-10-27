@@ -295,7 +295,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                     },
                     onHorizontalDragCancel: cancel,
                     child: SizedBox(
-                      height: 76,
+                      height: 64,
                       child: Stack(
                         children: [
                           Positioned.fill(
@@ -450,7 +450,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                   onTapCancel: () => contact.reverse(),
                   child: SizedBox(
                     key: active ? widget.anchors[item.id] : null,
-                    height: 76,
+                    height: 64,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -460,7 +460,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                             scale: 1 + .1 * focus,
                             child: Icon(
                               focus > .5 ? item.activeIcon : item.icon,
-                              size: 23,
+                              size: 21,
                               color: Color.lerp(
                                 scheme.onSurface.withValues(alpha: .58),
                                 scheme.primary,
@@ -469,7 +469,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                             ),
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
                         if (compactLabels)
                           SizedBox(
                             height:

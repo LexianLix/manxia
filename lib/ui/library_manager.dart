@@ -299,6 +299,7 @@ class _LibraryManagerState extends State<LibraryManager> {
         ),
       for (final entry in sets.entries)
         ExpansionTile(
+          key: PageStorageKey('library-manager-group-expanded-${entry.key}'),
           title: LocalizedText(entry.key),
           subtitle: LocalizedText('${entry.value.length} 册'),
           leading: const Icon(Icons.inventory_2_outlined),
@@ -306,6 +307,9 @@ class _LibraryManagerState extends State<LibraryManager> {
             SizedBox(
               height: 210,
               child: ListView(
+                key: PageStorageKey(
+                  'library-manager-group-scroll-${entry.key}',
+                ),
                 scrollDirection: Axis.horizontal,
                 children: [
                   for (final b in entry.value)

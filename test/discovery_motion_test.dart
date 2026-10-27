@@ -290,6 +290,11 @@ void main() {
       bool hasResult(String title) => tester
           .widgetList<ComicGrid>(find.byType(ComicGrid))
           .any((g) => g.books.any((b) => b.title == title));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('open-comic-search')),
+      );
+      await tester.tap(find.byKey(const ValueKey('open-comic-search')));
+      await tester.pumpAndSettle();
       await search('one');
       source.searches['one']!.complete(const [
         Comic(path: '/a/', title: 'Result A', cover: 'offline:a'),
@@ -324,7 +329,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('搜索暂时不可用'), findsNothing);
       expect(hasResult('Recovered D'), isTrue);
-      await tap(find.text('返回发现'));
+      Navigator.of(tester.element(find.byType(TextField).first)).pop();
+      await tester.pumpAndSettle();
       expect(source.categoriesCalls, 1);
       expect(source.catalogs.length, 2);
       expect(

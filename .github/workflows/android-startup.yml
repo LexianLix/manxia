@@ -11,6 +11,10 @@ on:
         description: Optional unsigned build run to verify before publishing
         default: ''
         required: false
+      upgrade_from:
+        description: Optional older public version for signed in-place data retention check
+        default: ''
+        required: false
       arm64_translation:
         description: Experimental Android 11 ARM64 translation instead of native x86 tests
         type: boolean
@@ -42,9 +46,14 @@ jobs:
           VERSION: ${{ inputs.version }}
           ABI: ${{ matrix.abi }}
           BUILD_RUN: ${{ inputs.build_run }}
+          UPGRADE_FROM: ${{ inputs.upgrade_from }}
           GH_TOKEN: ${{ github.token }}
         run: |
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [ -n "$UPGRADE_FROM" ]; then
+            [[ -z "$BUILD_RUN" && "$UPGRADE_FROM" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            gh release download "v$UPGRADE_FROM" --pattern "Manxia-$UPGRADE_FROM-$ABI.apk" --output previous.apk
+          fi
           if [ -n "$BUILD_RUN" ]; then
             [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
             gh run download "$BUILD_RUN" --name manxia-unsigned-release --dir unsigned
@@ -70,6 +79,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
+            if [ -f previous.apk ]; then python3 tools/android-upgrade-smoke.py previous.apk startup.apk; fi
             python3 tools/android-startup-smoke.py startup.apk
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third

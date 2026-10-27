@@ -2,11 +2,12 @@ import 'localized_text.dart';
 import 'room_motion.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/source_hub.dart';
-import 'advanced_settings.dart';
+import 'settings_page.dart';
+import 'search_page.dart';
+import 'scroll_arrival.dart';
 import 'history_page.dart';
 import '../data/library.dart';
 import 'reader_page.dart';
@@ -150,8 +151,8 @@ class _AppShellState extends State<AppShell> {
                             children: [
                               Padding(
                                 padding: EdgeInsets.fromLTRB(
-                                  compact ? 22 : 44,
-                                  compact ? 16 : 26,
+                                  compact ? 18 : 36,
+                                  compact ? 6 : 16,
                                   compact ? 18 : 44,
                                   0,
                                 ),
@@ -181,48 +182,19 @@ class _AppShellState extends State<AppShell> {
                                           ),
                                         )
                                       : page == 3
-                                      ? CustomScrollView(
-                                          key: const PageStorageKey(
-                                            'reading-room-3',
-                                          ),
-                                          scrollCacheExtent:
-                                              const ScrollCacheExtent.pixels(0),
-                                          slivers: [
-                                            SliverLayoutBuilder(
-                                              builder: (context, constraints) =>
-                                                  SliverPadding(
-                                                    padding: EdgeInsets.fromLTRB(
-                                                      math.max(
-                                                        compact ? 22.0 : 44.0,
-                                                        (constraints.crossAxisExtent -
-                                                                1100) /
-                                                            2,
-                                                      ),
-                                                      compact ? 28 : 34,
-                                                      math.max(
-                                                        compact ? 22.0 : 44.0,
-                                                        (constraints.crossAxisExtent -
-                                                                1100) /
-                                                            2,
-                                                      ),
-                                                      140,
-                                                    ),
-                                                    sliver: SliverMainAxisGroup(
-                                                      slivers:
-                                                          _settingsSlivers(),
-                                                    ),
-                                                  ),
-                                            ),
-                                          ],
+                                      ? SettingsPage(
+                                          library: widget.library,
+                                          source: source,
+                                          web: widget.web,
                                         )
                                       : SingleChildScrollView(
                                           key: PageStorageKey(
                                             'reading-room-$page',
                                           ),
                                           padding: EdgeInsets.fromLTRB(
-                                            compact ? 22 : 44,
-                                            compact ? 28 : 34,
-                                            compact ? 22 : 44,
+                                            compact ? 18 : 36,
+                                            compact ? 16 : 24,
+                                            compact ? 18 : 36,
                                             140,
                                           ),
                                           child: Center(
@@ -337,7 +309,7 @@ class _AppShellState extends State<AppShell> {
                   child: Material(
                     key: item.id == 0 ? shelfAnchor(widget.library) : null,
                     color: tab == item.id
-                        ? green.withValues(alpha: .1)
+                        ? green.withValues(alpha: .06)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(6),
                     child: InkWell(
@@ -399,8 +371,14 @@ class _AppShellState extends State<AppShell> {
   );
   Widget _topbar(bool wide) => Row(
     children: [
-      if (!wide) _brand() else LocalizedText('私人阅读室', style: small(context)),
-      const Spacer(),
+      Expanded(
+        child: LocalizedText(
+          '私人阅读室',
+          style: small(context),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       Semantics(
         label: '默认漫画源 ${source.selected?.name ?? '动漫屋'}',
         child: Container(
@@ -445,7 +423,16 @@ class _AppShellState extends State<AppShell> {
       IconButton(
         tooltip: translate('搜索漫画', Localizations.localeOf(context)),
         onPressed: () {
-          navigate(1);
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ComicSearchPage(
+                library: widget.library,
+                source: source,
+                web: widget.web,
+                onOpen: open,
+              ),
+            ),
+          );
         },
         icon: const Icon(Icons.search, size: 22),
       ),
@@ -453,7 +440,7 @@ class _AppShellState extends State<AppShell> {
   );
   Widget _heading(String title, String description, {Widget? trailing}) =>
       Padding(
-        padding: const EdgeInsets.only(bottom: 28),
+        padding: const EdgeInsets.only(bottom: 18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -464,7 +451,7 @@ class _AppShellState extends State<AppShell> {
                   LocalizedText(
                     title,
                     style: const TextStyle(
-                      fontSize: 34,
+                      fontSize: 25,
                       letterSpacing: 2,
                       height: 1.3,
                     ),
@@ -662,7 +649,16 @@ class _AppShellState extends State<AppShell> {
             ),
             onPressed: () {
               if (record == null) {
-                navigate(1);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ComicSearchPage(
+                      library: widget.library,
+                      source: source,
+                      web: widget.web,
+                      onOpen: open,
+                    ),
+                  ),
+                );
               } else {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -686,135 +682,6 @@ class _AppShellState extends State<AppShell> {
 
   Widget _history() =>
       HistoryPage(library: widget.library, source: source, web: widget.web);
-  List<Widget> _settingsSlivers() => [
-    SliverToBoxAdapter(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _heading('偏好设置', '让阅读室，成为你喜欢的样子。'),
-          _settingGroup('外观与交互', [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const LocalizedText(
-                '夜间阅读室',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: LocalizedText('柔和深色背景，适合夜晚阅读', style: small(context)),
-              value: widget.library.dark,
-              onChanged: (v) => widget.library.setting('dark', v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const LocalizedText(
-                '书架动效',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: LocalizedText(
-                '抽书与页面转场；跟随系统减少动画偏好',
-                style: small(context),
-              ),
-              value: widget.library.motion,
-              onChanged: (v) => widget.library.setting('motion', v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const LocalizedText(
-                '封面网格',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: LocalizedText('使用平面书架浏览收藏', style: small(context)),
-              value: widget.library.grid,
-              onChanged: (v) => widget.library.setting('grid', v),
-            ),
-          ]),
-          const SizedBox(height: 30),
-          _settingGroup('阅读与数据', [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const LocalizedText(
-                '默认漫画源',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: LocalizedText('动漫屋 · m.dm5.com', style: small(context)),
-              trailing: const Icon(Icons.public, size: 20),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const LocalizedText(
-                '清空阅读足迹',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: LocalizedText('仅清除本机页码记录，保留收藏', style: small(context)),
-              trailing: const Icon(Icons.delete_outline, size: 20),
-              onTap: () async {
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (c) => AlertDialog(
-                    title: const LocalizedText('清空阅读足迹？'),
-                    content: const LocalizedText('已保存的章节和页码记录将被清除。'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(c, false),
-                        child: const LocalizedText('取消'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(c, true),
-                        child: const LocalizedText('清空'),
-                      ),
-                    ],
-                  ),
-                );
-                if (ok == true) await widget.library.clearHistory();
-              },
-            ),
-          ]),
-        ],
-      ),
-    ),
-    AdvancedSettings(
-      sliver: true,
-      library: widget.library,
-      source: source,
-      web: widget.web,
-    ),
-    SliverToBoxAdapter(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 35),
-          const LocalizedText(
-            '漫匣 MANXIA',
-            style: TextStyle(fontSize: 23, letterSpacing: 2),
-          ),
-          const SizedBox(height: 10),
-          LocalizedText('为每一段故事，留一个位置。', style: small(context)),
-          const SizedBox(height: 22),
-          TextButton(
-            onPressed: licenses,
-            child: const LocalizedText(
-              '开源许可与字体声明',
-              style: TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-    ),
-  ];
-  Widget _settingGroup(String label, List<Widget> children) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      LocalizedText(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-      const SizedBox(height: 10),
-      const Divider(),
-      ...children,
-    ],
-  );
 }
 
 String friendlyError(Object? error) {
@@ -828,7 +695,7 @@ class ComicGrid extends StatelessWidget {
     required this.books,
     required this.web,
     required this.onOpen,
-    this.minItemWidth = 170,
+    this.minItemWidth = 104,
     this.sliver = false,
     this.itemArrival,
     this.arrivingFrom = 0,
@@ -842,9 +709,9 @@ class ComicGrid extends StatelessWidget {
   SliverGridDelegateWithFixedCrossAxisCount delegate(double width) =>
       SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: math.max(2, (width / minItemWidth).floor()),
-        mainAxisSpacing: 24,
-        crossAxisSpacing: 20,
-        childAspectRatio: .59,
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 12,
+        childAspectRatio: .56,
       );
   @override
   Widget build(BuildContext context) => sliver
@@ -859,6 +726,7 @@ class ComicGrid extends StatelessWidget {
         )
       : LayoutBuilder(
           builder: (context, box) => GridView.builder(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: books.length,
@@ -884,9 +752,9 @@ class ComicGrid extends StatelessWidget {
                 decoration: BoxDecoration(
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: .1),
-                      blurRadius: 12,
-                      offset: const Offset(3, 7),
+                      color: Colors.black.withValues(alpha: .06),
+                      blurRadius: 5,
+                      offset: const Offset(1, 3),
                     ),
                   ],
                 ),
@@ -896,12 +764,12 @@ class ComicGrid extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 13),
+            const SizedBox(height: 8),
             LocalizedText(
               comic.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14),
+              style: const TextStyle(fontSize: 12),
             ),
             const SizedBox(height: 5),
             LocalizedText(
@@ -921,7 +789,12 @@ class ComicGrid extends StatelessWidget {
       ),
     );
     final arrival = itemArrival;
-    if (arrival == null) return child;
+    if (arrival == null) {
+      return ScrollArrival(
+        identity: '${comic.sourceId}/${comic.path}',
+        child: child,
+      );
+    }
     return AnimatedBuilder(
       animation: arrival,
       child: child,

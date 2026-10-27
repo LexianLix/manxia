@@ -91,19 +91,44 @@ class ManxiaApp extends StatelessWidget {
         },
       ),
       colorScheme: scheme,
+      visualDensity: VisualDensity.standard,
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          fontFamily: 'ArchiveSerif',
+          fontSize: 18,
+          color: scheme.onSurface,
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        minVerticalPadding: 8,
+        titleTextStyle: TextStyle(
+          fontSize: 14,
+          fontFamily: 'ArchiveSerif',
+          color: scheme.onSurface,
+        ),
+        subtitleTextStyle: TextStyle(
+          fontSize: 12,
+          fontFamily: 'ArchiveSerif',
+          color: scheme.onSurfaceVariant,
+        ),
+        textColor: scheme.onSurface,
+      ),
+      iconTheme: const IconThemeData(size: 21),
       scaffoldBackgroundColor: scheme.surface,
       fontFamily: 'ArchiveSerif',
       dividerColor: dark ? const Color(0xff354038) : const Color(0xffdfe3d9),
       splashFactory: InkSparkle.splashFactory,
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 23, vertical: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         ),
       ),
@@ -116,7 +141,7 @@ class ManxiaApp extends StatelessWidget {
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
-          vertical: 16,
+          vertical: 12,
         ),
       ),
     );

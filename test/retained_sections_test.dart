@@ -54,7 +54,11 @@ void main() {
         .map((w) => w.opacity)
         .toList();
     expect(before, inExclusiveRange(200, 400));
-    expect(opacity.where((v) => v > 0).length, lessThanOrEqualTo(1));
+    // Crossfade without an empty midpoint, including interrupted transitions.
+    expect(
+      opacity.fold<double>(0, (sum, value) => sum + value),
+      closeTo(1, .001),
+    );
     update(() => selected = 'c');
     await tester.pump();
     expect(tester.getSize(section).height, closeTo(before, .01));

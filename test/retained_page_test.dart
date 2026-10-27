@@ -29,14 +29,13 @@ void main() {
       await tester.tap(find.text('设置'));
       await tester.pumpAndSettle();
       expect(find.text('WebDAV 同步'), findsNothing);
-      await tester.scrollUntilVisible(
-        find.text('WebDAV 同步'),
-        450,
-        scrollable: find.byType(Scrollable).last,
-        maxScrolls: 20,
-      );
+      await tester.tap(find.text('备份与同步'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('WebDAV 同步'));
       await tester.pumpAndSettle();
       expect(find.text('WebDAV 同步'), findsOneWidget);
+      Navigator.of(tester.element(find.text('WebDAV 同步'))).pop();
+      await tester.pumpAndSettle();
       await tester.tap(find.text('书架'));
       await tester.pumpAndSettle();
       expect(find.text('05 / 07'), findsOneWidget);

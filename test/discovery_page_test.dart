@@ -356,12 +356,14 @@ void main() {
       expect(find.text(translate('今日主推', locale)), findsOneWidget);
       expect(find.text(translate('搜索漫画名称', locale)), findsOneWidget);
       await capture(tester, key, 'localized-discovery-$locale');
-      await tester.tap(find.byTooltip('搜索方式'));
+      await tester.tap(find.byKey(const ValueKey('open-comic-search')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(translate('搜索漫画作者', locale)));
+      await tester.tap(find.text(translate('作者', locale)));
       await tester.pumpAndSettle();
       expect(find.text(translate('搜索漫画作者', locale)), findsOneWidget);
       expect(tester.takeException(), isNull);
+      Navigator.of(tester.element(find.byType(TextField).first)).pop();
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const ValueKey('collection-每日精选')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

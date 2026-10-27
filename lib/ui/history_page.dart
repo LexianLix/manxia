@@ -55,7 +55,7 @@ class _HistoryPageState extends State<HistoryPage> {
         children: [
           const LocalizedText(
             '阅读足迹',
-            style: TextStyle(fontSize: 30, letterSpacing: 2),
+            style: TextStyle(fontSize: 24, letterSpacing: 1),
           ),
           const SizedBox(height: 10),
           const LocalizedText('沿着书签，回到故事停下的地方。'),

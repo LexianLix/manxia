@@ -1,5 +1,7 @@
 import 'localized_text.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -12,7 +14,13 @@ import '../data/source_hub.dart';
 import '../data/sync_service.dart';
 import '../data/offline_library.dart';
 import '../data/plugin.dart';
+import '../data/settings_checks.dart';
+import 'room_motion.dart';
+import 'content_handoff.dart';
 import 'personalization_settings.dart';
+import 'app_update_page.dart';
+import 'release_notes.dart';
+import '../platform/app_update.dart';
 
 class AdvancedSettings extends StatefulWidget {
   const AdvancedSettings({
@@ -22,10 +30,12 @@ class AdvancedSettings extends StatefulWidget {
     required this.web,
     this.sliver = false,
     this.sourceOnly = false,
+    this.section,
   });
   final Library library;
   final Dm5Source source;
   final bool web, sliver, sourceOnly;
+  final String? section;
   @override
   State<AdvancedSettings> createState() => _AdvancedSettingsState();
 }
@@ -34,6 +44,90 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
   Library get library => widget.library;
   String? status;
   bool busy = false;
+  final sourceCheck = _CheckState(), updateCheck = _CheckState();
+  String local(String key, [Map<String, Object> arguments = const {}]) =>
+      translate(key, Localizations.localeOf(context), arguments: arguments);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!TickerMode.valuesOf(context).enabled) {
+      sourceCheck.control?.cancel();
+      updateCheck.control?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    sourceCheck.control?.cancel();
+    updateCheck.control?.cancel();
+    super.dispose();
+  }
+
+  Future<bool> performCheck(
+    _CheckState state,
+    Future<void> Function(CheckControl) task,
+  ) async {
+    if (state.running || busy) return false;
+    final control = CheckControl();
+    setState(() {
+      state.control = control;
+      state.message = '正在开始检查…';
+      state.arguments = {};
+      state.failed = false;
+      state.details = null;
+      state.complete = false;
+      state.release = null;
+      state.updateAvailable = false;
+    });
+    try {
+      await task(control);
+      control.ensureActive();
+      if (mounted) setState(() => state.complete = true);
+      return true;
+    } on CheckCancelled {
+      if (mounted) {
+        setState(() {
+          state.message = '检查已取消';
+          state.arguments = {};
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          state.failed = true;
+          state.message = e is UpdateCheckException
+              ? e.message
+              : e is SourceException
+              ? e.message
+              : e is TimeoutException
+              ? '检查超时，请检查网络后重试。'
+              : '检查失败，请重试或查看发行页。';
+          state.arguments = {};
+        });
+      }
+    } finally {
+      if (mounted && identical(state.control, control)) {
+        setState(() => state.control = null);
+      }
+    }
+    return false;
+  }
+
+  void progress(
+    _CheckState state,
+    CheckControl control,
+    String key, [
+    Map<String, Object> arguments = const {},
+  ]) {
+    control.ensureActive();
+    if (mounted) {
+      setState(() {
+        state.message = key;
+        state.arguments = arguments;
+      });
+    }
+  }
+
   Future<void> run(Future<String> Function() task) async {
     setState(() {
       busy = true;
@@ -49,23 +143,36 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
     }
   }
 
-  Widget group(String title, List<Widget> children) => Padding(
-    padding: const EdgeInsets.only(top: 26),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        LocalizedText(
-          title,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
-            fontSize: 13,
+  Widget group(String title, List<Widget> children) =>
+      widget.section != null &&
+          widget.section !=
+              switch (title) {
+                '质感与性能' => 'appearance',
+                '可读性' => 'accessibility',
+                '备份与同步' => 'backup',
+                '漫画源与维护' => 'sources',
+                '关于与更新' => 'updates',
+                '下载与缓存' => 'storage',
+                _ => null,
+              }
+      ? const SizedBox.shrink()
+      : Padding(
+          padding: const EdgeInsets.only(top: 26),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LocalizedText(
+                title,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 13,
+                ),
+              ),
+              const Divider(),
+              ...children,
+            ],
           ),
-        ),
-        const Divider(),
-        ...children,
-      ],
-    ),
-  );
+        );
   Widget toggle(String key, String title, String subtitle, bool fallback) =>
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
@@ -101,9 +208,11 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
               ),
             )
             .toList(),
-        onChanged: (v) {
-          if (v != null) library.setOption(key, v);
-        },
+        onChanged: key == 'source' && sourceCheck.running
+            ? null
+            : (v) {
+                if (v != null) library.setOption(key, v);
+              },
       ),
     ),
   );
@@ -323,62 +432,302 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
     Future.delayed(const Duration(seconds: 1), text.dispose);
   }
 
-  Future<String> diagnose() async {
-    final watch = Stopwatch()..start();
-    final books = await widget.source.home();
-    if (books.isEmpty) throw StateError('连通成功，但未解析到漫画，请检查源配置。');
-    final listMs = watch.elapsedMilliseconds;
-    final detail = await widget.source.detail(books.first);
-    if (detail.chapters.isEmpty) throw StateError('列表可用，章节解析为空。');
-    final pages = await widget.source.networkPages(detail.chapters.first.path);
-    return '列表 ${books.length} 本 / ${listMs}ms；首本 ${detail.chapters.length} 章；首章 ${pages.length} 页 / 总计 ${watch.elapsedMilliseconds}ms。图片加载请在阅读器检查。';
+  Future<void> diagnose() => performCheck(sourceCheck, (control) async {
+    final name = widget.source is SourceHub
+        ? (widget.source as SourceHub).selected?.name ?? '动漫屋'
+        : '动漫屋';
+    final report = await inspectSource(
+      widget.source,
+      control,
+      progress: (stage, comic) {
+        progress(sourceCheck, control, switch (stage) {
+          SourceCheckStage.catalog => '正在读取漫画列表…',
+          SourceCheckStage.detail => '正在检查《{title}》的目录…',
+          SourceCheckStage.pages => '正在检查《{title}》的图片地址…',
+        }, comic == null ? {} : {'title': comic.title});
+      },
+    );
+    control.ensureActive();
+    if (!mounted) return;
+    setState(() {
+      sourceCheck.message = report.readable
+          ? '{source}可用：列表 {books} 本，抽查章节返回 {pages} 个图片地址。'
+          : report.books == 0
+          ? '未读取到漫画列表，请检查源配置或稍后重试。'
+          : report.allCopyright
+          ? '列表可用，抽查的 {count} 部漫画均无版权；不能据此认定整站不可用。'
+          : '列表可用，但抽查作品暂未完成章节验证，请查看详情。';
+      sourceCheck.arguments = {
+        'source': name,
+        'books': report.books,
+        'pages':
+            report.samples.where((s) => s.pages > 0).firstOrNull?.pages ?? 0,
+        'count': report.samples.length,
+      };
+      sourceCheck.failed = !report.readable;
+      sourceCheck.details = [
+        local('本次仅验证网页列表、目录和图片地址；图片实际显示请在阅读器检查。'),
+        for (final sample in report.samples)
+          sample.pages > 0
+              ? local('《{title}》：{chapters} 章，抽查章节 {pages} 个图片地址', {
+                  'title': sample.comic.title,
+                  'chapters': sample.chapters,
+                  'pages': sample.pages,
+                })
+              : '《${sample.comic.title}》：${local(sample.reason ?? '未读取到网页章节')}',
+      ].join('\n');
+    });
+  });
+
+  Future<void> openRelease([Uri? uri]) async {
+    try {
+      if (!await launchUrl(
+        uri ?? githubLatestPage,
+        mode: LaunchMode.externalApplication,
+      )) {
+        throw StateError('browser unavailable');
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          updateCheck.failed = true;
+          updateCheck.message = '未能打开浏览器，可以复制发行链接后自行打开。';
+          updateCheck.arguments = {};
+        });
+      }
+    }
   }
 
-  Future<String> checkUpdate() async {
-    final installed = await PackageInfo.fromPlatform();
-    final response = await http
-        .get(
-          Uri.parse(
-            'https://api.github.com/repos/LexianLix/manxia/releases/latest',
-          ),
-        )
-        .timeout(const Duration(seconds: 15));
-    if (response.statusCode == 404) {
-      return '当前版本 ${installed.version}。GitHub 暂未发布正式安装包，可在 Actions 下载调试包。';
+  Future<void> checkUpdate() async {
+    UpdateRelease? release;
+    String installed = '';
+    final success = await performCheck(updateCheck, (control) async {
+      progress(updateCheck, control, '正在读取本机版本…');
+      try {
+        installed = (await control.wait(
+          PackageInfo.fromPlatform().timeout(const Duration(seconds: 3)),
+        )).version;
+      } on CheckCancelled {
+        rethrow;
+      } catch (_) {
+        /* Latest metadata remains useful without package metadata. */
+      }
+      progress(updateCheck, control, '正在检查 GitHub 最新发行版…');
+      release = await inspectUpdate(
+        control,
+        gateway: widget.web ? Uri.base : null,
+        onPublicFallback: () =>
+            progress(updateCheck, control, 'GitHub API 暂不可用，正在检查公开发行页…'),
+      );
+      control.ensureActive();
+      if (!mounted) return;
+      final comparison = release!.compareInstalled(installed);
+      setState(() {
+        updateCheck.release = release;
+        updateCheck.updateAvailable = comparison != null && comparison > 0;
+        updateCheck.message = comparison == null
+            ? '最新正式版为 {tag}，未能读取本机版本。'
+            : comparison > 0
+            ? '发现新版本 {tag}，本机为 {installed}。'
+            : comparison < 0
+            ? '本机 {installed} 高于最新正式版 {tag}。'
+            : '当前已是最新正式版 {tag}。';
+        updateCheck.arguments = {'tag': release!.tag, 'installed': installed};
+        updateCheck.details = release!.publicPage
+            ? local('已通过 GitHub 公开发行页确认版本；更新说明和安装包请在发行页查看。')
+            : release!.hasApk
+            ? null
+            : local('该发行版暂未提供 APK，请在发行页确认。');
+      });
+    });
+    if (!success ||
+        release == null ||
+        release!.compareInstalled(installed) != 1 ||
+        !mounted ||
+        !TickerMode.valuesOf(context).enabled ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
     }
-    if (response.statusCode != 200) {
-      throw StateError('版本检查返回 HTTP ${response.statusCode}');
-    }
-    final release = jsonDecode(response.body) as Map;
-    final tag = release['tag_name'] as String;
-    if (!mounted) return '';
+    final latest = release!;
     final open = await showDialog<bool>(
       context: context,
+      animationStyle: RoomMotion.sheet(context),
       builder: (c) => AlertDialog(
-        title: LocalizedText('GitHub 最新版本 $tag'),
-        content: LocalizedText(
-          '本机 ${installed.version}\n${release['name'] ?? ''}\n${release['body'] ?? ''}',
+        scrollable: true,
+        title: LocalizedText('发现新版本 {tag}', arguments: {'tag': latest.tag}),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LocalizedText(
+              '本机 {installed} → {tag}',
+              arguments: {'installed': installed, 'tag': latest.tag},
+            ),
+            const SizedBox(height: 12),
+            ReleaseNotes(
+              latest.body.isEmpty ? local('更新说明请在 GitHub 发行页查看。') : latest.body,
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: const LocalizedText('关闭'),
+            child: const LocalizedText('稍后'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const LocalizedText('前往下载'),
+            child: LocalizedText(
+              AppUpdateDownload.supported
+                  ? '下载更新'
+                  : latest.hasApk
+                  ? '前往下载'
+                  : '查看发行页',
+            ),
           ),
         ],
       ),
     );
-    if (open == true) {
-      await launchUrl(
-        Uri.parse('https://github.com/LexianLix/manxia/releases/latest'),
-        mode: LaunchMode.externalApplication,
-      );
+    if (open == true && mounted) {
+      if (AppUpdateDownload.supported) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AppUpdatePage(release: latest),
+          ),
+        );
+      } else {
+        await openRelease(latest.uri);
+      }
     }
-    return '已检查 GitHub 正式发布：$tag。本机 ${installed.version}。';
   }
+
+  Widget checkTile(
+    _CheckState state, {
+    required String title,
+    required String idle,
+    required IconData icon,
+    required VoidCallback action,
+  }) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(icon),
+    title: LocalizedText(title),
+    subtitle: LocalizedText(state.message ?? idle, arguments: state.arguments),
+    trailing: state.running
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (MediaQuery.disableAnimationsOf(context))
+                const Icon(Icons.hourglass_top, size: 18)
+              else
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                ),
+              IconButton(
+                tooltip: local('取消检查'),
+                onPressed: state.control!.cancel,
+                icon: const Icon(Icons.close, size: 20),
+              ),
+            ],
+          )
+        : state.complete
+        ? Icon(
+            state.failed ? Icons.info_outline : Icons.check_circle_outline,
+            size: 20,
+          )
+        : null,
+    onTap: busy || state.running ? null : action,
+  );
+  Widget checkFeedback(
+    _CheckState state,
+    VoidCallback retry, {
+    bool update = false,
+  }) => ContentHandoff(
+    child: state.running || state.message == null
+        ? const SizedBox(key: ValueKey('idle-check'))
+        : Padding(
+            key: const ValueKey('check-result'),
+            padding: const EdgeInsets.only(left: 16, bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (state.details != null)
+                  ExpansionTile(
+                    key: PageStorageKey(
+                      update ? 'update-check-details' : 'source-check-details',
+                    ),
+                    tilePadding: EdgeInsets.zero,
+                    title: const LocalizedText(
+                      '查看检查详情',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    expansionAnimationStyle: RoomMotion.sheet(context),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SelectableText(
+                          key: PageStorageKey(
+                            update
+                                ? 'update-check-details-text'
+                                : 'source-check-details-text',
+                          ),
+                          state.details!,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    if (update &&
+                        state.updateAvailable &&
+                        state.release != null &&
+                        AppUpdateDownload.supported)
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                AppUpdatePage(release: state.release!),
+                          ),
+                        ),
+                        child: const LocalizedText('在线更新'),
+                      ),
+                    if (state.failed)
+                      TextButton(
+                        onPressed: retry,
+                        child: const LocalizedText('重试'),
+                      ),
+                    if (update)
+                      TextButton(
+                        onPressed: () => openRelease(state.release?.uri),
+                        child: const LocalizedText('打开发行页'),
+                      ),
+                    if (update)
+                      TextButton(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(
+                              text: (state.release?.uri ?? githubLatestPage)
+                                  .toString(),
+                            ),
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: LocalizedText(local('发行链接已复制')),
+                              ),
+                            );
+                          }
+                        },
+                        child: const LocalizedText('复制链接'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+  );
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -412,19 +761,25 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
       icon: const Icon(Icons.add),
       label: const LocalizedText('添加声明式漫画源'),
     ),
-    ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.network_check),
-      title: const LocalizedText('检查当前源'),
-      subtitle: const LocalizedText('依次验证列表、详情、章节图片地址'),
-      onTap: busy ? null : () => run(diagnose),
+    checkTile(
+      sourceCheck,
+      title: '检查当前源',
+      idle: '依次验证列表、详情、章节图片地址',
+      icon: Icons.network_check,
+      action: diagnose,
     ),
-    ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.system_update),
-      title: const LocalizedText('检查 GitHub 更新'),
-      onTap: busy ? null : () => run(checkUpdate),
+    checkFeedback(sourceCheck, diagnose),
+    if (widget.sourceOnly) ..._updateActions(),
+  ]);
+  List<Widget> _updateActions() => [
+    checkTile(
+      updateCheck,
+      title: '检查 GitHub 更新',
+      idle: '比较本机与最新正式版；网络失败可前往发行页',
+      icon: Icons.system_update,
+      action: checkUpdate,
     ),
+    checkFeedback(updateCheck, checkUpdate, update: true),
     ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.code),
@@ -434,12 +789,25 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
         mode: LaunchMode.externalApplication,
       ),
     ),
-  ]);
+  ];
 
   List<Widget> _sections(BuildContext context) => [
     if (!widget.sourceOnly) ...[
-      PersonalizationSettings(library: library),
+      if (widget.section == null ||
+          ['appearance', 'reading'].contains(widget.section))
+        PersonalizationSettings(library: library, section: widget.section),
       group('质感与性能', [
+        choice('quality', '画质与材质', {
+          'high': '高 · 折射与高清',
+          'standard': '标准 · 柔光',
+          'low': '省电 · 简化材质',
+        }, 'high'),
+        toggle('parallax', '指针视差', '移动指针时书脊随光线轻微变化', true),
+        if (!kIsWeb) toggle('tilt', '设备倾斜视差', '使用加速度计；可随时关闭', false),
+        toggle('coverColor', '封面取色', '从真实封面提取书架环境色', true),
+        toggle('haptics', '轻触反馈', '切换实体书时提供触感反馈', true),
+      ]),
+      group('下载与缓存', [
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.cleaning_services_outlined),
@@ -466,15 +834,6 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
                   return '解码图片缓存已清理。';
                 }),
         ),
-        choice('quality', '画质与材质', {
-          'high': '高 · 折射与高清',
-          'standard': '标准 · 柔光',
-          'low': '省电 · 简化材质',
-        }, 'high'),
-        toggle('parallax', '指针视差', '移动指针时书脊随光线轻微变化', true),
-        if (!kIsWeb) toggle('tilt', '设备倾斜视差', '使用加速度计；可随时关闭', false),
-        toggle('coverColor', '封面取色', '从真实封面提取书架环境色', true),
-        toggle('haptics', '轻触反馈', '切换实体书时提供触感反馈', true),
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const LocalizedText('预载页数'),
@@ -620,6 +979,7 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
       ]),
     ],
     _sourceSection(),
+    if (!widget.sourceOnly) group('关于与更新', _updateActions()),
     if (busy) const LinearProgressIndicator(),
     if (status != null)
       Padding(
@@ -627,4 +987,14 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
         child: SelectableText(status!),
       ),
   ];
+}
+
+class _CheckState {
+  CheckControl? control;
+  String? message, details;
+  Map<String, Object> arguments = {};
+  bool failed = false, complete = false;
+  bool updateAvailable = false;
+  UpdateRelease? release;
+  bool get running => control != null;
 }

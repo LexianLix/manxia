@@ -205,6 +205,7 @@ class _PluginsPageState extends State<PluginsPage> {
         ),
       ),
       _ => Padding(
+        key: PageStorageKey('plugin-setting-field-${plugin.id}-$key'),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: TextFormField(
           key: ValueKey('${plugin.id}-$key-$value'),
@@ -332,6 +333,7 @@ class _PluginsPageState extends State<PluginsPage> {
             ),
             if (plugin.settings.isNotEmpty)
               ExpansionTile(
+                key: PageStorageKey('plugin-settings-expanded-${plugin.id}'),
                 tilePadding: EdgeInsets.zero,
                 title: const Text('插件设置', style: TextStyle(fontSize: 13)),
                 children: plugin.settings
@@ -421,7 +423,7 @@ class _PluginsPageState extends State<PluginsPage> {
             children: [
               const Text(
                 '你的漫匣，\n由你定义。',
-                style: TextStyle(fontSize: 31, height: 1.3),
+                style: TextStyle(fontSize: 24, height: 1.3),
               ),
               const SizedBox(height: 12),
               const Text(

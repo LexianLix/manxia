@@ -25,8 +25,26 @@ class MainActivity : FlutterActivity() {
 
     private var volumeKeys = false
     private var channel: MethodChannel? = null
+    private var updates: AppUpdateInstaller? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        updates = AppUpdateInstaller(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/update").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "info" -> {
+                    val installedAbi = when (applicationInfo.nativeLibraryDir.substringAfterLast('/')) {
+                        "arm64" -> "arm64-v8a"
+                        "arm" -> "armeabi-v7a"
+                        "x86_64" -> "x86_64"
+                        else -> null
+                    }
+                    val abis = Build.SUPPORTED_ABIS.toList()
+                    result.success(mapOf("abis" to if (installedAbi in abis) listOf(installedAbi) + abis.filter { it != installedAbi } else abis))
+                }
+                "install" -> updates?.install(call.argument<String>("path") ?: "", result)
+                else -> result.notImplemented()
+            }
+        }
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/device")
         channel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -48,6 +66,10 @@ class MainActivity : FlutterActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+    override fun onDestroy() {
+        updates?.close()
+        super.onDestroy()
     }
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         if (volumeKeys && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) return true

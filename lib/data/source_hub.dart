@@ -15,10 +15,29 @@ class SourceHub extends Dm5Source {
   }
   final Library library;
   final http.Client transport;
-  List<Map<String, dynamic>> get profiles => [
-    ...library.sourceProfiles,
-    ...PluginSnapshot(library.options).sources,
-  ];
+  List<Map<String, dynamic>>? _fixedProfiles;
+  String? _fixedSource;
+  @override
+  Dm5Source forkForCheck() => SourceHub._check(
+    library,
+    gateway: gateway,
+    profiles: List<Map<String, dynamic>>.from(jsonDecode(jsonEncode(profiles))),
+    sourceId: library.option<String>('source', 'dm5'),
+  );
+  SourceHub._check(
+    this.library, {
+    super.gateway,
+    required List<Map<String, dynamic>> profiles,
+    required String sourceId,
+  }) : transport = http.Client(),
+       super(allowOffline: false) {
+    _fixedProfiles = profiles;
+    _fixedSource = sourceId;
+    refreshImageOrigins();
+  }
+  List<Map<String, dynamic>> get profiles =>
+      _fixedProfiles ??
+      [...library.sourceProfiles, ...PluginSnapshot(library.options).sources];
   void refreshImageOrigins() {
     for (final json in profiles) {
       final p = SourceProfile(json);
@@ -29,7 +48,11 @@ class SourceHub extends Dm5Source {
   }
 
   SourceProfile? get selected => profiles
-      .where((s) => s['id'] == library.option<String>('source', 'dm5'))
+      .where(
+        (s) =>
+            s['id'] ==
+            (_fixedSource ?? library.option<String>('source', 'dm5')),
+      )
       .map(SourceProfile.new)
       .firstOrNull;
   SourceProfile profile(String path) {
@@ -131,7 +154,9 @@ class SourceHub extends Dm5Source {
       Dm5Source.chapterCatalogs[comic.path] = result.chapters;
       return result;
     } catch (_) {
-      final stored = await Dm5Source.offlineDetail?.call(comic);
+      final stored = allowOffline
+          ? await Dm5Source.offlineDetail?.call(comic)
+          : null;
       if (stored != null) return stored;
       rethrow;
     }

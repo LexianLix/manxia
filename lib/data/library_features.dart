@@ -100,6 +100,11 @@ mixin LibraryFeatures on ChangeNotifier {
       setMeta(comic, {
         'reader': {...readerOptions(comic), key: value},
       });
+  Future<void> clearSearchHistory() async {
+    searchHistory.clear();
+    await persistFeatures();
+  }
+
   Future<void> rememberSearch(String query) async {
     if (query.trim().isEmpty) return;
     searchHistory.remove(query);

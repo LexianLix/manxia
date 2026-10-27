@@ -73,6 +73,8 @@ void main() {
         await tester.tap(find.text('设置'));
       }
       await tester.pumpAndSettle();
+      await tester.tap(find.text('外观与动效'));
+      await tester.pumpAndSettle();
       expect(find.text('夜间阅读室'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byType(Switch).first);
