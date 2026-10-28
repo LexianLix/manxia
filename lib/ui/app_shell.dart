@@ -784,6 +784,7 @@ class ComicGrid extends StatelessWidget {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: .06),
