@@ -13,6 +13,7 @@ import 'collection_motion.dart';
 import 'materials.dart';
 import 'room_motion.dart';
 import 'room_backdrop.dart';
+import 'shelf_orbit.dart';
 
 class LivingShelf extends StatefulWidget {
   const LivingShelf({
@@ -48,7 +49,6 @@ class _LivingShelfState extends State<LivingShelf>
     vsync: this,
     duration: RoomMotion.arrival,
   );
-  late final lean = AnimationController.unbounded(vsync: this);
   late final AnimationController parallax =
       AnimationController(vsync: this, duration: RoomMotion.feedback)
         ..addListener(() {
@@ -63,7 +63,8 @@ class _LivingShelfState extends State<LivingShelf>
   bool entered = false;
   Color ambient = const Color(0xff8baf99);
   StreamSubscription<AccelerometerEvent>? tilt;
-  double gap = 50;
+  double dragExtent = 130;
+  Duration lastHaptic = Duration.zero;
   int last = -1;
   int index(int i) =>
       ((i % widget.books.length) + widget.books.length) % widget.books.length;
@@ -103,13 +104,17 @@ class _LivingShelfState extends State<LivingShelf>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     foreground = state == AppLifecycleState.resumed;
-    if (mounted) syncTilt();
+    if (mounted) {
+      syncTilt();
+      if (!foreground) stopTravel();
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     syncTilt();
+    if (!TickerMode.valuesOf(context).enabled) stopTravel();
     if (!entered) {
       entered = true;
       if (animate) {
@@ -121,7 +126,6 @@ class _LivingShelfState extends State<LivingShelf>
       entrance.value = 1;
       position.stop();
       position.value = intendedPosition ?? position.value.roundToDouble();
-      lean.value = 0;
       parallax.stop();
       pointer.value = Offset.zero;
     }
@@ -165,16 +169,17 @@ class _LivingShelfState extends State<LivingShelf>
   }
 
   Rect? bookBounds() {
-    final object = bookKeys[position.value.round()]?.currentContext
-        ?.findRenderObject();
+    final object = bookKeys[selected]?.currentContext?.findRenderObject();
     return object is RenderBox && object.hasSize
-        ? object.localToGlobal(Offset.zero) & object.size
+        ? MatrixUtils.transformRect(
+            object.getTransformTo(null),
+            Offset.zero & object.size,
+          )
         : null;
   }
 
   void openBook(Comic comic) {
     position.stop();
-    lean.stop();
     parallax.stop();
     intendedPosition = null;
     final bounds = bookBounds();
@@ -189,20 +194,28 @@ class _LivingShelfState extends State<LivingShelf>
       if (mounted) setState(() {});
       final focused = widget.books[selected];
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onFocus?.call(focused);
+        if (mounted && widget.books[selected].path == focused.path) {
+          widget.onFocus?.call(focused);
+        }
       });
-      if (widget.library.option<bool>('haptics', true)) {
+      final now = WidgetsBinding.instance.currentSystemFrameTimeStamp;
+      if (widget.library.option<bool>('haptics', true) &&
+          now - lastHaptic > const Duration(milliseconds: 70)) {
+        lastHaptic = now;
         HapticFeedback.selectionClick();
       }
     }
   }
 
-  void step(int delta) => snap(
-    (position.isAnimating
-            ? intendedPosition ?? position.value.roundToDouble()
-            : position.value.roundToDouble()) +
-        delta,
-  );
+  void step(int delta) {
+    if (widget.books.length < 2) return;
+    snap(
+      (position.isAnimating
+              ? intendedPosition ?? position.value.roundToDouble()
+              : position.value.roundToDouble()) +
+          delta,
+    );
+  }
 
   void snap(double target, {double? velocity}) {
     final carried =
@@ -223,6 +236,240 @@ class _LivingShelfState extends State<LivingShelf>
     );
   }
 
+  void stopTravel() {
+    if (!position.isAnimating) return;
+    position.stop();
+    intendedPosition = null;
+    position.value = position.value.roundToDouble();
+  }
+
+  void release(double velocity) {
+    if (!animate) {
+      snap(position.value.roundToDouble());
+      return;
+    }
+    final glide = ShelfGlideSimulation(position.value, velocity);
+    intendedPosition = glide.target;
+    position.animateWith(glide);
+  }
+
+  Widget orbit(BuildContext context) => SizedBox(
+    key: const ValueKey('shelf-orbit'),
+    height: MediaQuery.sizeOf(context).width < 600 ? 270 : 310,
+    child: LayoutBuilder(
+      builder: (context, box) {
+        final count = widget.books.length;
+        final period = math.min(9, count);
+        final density = switch (widget.library.option<String>(
+          'shelfDensity',
+          'balanced',
+        )) {
+          'compact' => .9,
+          'airy' => 1.1,
+          _ => 1.0,
+        };
+        final radius =
+            math.min(box.maxWidth * (count == 2 ? .25 : .48), 310.0) * density;
+        final bookWidth = (box.maxWidth * .40).clamp(140.0, 180.0);
+        final bookHeight = bookWidth * 1.5;
+        dragExtent = (radius * 2 * math.pi / period).clamp(90.0, 200.0);
+        return MouseRegion(
+          onHover: (e) {
+            if (widget.library.option<bool>('parallax', true)) {
+              aim(
+                Offset(
+                  (e.localPosition.dx / box.maxWidth - .5) * 2,
+                  (e.localPosition.dy / box.maxHeight - .5) * 2,
+                ),
+              );
+            }
+          },
+          onExit: (_) => aim(Offset.zero),
+          child: Listener(
+            onPointerDown: (_) {
+              position.stop();
+              intendedPosition = null;
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: (_) {},
+              onHorizontalDragUpdate: (d) {
+                if (count < 2) return;
+                position.value -= d.delta.dx / dragExtent;
+              },
+              onHorizontalDragEnd: (d) {
+                if (count > 1) release(-(d.primaryVelocity ?? 0) / dragExtent);
+              },
+              onHorizontalDragCancel: () =>
+                  snap(position.value.roundToDouble()),
+              child: AnimatedBuilder(
+                animation: Listenable.merge([position, pointer, entrance]),
+                builder: (context, _) {
+                  final center = position.value.round();
+                  final slots = List.generate(
+                    math.min(7, count),
+                    (i) => center + i - math.min(7, count) ~/ 2,
+                  );
+                  final poses = {
+                    for (final slot in slots)
+                      slot: ShelfOrbitPose(slot - position.value, period),
+                  };
+                  slots.sort(
+                    (a, b) => poses[a]!.depth.compareTo(poses[b]!.depth),
+                  );
+                  final arrival = animate
+                      ? RoomMotion.ease.transform(entrance.value)
+                      : 1.0;
+                  return Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: const Alignment(0, .35),
+                              radius: .8,
+                              colors: [
+                                (widget.library.option<bool>('coverColor', true)
+                                        ? ambient
+                                        : Theme.of(context).colorScheme.primary)
+                                    .withValues(
+                                      alpha:
+                                          widget.library.option<String>(
+                                                'quality',
+                                                'high',
+                                              ) ==
+                                              'low'
+                                          ? .025
+                                          : .065,
+                                    ),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      for (final slot in slots)
+                        Builder(
+                          key: ValueKey(
+                            'orbit-${widget.books[index(slot)].path}',
+                          ),
+                          builder: (context) {
+                            final pose = poses[slot]!;
+                            final real = index(slot);
+                            final item = widget.books[real];
+                            final focused = slot == center;
+                            return Positioned(
+                              left:
+                                  box.maxWidth / 2 -
+                                  bookWidth / 2 +
+                                  radius * pose.horizontal +
+                                  pointer.value.dx * 3,
+                              top:
+                                  12 +
+                                  pose.vertical +
+                                  pointer.value.dy * 2 +
+                                  (1 - arrival) * 10,
+                              width: bookWidth,
+                              height: bookHeight,
+                              child: IgnorePointer(
+                                ignoring: pose.opacity < .3,
+                                child: Opacity(
+                                  opacity: pose.opacity * arrival,
+                                  child: Transform(
+                                    alignment: Alignment.center,
+                                    transform: Matrix4.identity()
+                                      ..setEntry(3, 2, .001)
+                                      ..scaleByDouble(
+                                        pose.scale,
+                                        pose.scale,
+                                        1,
+                                        1,
+                                      )
+                                      ..rotateY(
+                                        pose.yaw + pointer.value.dx * .025,
+                                      ),
+                                    child: Semantics(
+                                      button: true,
+                                      label: focused
+                                          ? '查看${item.title}'
+                                          : '选择${item.title}',
+                                      child: Tooltip(
+                                        message: item.title,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            if (focused) {
+                                              openBook(item);
+                                            } else {
+                                              snap(slot.toDouble());
+                                            }
+                                          },
+                                          child: MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: RepaintBoundary(
+                                              child: BookFlight(
+                                                enabled: focused,
+                                                child: BookObject(
+                                                  item,
+                                                  key: bookKeys.putIfAbsent(
+                                                    real,
+                                                    GlobalKey.new,
+                                                  ),
+                                                  web: widget.web,
+                                                  number: real + 1,
+                                                  exposure: 1,
+                                                  flattening: .58,
+                                                  light: 0,
+                                                  bookmark:
+                                                      widget.library.record(
+                                                        item,
+                                                      ) !=
+                                                      null,
+                                                  onColor:
+                                                      focused &&
+                                                          widget.library
+                                                              .option<bool>(
+                                                                'coverColor',
+                                                                true,
+                                                              )
+                                                      ? (color) {
+                                                          if (mounted &&
+                                                              ambient !=
+                                                                  color) {
+                                                            setState(
+                                                              () => ambient =
+                                                                  color,
+                                                            );
+                                                            widget
+                                                                .onAmbientColor
+                                                                ?.call(color);
+                                                          }
+                                                        }
+                                                      : null,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -230,7 +477,6 @@ class _LivingShelfState extends State<LivingShelf>
     position.dispose();
     pointer.dispose();
     entrance.dispose();
-    lean.dispose();
     parallax.dispose();
     super.dispose();
   }
@@ -244,296 +490,7 @@ class _LivingShelfState extends State<LivingShelf>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: MediaQuery.sizeOf(context).width < 600 ? 278 : 330,
-          child: LayoutBuilder(
-            builder: (context, box) {
-              gap = box.maxWidth < 500 ? 48 : 58;
-              gap *= switch (widget.library.option<String>(
-                'shelfDensity',
-                'balanced',
-              )) {
-                'compact' => .82,
-                'airy' => 1.2,
-                _ => 1.0,
-              };
-              final scale = (box.maxWidth / 700).clamp(.72, 1.04);
-              return MouseRegion(
-                onHover: (e) {
-                  if (widget.library.option<bool>('parallax', true)) {
-                    aim(
-                      Offset(
-                        (e.localPosition.dx / box.maxWidth - .5) * 2,
-                        (e.localPosition.dy / box.maxHeight - .5) * 2,
-                      ),
-                    );
-                  }
-                },
-                onExit: (_) => aim(Offset.zero),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragStart: (_) {
-                    position.stop();
-                    intendedPosition = null;
-                    lean.stop();
-                  },
-                  onHorizontalDragUpdate: (d) {
-                    position.value -= d.delta.dx / (gap * 1.35);
-                    if (animate) {
-                      lean.animateTo(
-                        (d.delta.dx / 16).clamp(-1, 1),
-                        duration: RoomMotion.press,
-                        curve: RoomMotion.ease,
-                      );
-                    } else {
-                      lean.value = 0;
-                    }
-                  },
-                  onHorizontalDragEnd: (d) {
-                    lean.animateTo(
-                      0,
-                      duration: animate ? RoomMotion.page : Duration.zero,
-                      curve: RoomMotion.ease,
-                    );
-                    final velocity = -(d.primaryVelocity ?? 0) / (gap * 1.35);
-                    final target =
-                        (position.value + (velocity * .18).clamp(-4, 4))
-                            .roundToDouble();
-                    snap(target, velocity: velocity);
-                  },
-                  onHorizontalDragCancel: () {
-                    lean.animateTo(
-                      0,
-                      duration: animate ? RoomMotion.feedback : Duration.zero,
-                      curve: RoomMotion.ease,
-                    );
-                    snap(position.value.roundToDouble());
-                  },
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([
-                      position,
-                      pointer,
-                      entrance,
-                      lean,
-                    ]),
-                    builder: (context, _) {
-                      final center = position.value.round();
-                      bookKeys.removeWhere(
-                        (logical, _) => (logical - center).abs() > 7,
-                      );
-                      final count = math.min(7, widget.books.length);
-                      final order =
-                          List.generate(count, (i) => center + i - count ~/ 2)
-                            ..sort(
-                              (a, b) => (b - position.value).abs().compareTo(
-                                (a - position.value).abs(),
-                              ),
-                            );
-                      return Stack(
-                        clipBehavior: Clip.hardEdge,
-                        children: [
-                          Positioned.fill(
-                            child: AnimatedContainer(
-                              duration: animate
-                                  ? RoomMotion.page
-                                  : Duration.zero,
-                              decoration: BoxDecoration(
-                                gradient: RadialGradient(
-                                  center: const Alignment(0, .2),
-                                  radius: .75,
-                                  colors: [
-                                    (widget.library.option<bool>(
-                                              'coverColor',
-                                              true,
-                                            )
-                                            ? ambient
-                                            : const Color(0xff8baf99))
-                                        .withValues(
-                                          alpha:
-                                              widget.library.option<String>(
-                                                    'quality',
-                                                    'high',
-                                                  ) ==
-                                                  'low'
-                                              ? .035
-                                              : .13,
-                                        ),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 25,
-                            child: Container(
-                              height: 1,
-                              color: Theme.of(
-                                context,
-                              ).dividerColor.withValues(alpha: .45),
-                            ),
-                          ),
-                          for (final logical in order) ...[
-                            Builder(
-                              builder: (context) {
-                                final distance = logical - position.value;
-                                final focus = math
-                                    .pow((1 - distance.abs()).clamp(0, 1), 1.5)
-                                    .toDouble();
-                                final x =
-                                    box.maxWidth / 2 -
-                                    95 * scale +
-                                    distance * gap +
-                                    (distance > 0
-                                        ? 108 * scale * (1 - focus)
-                                        : 0) +
-                                    pointer.value.dx * 4;
-                                final y =
-                                    70 -
-                                    focus * 64 +
-                                    distance.abs() * 2 +
-                                    pointer.value.dy * 3;
-                                final item = widget.books[index(logical)];
-                                final delay = distance.abs().clamp(0, 5) * .055;
-                                final arrival = animate
-                                    ? RoomMotion.ease.transform(
-                                        ((entrance.value - delay) / (1 - delay))
-                                            .clamp(0.0, 1.0),
-                                      )
-                                    : 1.0;
-                                return Positioned(
-                                  key: ValueKey('paint-$logical'),
-                                  left: x + (1 - arrival) * distance * 7,
-                                  top: y + (1 - arrival) * 48,
-                                  width: 200 * scale,
-                                  height: 280 * scale,
-                                  child: IgnorePointer(
-                                    child: Opacity(
-                                      opacity: arrival,
-                                      child: Transform(
-                                        alignment: Alignment.center,
-                                        transform: Matrix4.identity()
-                                          ..setEntry(3, 2, .0012)
-                                          ..rotateY(
-                                            distance.clamp(-2, 2) * .075 +
-                                                pointer.value.dx * .06 +
-                                                lean.value * .13 * focus,
-                                          )
-                                          ..rotateX(pointer.value.dy * .04)
-                                          ..rotateZ(-lean.value * .045 * focus),
-                                        child: AnimatedSlide(
-                                          offset: Offset(
-                                            0,
-                                            widget.library.updates[item
-                                                        .path]?['changed'] ==
-                                                    true
-                                                ? -.03
-                                                : 0,
-                                          ),
-                                          duration: Duration(
-                                            milliseconds: animate
-                                                ? RoomMotion.page.inMilliseconds
-                                                : 0,
-                                          ),
-                                          curve: RoomMotion.ease,
-                                          child: BookFlight(
-                                            enabled: logical == center,
-                                            child: BookObject(
-                                              item,
-                                              key: bookKeys.putIfAbsent(
-                                                logical,
-                                                GlobalKey.new,
-                                              ),
-                                              web: widget.web,
-                                              number: index(logical) + 1,
-                                              exposure: focus,
-                                              light: pointer.value.dx,
-                                              bookmark:
-                                                  widget.library.record(item) !=
-                                                  null,
-                                              onColor:
-                                                  logical == center &&
-                                                      widget.library
-                                                          .option<bool>(
-                                                            'coverColor',
-                                                            true,
-                                                          )
-                                                  ? (color) {
-                                                      if (mounted &&
-                                                          ambient != color) {
-                                                        setState(
-                                                          () => ambient = color,
-                                                        );
-                                                        widget.onAmbientColor
-                                                            ?.call(color);
-                                                      }
-                                                    }
-                                                  : null,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            Builder(
-                              builder: (context) {
-                                final d = logical - position.value;
-                                final focus = math
-                                    .pow((1 - d.abs()).clamp(0, 1), 1.5)
-                                    .toDouble();
-                                final item = widget.books[index(logical)];
-                                return Positioned(
-                                  key: ValueKey('hit-$logical'),
-                                  left:
-                                      box.maxWidth / 2 -
-                                      78 * scale +
-                                      d * gap +
-                                      (d > 0 ? 108 * scale * (1 - focus) : 0),
-                                  top: 95 - focus * 64 + d.abs() * 2,
-                                  width: (34 + 129 * focus) * scale,
-                                  height: 210 * scale,
-                                  child: Semantics(
-                                    button: true,
-                                    label: focus > .8
-                                        ? '查看${item.title}'
-                                        : '选择${item.title}',
-                                    child: Tooltip(
-                                      message: item.title,
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          if (focus > .8) {
-                                            openBook(item);
-                                          } else {
-                                            snap(logical.toDouble());
-                                          }
-                                        },
-                                        child: MouseRegion(
-                                          cursor: SystemMouseCursors.click,
-                                          child: Container(
-                                            color: Colors.transparent,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+        orbit(context),
         Row(
           children: [
             Expanded(

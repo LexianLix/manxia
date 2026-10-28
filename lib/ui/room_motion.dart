@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'paper_leaf.dart';
 
 /// A shared rhythm: direct manipulation, short feedback, then spatial travel.
 abstract final class RoomMotion {
   static const press = Duration(milliseconds: 110);
   static const feedback = Duration(milliseconds: 180);
   static const page = Duration(milliseconds: 340);
+  static const scene = Duration(milliseconds: 240);
   static const arrival = Duration(milliseconds: 420);
   static const cover = Duration(milliseconds: 320);
   static const book = Duration(milliseconds: 620);
@@ -34,9 +34,9 @@ abstract final class RoomMotion {
 class RoomPageTransitions extends PageTransitionsBuilder {
   const RoomPageTransitions();
   @override
-  Duration get transitionDuration => RoomMotion.page;
+  Duration get transitionDuration => RoomMotion.scene;
   @override
-  Duration get reverseTransitionDuration => RoomMotion.page;
+  Duration get reverseTransitionDuration => RoomMotion.scene;
 
   @override
   Widget buildTransitions<T>(
@@ -53,10 +53,9 @@ class RoomPageTransitions extends PageTransitionsBuilder {
       builder: (_, child) {
         final t = RoomMotion.ease.transform(animation.value);
         final depth = RoomMotion.ease.transform(secondaryAnimation.value);
-        return PaperLeaf(
-          amount: (1 - t) + depth * .025 * t,
-          reverse: true,
-          child: child!,
+        return Transform.translate(
+          offset: Offset(0, 16 * (1 - t) - 4 * depth),
+          child: Opacity(opacity: t, child: child!),
         );
       },
     );

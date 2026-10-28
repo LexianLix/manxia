@@ -1,4 +1,3 @@
-import 'package:manxia/ui/paper_leaf.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manxia/ui/retained_pages.dart';
@@ -70,33 +69,15 @@ void main() {
     change(() => selected = 3);
     await tester.pump();
     expect(
-      tester
-          .widget<PaperLeaf>(
-            find
-                .ancestor(
-                  of: find.byKey(const ValueKey('ordered-page-3')),
-                  matching: find.byType(PaperLeaf),
-                )
-                .first,
-          )
-          .reverse,
-      isTrue,
+      tester.getTopLeft(find.byKey(const ValueKey('ordered-page-3'))).dx,
+      greaterThan(0),
     );
     await tester.pumpAndSettle();
     change(() => selected = 5);
     await tester.pump();
     expect(
-      tester
-          .widget<PaperLeaf>(
-            find
-                .ancestor(
-                  of: find.byKey(const ValueKey('ordered-page-5')),
-                  matching: find.byType(PaperLeaf),
-                )
-                .first,
-          )
-          .reverse,
-      isFalse,
+      tester.getTopLeft(find.byKey(const ValueKey('ordered-page-5'))).dx,
+      lessThan(0),
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -135,15 +116,15 @@ void main() {
       expect(selected, 0);
       expect(
         tester
-            .widget<PaperLeaf>(
+            .widget<Opacity>(
               find
                   .ancestor(
                     of: find.byKey(const ValueKey('page-0')),
-                    matching: find.byType(PaperLeaf),
+                    matching: find.byType(Opacity),
                   )
                   .first,
             )
-            .amount,
+            .opacity,
         inExclusiveRange(0, 1),
       );
       expect(find.byKey(const ValueKey('page-4')), findsOneWidget);

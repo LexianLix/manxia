@@ -1,4 +1,3 @@
-import 'package:manxia/ui/paper_leaf.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -312,18 +311,16 @@ void main() {
         ),
       ),
     );
-    double opacity(int index) =>
-        1 -
-        tester
-            .widget<PaperLeaf>(
-              find
-                  .ancestor(
-                    of: find.byKey(ValueKey('scene-$index')),
-                    matching: find.byType(PaperLeaf),
-                  )
-                  .first,
-            )
-            .amount;
+    double opacity(int index) => tester
+        .widget<Opacity>(
+          find
+              .ancestor(
+                of: find.byKey(ValueKey('scene-$index')),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        )
+        .opacity;
     for (final next in [1, 2, 0, 2, 1]) {
       final visible = <int, (double, Offset)>{
         for (final i in [0, 1, 2])

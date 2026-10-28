@@ -22,7 +22,9 @@ void main() {
               child: SizedBox(
                 width: 200,
                 height: 300,
-                child: BookFlight(child: BookObject(comic, web: false)),
+                child: BookFlight(
+                  child: BookObject(comic, web: false, flattening: .58),
+                ),
               ),
             ),
           ),
@@ -43,6 +45,15 @@ void main() {
         ),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(
+        tester
+            .widgetList<BookObject>(find.byType(BookObject))
+            .single
+            .flattening,
+        closeTo(.58, .001),
+        reason: 'Take off with the actual shelf cover proportions.',
+      );
       double opening() =>
           tester.widgetList<BookObject>(find.byType(BookObject)).single.opening;
       await tester.pump(const Duration(milliseconds: 300));

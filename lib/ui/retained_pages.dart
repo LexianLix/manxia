@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'room_motion.dart';
-import 'paper_leaf.dart';
 
 /// Retarget from the rendered poses instead of replaying a transition at zero.
 /// Only visited pages are built; hidden scenes retain state without ticking.
@@ -27,13 +26,12 @@ class _RetainedPagesState extends State<RetainedPages>
     with SingleTickerProviderStateMixin {
   late final clock = AnimationController(
     vsync: this,
-    duration: RoomMotion.page,
+    duration: RoomMotion.scene,
     value: 1,
   );
   late final visited = <int>{widget.index};
   final starts = <int, (double, double)>{};
   final ends = <int, (double, double)>{};
-  final hinges = <int, bool>{};
   bool dragging = false;
   int dragFrom = 0;
   int? dragTarget;
@@ -42,10 +40,10 @@ class _RetainedPagesState extends State<RetainedPages>
 
   (double, double) pose(int index) {
     if (dragging) {
-      final start = dragStarts[index] ?? (0.0, direction * 48);
+      final start = dragStarts[index] ?? (0.0, direction * 20);
       final end = index == dragTarget
           ? (1.0, 0.0)
-          : (0.0, index == dragFrom ? -direction * 48 : start.$2);
+          : (0.0, index == dragFrom ? -direction * 20 : start.$2);
       return (
         start.$1 + (end.$1 - start.$1) * dragFraction,
         start.$2 + (end.$2 - start.$2) * dragFraction,
@@ -85,11 +83,9 @@ class _RetainedPagesState extends State<RetainedPages>
     }
     setState(() {
       dragTarget = widget.order[at];
-      hinges[dragFrom] = direction < 0;
-      hinges[dragTarget!] = direction > 0;
       visited.add(dragTarget!);
       if ((dragStarts[dragTarget]?.$1 ?? 0) < .001) {
-        dragStarts[dragTarget!] = (0, direction * 48);
+        dragStarts[dragTarget!] = (0, direction * 20);
       }
       dragFraction = (dragDistance.abs() / width).clamp(0.0, 1.0);
     });
@@ -158,15 +154,12 @@ class _RetainedPagesState extends State<RetainedPages>
         final snapshot = snapshots[index];
         final start =
             index == widget.index && (snapshot == null || snapshot.$1 < .001)
-            ? (0.0, 48 * direction)
-            : snapshot ?? (0.0, 48 * direction);
+            ? (0.0, 20 * direction)
+            : snapshot ?? (0.0, 20 * direction);
         starts[index] = start;
-        if (start.$1 >= .999 || start.$1 <= .001) {
-          hinges[index] = index == widget.index ? direction > 0 : direction < 0;
-        }
         ends[index] = index == widget.index
             ? (1.0, 0.0)
-            : (0.0, index == old.index ? -48 * direction : start.$2);
+            : (0.0, index == old.index ? -20 * direction : start.$2);
       }
       if (widget.animate && !MediaQuery.disableAnimationsOf(context)) {
         clock.forward(from: 0);
@@ -210,10 +203,12 @@ class _RetainedPagesState extends State<RetainedPages>
                       excluding: !current,
                       child: IgnorePointer(
                         ignoring: !current,
-                        child: PaperLeaf(
-                          amount: 1 - alpha.clamp(0, 1),
-                          reverse: hinges[index] ?? dx > 0,
-                          child: child!,
+                        child: Transform.translate(
+                          offset: Offset(dx, 0),
+                          child: Opacity(
+                            opacity: alpha.clamp(0, 1),
+                            child: child!,
+                          ),
                         ),
                       ),
                     ),

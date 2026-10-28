@@ -124,7 +124,11 @@ class BookFlight extends StatelessWidget {
                 pose.travel,
               )!,
               light: ui.lerpDouble(source.light, target.light, pose.travel)!,
-              flattening: landsOnCover ? pose.flatten : 0,
+              flattening: ui.lerpDouble(
+                source.flattening,
+                landsOnCover ? 1 : target.flattening,
+                pose.flatten,
+              )!,
               transparentBody: landsOnCover,
               opening: landsOnCover
                   ? (hinge ? .93 * pose.unfold : 0)

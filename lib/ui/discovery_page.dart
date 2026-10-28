@@ -9,7 +9,6 @@ import '../data/dm5_source.dart';
 import '../data/library.dart';
 import '../data/source_hub.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, quiet, small;
-import 'book_object.dart';
 import 'materials.dart';
 import 'source_browser.dart';
 import 'discovery_collection.dart';
@@ -609,7 +608,14 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                       onOpen: widget.onOpen,
                       builder: (cover, open) => ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: SizedBox(width: 38, height: 54, child: cover),
+                        leading: SizedBox(
+                          width: 38,
+                          height: 54,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: cover,
+                          ),
+                        ),
                         title: Text(book.title),
                         subtitle: LocalizedText(
                           '新章 · ${widget.library.updates[book.path]!['latest']}',
@@ -797,7 +803,6 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         comic: comic,
         web: widget.web,
         onOpen: widget.onOpen,
-        cover: BookObject(comic, web: widget.web),
         builder: (cover, open) => MilkGlass(
           radius: 18,
           high: widget.library.option<String>('quality', 'high') == 'high',
@@ -816,7 +821,10 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                       SizedBox(
                         width: wide ? 120 : 88,
                         height: wide ? 178 : 132,
-                        child: cover,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: cover,
+                        ),
                       ),
                       SizedBox(width: wide ? 24 : 16),
                       Expanded(
@@ -905,7 +913,12 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                                       children: [
                                         AspectRatio(
                                           aspectRatio: .70,
-                                          child: cover,
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child: cover,
+                                          ),
                                         ),
                                         const SizedBox(height: 10),
                                         Text(
@@ -954,7 +967,14 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                 ),
               ),
             ),
-            SizedBox(width: 60, height: 80, child: cover),
+            SizedBox(
+              width: 60,
+              height: 80,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: cover,
+              ),
+            ),
             const SizedBox(width: 18),
             Expanded(
               child: Text(comic.title, style: const TextStyle(fontSize: 14)),

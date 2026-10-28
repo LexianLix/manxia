@@ -777,7 +777,7 @@ class ComicGrid extends StatelessWidget {
       onOpen: onOpen,
       builder: (cover, open) => InkWell(
         onTap: open,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -793,7 +793,7 @@ class ComicGrid extends StatelessWidget {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(12),
                   child: SizedBox(width: double.infinity, child: cover),
                 ),
               ),

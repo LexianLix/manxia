@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'room_motion.dart';
-import 'paper_leaf.dart';
 
 /// The paper remains painted until a decoded frame is visible. A bounded set of
 /// identities prevents recycled covers from repeatedly replaying their arrival.
@@ -100,7 +99,7 @@ class _CoverArrivalState extends State<CoverArrival>
           children: [
             widget.placeholder,
             Positioned.fill(
-              child: PaperLeaf(amount: 1 - t, reverse: true, child: child!),
+              child: Opacity(opacity: t, child: child!),
             ),
           ],
         ),
