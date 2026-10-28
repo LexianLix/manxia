@@ -2,14 +2,14 @@
 
 ## 安装发行版
 
-从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.3.10 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
+从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.4.1 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
 
 发行包使用 Release 模式编译，并由项目固定密钥签名。发行页包含 `SHA256SUMS.txt` 与 `release-manifest.json`，后者记录构建提交、工作流、架构、版本码和签名证书指纹。GitHub 自动提供的 Source code 归档是源码，不是安装包。
 
 下载后可在 PowerShell 中检查文件哈希，并与发行页的校验文件比对：
 
 ```powershell
-Get-FileHash .\Manxia-0.3.10-arm64-v8a.apk -Algorithm SHA256
+Get-FileHash .\Manxia-0.4.1-arm64-v8a.apk -Algorithm SHA256
 ```
 
 项目签名证书 SHA-256：
@@ -24,7 +24,7 @@ Get-FileHash .\Manxia-0.3.10-arm64-v8a.apk -Algorithm SHA256
 
 固定项目签名的正式发行版可直接覆盖升级，无需卸载。v0.3.10 起，在“设置 → 关于与更新 → 检查 GitHub 更新”查看版本并下载更新；应用按架构选包，核对发行清单、文件大小与 SHA-256，系统安装前检查包名、签名和递增版本码。首次需允许漫匣安装应用，返回后再点击“安装更新”，由系统确认覆盖安装。网络失败可重试或从发行页手动下载相同架构 APK。下载取消不删除书库。
 
-从尚无应用内更新功能的旧版升级到 v0.3.10，可直接下载本次 APK 覆盖安装；新功能需安装后才会出现。
+从尚无应用内更新功能的旧版升级到当前发行版，可直接下载对应架构 APK 覆盖安装；更新入口需安装后才会出现。
 
 旧 Debug／Profile 测试包使用构建环境的临时证书，与项目发行签名不同。换装前请依次：
 
