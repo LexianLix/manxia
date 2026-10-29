@@ -2,14 +2,14 @@
 
 ## 安装发行版
 
-从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.4.1 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
+从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.4.2 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
 
 发行包使用 Release 模式编译，并由项目固定密钥签名。发行页包含 `SHA256SUMS.txt` 与 `release-manifest.json`，后者记录构建提交、工作流、架构、版本码和签名证书指纹。GitHub 自动提供的 Source code 归档是源码，不是安装包。
 
 下载后可在 PowerShell 中检查文件哈希，并与发行页的校验文件比对：
 
 ```powershell
-Get-FileHash .\Manxia-0.4.1-arm64-v8a.apk -Algorithm SHA256
+Get-FileHash .\Manxia-0.4.2-arm64-v8a.apk -Algorithm SHA256
 ```
 
 项目签名证书 SHA-256：
