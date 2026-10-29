@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:manxia/data/library.dart';
 import 'package:manxia/data/dm5_source.dart';
@@ -33,6 +34,54 @@ Future<Uint8List> longImage() async {
 }
 
 void main() {
+  testWidgets(
+    'retrying a failed page immediately shows a single loading state',
+    (tester) async {
+      final source = Dm5Source();
+      final store = _RetryStore();
+      late Uint8List bytes;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({});
+        final library = Library(await SharedPreferences.getInstance());
+        await library.load();
+        OfflineLibrary(library, source, store: store);
+        bytes = await longImage();
+      });
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        if (!store.retry.isCompleted) store.retry.complete(null);
+        source.close();
+        OfflineLibrary.instance = null;
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh', 'CN'),
+          supportedLocales: const [Locale('zh', 'CN')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: Scaffold(
+            body: PagePicture('offline:retry-page', web: false, strip: false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('重新加载图片'), findsOneWidget);
+      await tester.tap(find.text('重新加载图片'));
+      await tester.pump();
+      expect(find.text('重新加载图片'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      store.retry.complete(bytes);
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('重新加载图片'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   test('white margin detector trims borders and retains the center', () {
     final bytes = Uint8List(100 * 100 * 4)..fillRange(0, 40000, 255);
     for (var y = 10; y < 90; y++) {
@@ -113,4 +162,12 @@ void main() {
       Dm5Source.offlineDetail = null;
     },
   );
+}
+
+class _RetryStore extends MemoryBlobStore {
+  int reads = 0;
+  final retry = Completer<Uint8List?>();
+  @override
+  Future<Uint8List?> read(String key) async =>
+      ++reads == 1 ? null : retry.future;
 }

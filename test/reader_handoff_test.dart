@@ -25,6 +25,28 @@ const comic = Comic(
 const a = Chapter('/old/', 'Old chapter'), b = Chapter('/new/', 'New chapter');
 const c = Chapter('/third/', 'Third chapter');
 void main() {
+  testWidgets('tapping the edge of a zoomed page does not turn or reset zoom', (
+    tester,
+  ) async {
+    final f = await _Fixture.start(
+      tester,
+      initialUrls: const ['offline:old', 'offline:old'],
+    );
+    final viewer = tester.widget<InteractiveViewer>(
+      find.byType(InteractiveViewer).first,
+    );
+    viewer.transformationController!.value = Matrix4.diagonal3Values(2, 2, 1);
+    await tester.pump();
+    final pages = tester.widget<PageView>(find.byType(PageView)).controller!;
+    await tester.tapAt(const Offset(790, 350));
+    await tester.pumpAndSettle();
+    expect(pages.page, closeTo(0, .001));
+    expect(
+      viewer.transformationController!.value.getMaxScaleOnAxis(),
+      closeTo(2, .001),
+    );
+    expect(f.library.record(comic)!.page, 0);
+  });
   testWidgets(
     'warmth changes the reading canvas and can be reset without changing the page',
     (tester) async {
@@ -554,13 +576,15 @@ class _Store extends MemoryBlobStore {
 }
 
 class _Pages extends Dm5Source {
+  _Pages({this.initialUrls = const ['offline:old']});
+  final List<String> initialUrls;
   final calls = <String>[];
   final pending = <Completer<List<String>>>[];
   Completer<List<String>> get next => pending.last;
   @override
   Future<List<String>> pages(String path) async {
     calls.add(path);
-    if (path == a.path) return ['offline:old'];
+    if (path == a.path) return initialUrls;
     final response = Completer<List<String>>();
     pending.add(response);
     return response.future;
@@ -583,10 +607,11 @@ class _Fixture {
     int? initialPage,
     double initialPosition = 0,
     bool waitInitial = true,
+    List<String> initialUrls = const ['offline:old'],
     Locale locale = const Locale('zh', 'CN'),
     double textScale = 1,
   }) async {
-    final source = _Pages(), store = _Store();
+    final source = _Pages(initialUrls: initialUrls), store = _Store();
     final boundary = GlobalKey();
     late Library library;
     late Uint8List bytes;

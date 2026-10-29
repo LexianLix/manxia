@@ -15,6 +15,7 @@ class ReaderControl extends ChangeNotifier {
   double position = 0;
   Matrix4 transform = Matrix4.identity();
   int transformPage = 0;
+  VoidCallback? onTransform;
   void go(int value, {double position = 0}) {
     page = value;
     target = value;
@@ -158,6 +159,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
     if (controller.hasClients) {
       widget.control.transformPage = page((controller.page ?? 0).round());
     }
+    widget.control.onTransform?.call();
     final value = viewport.value.getMaxScaleOnAxis() > 1.001;
     if (mounted && value != zoomed) setState(() => zoomed = value);
   }
@@ -683,6 +685,7 @@ class _PagePictureState extends State<PagePicture> {
   void didUpdateWidget(PagePicture old) {
     super.didUpdateWidget(old);
     if (old.url != widget.url ||
+        old.web != widget.web ||
         old.autoCrop != widget.autoCrop ||
         old.decodeWidth != widget.decodeWidth) {
       load();
@@ -692,6 +695,7 @@ class _PagePictureState extends State<PagePicture> {
   Future<void> load() async {
     announced = false;
     final generation = ++request;
+    setState(() => error = null);
     if (listener != null) stream?.removeListener(listener!);
     try {
       final provider = await pageProvider(
@@ -738,7 +742,11 @@ class _PagePictureState extends State<PagePicture> {
       stream!.addListener(listener!);
     } catch (_) {
       if (mounted && generation == request) {
-        setState(() => error = '离线图片不存在或无法读取');
+        setState(
+          () => error = widget.url.startsWith('offline:')
+              ? '离线图片不存在或无法读取'
+              : '这一页加载失败',
+        );
         widget.onLoadError?.call();
       }
     }

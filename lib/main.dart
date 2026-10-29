@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,41 +26,74 @@ Future<void> main() async {
   runApp(ManxiaStartup(builder: (library) => ManxiaApp(library: library)));
 }
 
-class ManxiaApp extends StatelessWidget {
+class ManxiaApp extends StatefulWidget {
   const ManxiaApp({super.key, required this.library});
   final Library library;
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: library,
-    builder: (context, _) => MaterialApp(
-      title: '漫匣 · 把故事留在手边',
-      debugShowCheckedModeBanner: false,
-      scrollBehavior: const RoomScrollBehavior(),
-      locale: switch (library.option<String>('language', 'zh_CN')) {
-        'en' => const Locale('en'),
-        'zh_TW' => const Locale('zh', 'TW'),
-        _ => const Locale('zh', 'CN'),
-      },
-      supportedLocales: const [
-        Locale('zh', 'CN'),
-        Locale('zh', 'TW'),
-        Locale('en'),
-      ],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.linear(library.option<double>('textScale', 1)),
-          highContrast: library.option<bool>('highContrast', false),
-          disableAnimations:
-              MediaQuery.disableAnimationsOf(context) || !library.motion,
-        ),
-        child: RoomBackdrop(library: library, child: child!),
+  State<ManxiaApp> createState() => _ManxiaAppState();
+}
+
+class _ManxiaAppState extends State<ManxiaApp> {
+  Library get library => widget.library;
+  String get signature =>
+      jsonEncode([library.dark, library.motion, library.options]);
+  late String configuration = signature;
+  @override
+  void initState() {
+    super.initState();
+    library.addListener(preferencesChanged);
+  }
+
+  void preferencesChanged() {
+    final next = signature;
+    if (configuration != next) setState(() => configuration = next);
+  }
+
+  @override
+  void didUpdateWidget(ManxiaApp old) {
+    super.didUpdateWidget(old);
+    if (old.library != library) {
+      old.library.removeListener(preferencesChanged);
+      library.addListener(preferencesChanged);
+      configuration = signature;
+    }
+  }
+
+  @override
+  void dispose() {
+    library.removeListener(preferencesChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: '漫匣 · 把故事留在手边',
+    debugShowCheckedModeBanner: false,
+    scrollBehavior: const RoomScrollBehavior(),
+    locale: switch (library.option<String>('language', 'zh_CN')) {
+      'en' => const Locale('en'),
+      'zh_TW' => const Locale('zh', 'TW'),
+      _ => const Locale('zh', 'CN'),
+    },
+    supportedLocales: const [
+      Locale('zh', 'CN'),
+      Locale('zh', 'TW'),
+      Locale('en'),
+    ],
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(library.option<double>('textScale', 1)),
+        highContrast: library.option<bool>('highContrast', false),
+        disableAnimations:
+            MediaQuery.disableAnimationsOf(context) || !library.motion,
       ),
-      themeMode: library.dark ? ThemeMode.dark : ThemeMode.light,
-      theme: _theme(false),
-      darkTheme: _theme(true),
-      home: AppShell(library: library, web: kIsWeb),
+      child: RoomBackdrop(library: library, child: child!),
     ),
+    themeMode: library.dark ? ThemeMode.dark : ThemeMode.light,
+    theme: _theme(false),
+    darkTheme: _theme(true),
+    home: AppShell(library: library, web: kIsWeb),
   );
   ThemeData _theme(bool dark) {
     final theme = PluginSnapshot(library.options).theme;

@@ -874,15 +874,15 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       child: Column(
         children: [
-          Icon(icon, size: 38, color: quiet(context)),
-          const SizedBox(height: 22),
+          Icon(icon, size: 30, color: quiet(context)),
+          const SizedBox(height: 16),
           LocalizedText(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 19),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
           ConstrainedBox(
@@ -898,7 +898,7 @@ class EmptyState extends StatelessWidget {
             ),
           ),
           if (action != null) ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             OutlinedButton(
               onPressed: action,
               child: LocalizedText(actionLabel),

@@ -83,13 +83,10 @@ class SourceHub extends Dm5Source {
             ?.resolve('/api/custom')
             .replace(queryParameters: {'id': p.id, 'url': url.toString()}) ??
         url;
-    final response = await transport
-        .get(target)
-        .timeout(const Duration(seconds: 25));
-    if (response.statusCode != 200) {
-      throw SourceException('${p.name} 返回 HTTP ${response.statusCode}');
-    }
-    return utf8.decode(response.bodyBytes);
+    return Dm5Source.requestText(
+      () => transport.get(target),
+      sourceName: p.name,
+    );
   }
 
   @override

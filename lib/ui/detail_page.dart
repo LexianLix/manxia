@@ -19,6 +19,7 @@ import 'book_link.dart';
 import 'book_navigation.dart';
 import 'source_search_page.dart';
 import 'sliver_handoff.dart';
+import 'room_motion.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -81,6 +82,18 @@ class _DetailPageState extends State<DetailPage> {
   void retry() => setState(() {
     detail = widget.source.detail(widget.comic);
   });
+
+  Future<void> copyDiagnostics(String path) async {
+    final data = widget.source.detailDiagnostics[path];
+    await Clipboard.setData(
+      ClipboardData(text: const JsonEncoder.withIndent('  ').convert(data)),
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: LocalizedText('已复制目录诊断信息')));
+    }
+  }
 
   Rect? coverBounds() {
     final object = coverKey.currentContext?.findRenderObject();
@@ -339,9 +352,16 @@ class _DetailPageState extends State<DetailPage> {
                         ),
                       )
                     : chapters.isEmpty || noCopyright
-                    ? Padding(
+                    ? Container(
                         key: const ValueKey('directory-retry'),
-                        padding: const EdgeInsets.only(top: 12),
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -353,46 +373,51 @@ class _DetailPageState extends State<DetailPage> {
                                   : '尚未识别到章节目录，请重新加载。',
                               style: small(context),
                             ),
-                            TextButton.icon(
-                              onPressed: retry,
-                              icon: const Icon(Icons.refresh, size: 16),
-                              label: const LocalizedText('重试读取目录'),
-                            ),
-                            if (widget.source is SourceHub)
-                              OutlinedButton.icon(
-                                onPressed: findAnotherSource,
-                                icon: const Icon(
-                                  Icons.travel_explore,
-                                  size: 17,
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: retry,
+                                  icon: const Icon(Icons.refresh, size: 16),
+                                  label: const LocalizedText('重试读取目录'),
                                 ),
-                                label: const LocalizedText('换源查找'),
-                              ),
-                            if (widget.source.detailDiagnostics.containsKey(
-                              comic.path,
-                            ))
-                              TextButton.icon(
-                                onPressed: () async {
-                                  await Clipboard.setData(
-                                    ClipboardData(
-                                      text: const JsonEncoder.withIndent('  ')
-                                          .convert(
-                                            widget
-                                                .source
-                                                .detailDiagnostics[comic.path],
-                                          ),
+                                if (widget.source is SourceHub)
+                                  OutlinedButton.icon(
+                                    onPressed: findAnotherSource,
+                                    icon: const Icon(
+                                      Icons.travel_explore,
+                                      size: 17,
                                     ),
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: LocalizedText('已复制目录诊断信息'),
+                                    label: const LocalizedText('换源查找'),
+                                  ),
+                                if (widget.source.detailDiagnostics.containsKey(
+                                  comic.path,
+                                ))
+                                  PopupMenuButton<String>(
+                                    popUpAnimationStyle: RoomMotion.sheet(
+                                      context,
+                                    ),
+                                    tooltip: translate(
+                                      '更多操作',
+                                      Localizations.localeOf(context),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.more_horiz,
+                                      size: 18,
+                                    ),
+                                    itemBuilder: (_) => [
+                                      const PopupMenuItem(
+                                        value: 'copy',
+                                        child: LocalizedText('复制目录诊断'),
                                       ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.copy_outlined, size: 14),
-                                label: const LocalizedText('复制目录诊断'),
-                              ),
+                                    ],
+                                    onSelected: (_) =>
+                                        copyDiagnostics(comic.path),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
                       )

@@ -28,17 +28,33 @@ class MilkGlass extends StatefulWidget {
 class _MilkGlassState extends State<MilkGlass> {
   static Future<ui.FragmentProgram>? program;
   ui.FragmentShader? shader;
+  bool loadingShader = false;
   @override
   void initState() {
     super.initState();
-    if (ui.ImageFilter.isShaderFilterSupported) {
+    loadShader();
+  }
+
+  @override
+  void didUpdateWidget(MilkGlass old) {
+    super.didUpdateWidget(old);
+    if (widget.high && !old.high) loadShader();
+  }
+
+  void loadShader() {
+    if (widget.high &&
+        shader == null &&
+        !loadingShader &&
+        ui.ImageFilter.isShaderFilterSupported) {
+      loadingShader = true;
       (program ??= ui.FragmentProgram.fromAsset('shaders/glass.frag'))
           .then((p) {
-            if (mounted) {
+            if (mounted && widget.high) {
               setState(() => shader = p.fragmentShader()..setFloat(2, 1));
             }
           })
-          .catchError((Object _) {});
+          .catchError((Object _) {})
+          .whenComplete(() => loadingShader = false);
     }
   }
 
@@ -66,6 +82,7 @@ class _MilkGlassState extends State<MilkGlass> {
     final glass = ClipRRect(
       borderRadius: BorderRadius.circular(widget.radius),
       child: BackdropFilter(
+        enabled: widget.high && !contrast,
         filter: filter,
         child: Container(
           decoration: BoxDecoration(

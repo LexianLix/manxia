@@ -5,6 +5,7 @@ import 'advanced_settings.dart';
 import 'localized_text.dart';
 import 'room_motion.dart';
 import 'appearance_settings.dart';
+import 'smoothness_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -64,7 +65,7 @@ class SettingsPage extends StatelessWidget {
             ListTile(
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
-                vertical: 6,
+                vertical: 2,
               ),
               leading: Icon(entry.$4, size: 21),
               title: LocalizedText(
@@ -147,6 +148,17 @@ class SettingsSection extends StatelessWidget {
                           section: 'accessibility',
                           title: '语言与可读性',
                         ),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const LocalizedText('流畅度检测'),
+                    subtitle: const LocalizedText('记录滑动与翻页时的画面耗时'),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SmoothnessPage(),
                       ),
                     ),
                   ),

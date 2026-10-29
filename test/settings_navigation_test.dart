@@ -58,7 +58,19 @@ void main() {
         final expansion = find.byKey(
           const PageStorageKey('settings-navigation-expanded'),
         );
-        await tester.ensureVisible(find.text(translate('底部入口与顺序', locale)));
+        final settingsScroll = find
+            .descendant(
+              of: find.byKey(
+                const PageStorageKey('settings-section-appearance'),
+              ),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await tester.scrollUntilVisible(
+          find.text(translate('底部入口与顺序', locale)),
+          200,
+          scrollable: settingsScroll,
+        );
         await tester.pumpAndSettle();
         await tester.tap(find.text(translate('底部入口与顺序', locale)));
         await tester.pumpAndSettle();
@@ -84,12 +96,21 @@ void main() {
           expect(tester.takeException(), isNull);
         }
         await tester.pumpAndSettle();
-        await tester.ensureVisible(expansion);
+        await tester.scrollUntilVisible(
+          expansion,
+          200,
+          scrollable: settingsScroll,
+        );
+        expect(find.byType(ReorderableListView), findsOneWidget);
         expect(
           tester.widget<ExpansionTile>(expansion).key,
           const PageStorageKey('settings-navigation-expanded'),
         );
-        await tester.ensureVisible(find.text(translate('语言与可读性', locale)));
+        await tester.scrollUntilVisible(
+          find.text(translate('语言与可读性', locale)),
+          200,
+          scrollable: settingsScroll,
+        );
         await tester.tap(find.text(translate('语言与可读性', locale)));
         await tester.pumpAndSettle();
         expect(find.text(translate('界面语言', locale)), findsOneWidget);

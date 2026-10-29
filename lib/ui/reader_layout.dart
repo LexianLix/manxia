@@ -100,6 +100,11 @@ class _ReaderLayoutState extends State<ReaderLayout>
       page,
       stripPage == page ? stripPosition : 0,
     );
+    next.control.onTransform = () {
+      if (!mounted || !identical(current, next)) return;
+      widget.control.transform = Matrix4.copy(next.control.transform);
+      widget.control.transformPage = next.control.transformPage;
+    };
     final previous = current;
     if (previous != null && previous.control.transformPage == page) {
       next.control.transform = Matrix4.copy(previous.control.transform);
@@ -130,6 +135,8 @@ class _ReaderLayoutState extends State<ReaderLayout>
       stripPosition = f;
     }
     widget.control.target = layer.control.target;
+    widget.control.transform = Matrix4.copy(layer.control.transform);
+    widget.control.transformPage = layer.control.transformPage;
     widget.onPosition(p, layer.layout.mode == 'strip' ? f : 0);
   }
 

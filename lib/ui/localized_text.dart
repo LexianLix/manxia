@@ -73,6 +73,30 @@ String translate(
 }
 
 const english = <String, String>{
+  '流畅度检测': 'Smoothness check',
+  '记录滑动与翻页时的画面耗时': 'Measure frame work while scrolling and reading',
+  '开始后返回书架或阅读器，重复滑动、开书和翻页。20 秒后自动结束，再回到这里查看结果。':
+      'Start, then return to your shelf or reader and scroll, open books and turn pages. Recording stops after 20 seconds. Return here to view the results.',
+  '只在本机记录画面耗时，不记录漫画内容。切到后台会停止检测。':
+      'Frame timings stay on this device. Comic content is not recorded. Recording stops when the app goes into the background.',
+  '浏览器可能不提供帧耗时，请使用 Android 发行版检测。':
+      'Your browser may not provide frame timings. Use the Android release for this check.',
+  '结束检测': 'Stop recording',
+  '开始 20 秒检测': 'Record for 20 seconds',
+  '正在检测，可以返回继续操作。': 'Recording. Return to your shelf or reader to continue.',
+  '没有收到画面样本，请在 Android 发行版中操作后重试。':
+      'No frame samples received. Try again while using the Android release.',
+  '记录帧数': 'Frames sampled',
+  '参考刷新率': 'Reference refresh rate',
+  '画面准备 P95': 'Build time P95',
+  '画面绘制 P95': 'Raster time P95',
+  '超过帧预算': 'Over frame budget',
+  '这些是应用准备与绘制画面的耗时，不代表屏幕实际 FPS 或发热情况。P95 表示 95% 的样本不超过该耗时。':
+      'These are app build and raster timings, not display FPS or temperature. P95 means 95% of samples take no longer than this value.',
+  '复制检测结果': 'Copy results',
+  '已复制检测结果': 'Results copied',
+  '更多操作': 'More actions',
+  '未能打开 {chapter}': 'Could not open {chapter}',
   '晴昼玻璃': 'Daylight glass',
   '清透的阅读室，换上你的背景。': 'A clear reading room, with your own background.',
   '选择背景图片': 'Choose background image',
@@ -467,6 +491,27 @@ const english = <String, String>{
   '8 秒': '8 seconds',
 };
 const traditional = <String, String>{
+  '流畅度检测': '流暢度檢測',
+  '记录滑动与翻页时的画面耗时': '記錄捲動與翻頁時的畫面耗時',
+  '开始后返回书架或阅读器，重复滑动、开书和翻页。20 秒后自动结束，再回到这里查看结果。':
+      '開始後返回書架或閱讀器，重複捲動、開書和翻頁。20 秒後自動結束，再回到這裡查看結果。',
+  '只在本机记录画面耗时，不记录漫画内容。切到后台会停止检测。': '只在本機記錄畫面耗時，不記錄漫畫內容。切到背景會停止檢測。',
+  '浏览器可能不提供帧耗时，请使用 Android 发行版检测。': '瀏覽器可能不提供畫面耗時，請使用 Android 發行版檢測。',
+  '结束检测': '結束檢測',
+  '开始 20 秒检测': '開始 20 秒檢測',
+  '正在检测，可以返回继续操作。': '正在檢測，可以返回繼續操作。',
+  '没有收到画面样本，请在 Android 发行版中操作后重试。': '沒有收到畫面樣本，請在 Android 發行版中操作後重試。',
+  '记录帧数': '記錄畫面數',
+  '参考刷新率': '參考更新率',
+  '画面准备 P95': '畫面準備 P95',
+  '画面绘制 P95': '畫面繪製 P95',
+  '超过帧预算': '超過畫面預算',
+  '这些是应用准备与绘制画面的耗时，不代表屏幕实际 FPS 或发热情况。P95 表示 95% 的样本不超过该耗时。':
+      '這些是應用準備與繪製畫面的耗時，不代表螢幕實際 FPS 或發熱情況。P95 表示 95% 的樣本不超過該耗時。',
+  '复制检测结果': '複製檢測結果',
+  '已复制检测结果': '已複製檢測結果',
+  '更多操作': '更多操作',
+  '未能打开 {chapter}': '未能開啟 {chapter}',
   '晴昼玻璃': '晴晝玻璃',
   '清透的阅读室，换上你的背景。': '清透的閱讀室，換上你的背景。',
   '选择背景图片': '選擇背景圖片',

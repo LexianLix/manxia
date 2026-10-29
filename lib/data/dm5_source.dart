@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:html/parser.dart' as html;
 import 'package:html/dom.dart' show Element;
@@ -37,25 +38,59 @@ class Dm5Source {
               },
             ) ??
         Uri.parse('$base$path');
-    final response = await _client
-        .get(
-          uri,
-          headers: gateway == null
-              ? {
-                  'User-Agent': desktop
-                      ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36'
-                      : 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36',
-                  'Referer': '$base/',
-                }
-              : null,
-        )
-        .timeout(const Duration(seconds: 25));
-    if (response.statusCode != 200) {
-      throw SourceException('动漫屋暂时无法访问（${response.statusCode}），请稍后重试。');
+    return requestText(
+      () => _client.get(
+        uri,
+        headers: gateway == null
+            ? {
+                'User-Agent': desktop
+                    ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36'
+                    : 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36',
+                'Referer': '$base/',
+              }
+            : null,
+      ),
+      sourceName: '动漫屋',
+    );
+  }
+
+  /// Interpret access failures before any source-specific HTML selectors run.
+  static Future<String> requestText(
+    Future<http.Response> Function() request, {
+    required String sourceName,
+  }) async {
+    late http.Response response;
+    try {
+      response = await request().timeout(const Duration(seconds: 25));
+    } on TimeoutException {
+      throw SourceException('$sourceName 连接超时，请检查网络后重试。');
+    } on http.ClientException {
+      throw SourceException('$sourceName 连接失败，请检查网络后重试。');
     }
-    final text = utf8.decode(response.bodyBytes);
-    if (text.contains('Just a moment...') || text.contains('cf-chl-')) {
-      throw SourceException('动漫屋需要网页验证，请在浏览器打开原站。');
+    if (response.statusCode == 404 || response.statusCode == 410) {
+      throw SourceException(
+        '$sourceName 的这个入口已失效（${response.statusCode}），请重新搜索或换源查找。',
+      );
+    }
+    if (response.statusCode == 401) {
+      throw SourceException('$sourceName 需要登录，请在原站打开。');
+    }
+    final text = utf8.decode(response.bodyBytes, allowMalformed: true);
+    if (text.contains('Just a moment...') ||
+        text.contains('cf-chl-') ||
+        text.contains('/cdn-cgi/challenge-platform/')) {
+      throw SourceException('$sourceName 需要网页验证，请在浏览器打开原站。');
+    }
+    if (response.statusCode == 403) {
+      throw SourceException('$sourceName 拒绝了本次访问（403），请在原站核对访问限制。');
+    }
+    if (response.statusCode == 429) {
+      throw SourceException('$sourceName 请求过于频繁（429），请稍等后重试。');
+    }
+    if (response.statusCode != 200) {
+      throw SourceException(
+        '$sourceName 暂时无法访问（${response.statusCode}），请稍后重试。',
+      );
     }
     return text;
   }

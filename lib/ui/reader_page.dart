@@ -13,6 +13,7 @@ import '../data/offline_library.dart';
 import 'app_shell.dart' show EmptyState, friendlyError;
 import 'reader_surfaces.dart';
 import 'reader_layout.dart';
+import 'reader_preloader.dart';
 import 'content_handoff.dart';
 import 'materials.dart';
 
@@ -155,6 +156,7 @@ class _ReaderPageState extends State<ReaderPage>
       return;
     }
     final generation = ++request;
+    preloader.clear();
     final record = widget.library.record(widget.comic);
     final initial =
         first &&
@@ -223,6 +225,7 @@ class _ReaderPageState extends State<ReaderPage>
       chapterError = null;
     });
     retire(obsolete);
+    preload();
   }
 
   void ready(_ChapterScene value) {
@@ -320,6 +323,7 @@ class _ReaderPageState extends State<ReaderPage>
 
   void position(int value, double offset) {
     if (!mounted) return;
+    if (value != page) forward = value > page;
     scene?.page = value;
     scene?.position = offset;
     fraction = offset;
@@ -329,19 +333,26 @@ class _ReaderPageState extends State<ReaderPage>
     preload();
   }
 
-  final Set<String> precached = {};
-  Future<void> preload() async {
-    if (mode == 'strip' || total == 0) return;
-    final count = widget.library.option<int>('preload', 2).clamp(0, 5);
-    for (var i = page + 1; i < (page + count + 1).clamp(0, total); i++) {
-      final url = urls[i];
-      if (!precached.add(url)) continue;
-      // PagePicture shares the same resized provider cache; decode hints bound memory.
-      try {
-        final provider = await pageProvider(url, widget.web, decodeWidth);
-        if (mounted) await precacheImage(provider, context, onError: (_, _) {});
-      } catch (_) {}
+  bool forward = true;
+  late final preloader = ReaderPreloader((url, width) async {
+    final provider = await pageProvider(url, widget.web, width);
+    if (!mounted) return false;
+    var success = true;
+    await precacheImage(provider, context, onError: (_, _) => success = false);
+    return success;
+  });
+  void preload() {
+    if (mode == 'strip' || total == 0 || pendingChapter != null) {
+      preloader.clear();
+      return;
     }
+    final count = widget.library.option<int>('preload', 2).clamp(0, 5);
+    final window = <String>[];
+    for (var step = 1; step <= count; step++) {
+      final i = forward ? lastVisiblePage + step : firstVisiblePage - step;
+      if (i >= 0 && i < urls.length) window.add(urls[i]);
+    }
+    preloader.replace(window, decodeWidth);
   }
 
   int get decodeWidth =>
@@ -388,11 +399,12 @@ class _ReaderPageState extends State<ReaderPage>
       onTapUp: (d) {
         if (!identical(scene, value) || !value.presented) return;
         final width = MediaQuery.sizeOf(context).width;
-        if (options['tapZones'] == true &&
-            mode != 'strip' &&
-            d.localPosition.dx < width * .24) {
+        final tapToTurn =
+            options['tapZones'] == true &&
+            value.control.transform.getMaxScaleOnAxis() <= 1.001;
+        if (tapToTurn && mode != 'strip' && d.localPosition.dx < width * .24) {
           turn(rtl ? 1 : -1);
-        } else if (options['tapZones'] == true &&
+        } else if (tapToTurn &&
             mode != 'strip' &&
             d.localPosition.dx > width * .76) {
           turn(rtl ? -1 : 1);
@@ -552,7 +564,7 @@ class _ReaderPageState extends State<ReaderPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LocalizedText(
-                  '正在打开 {chapter}',
+                  chapterError == null ? '正在打开 {chapter}' : '未能打开 {chapter}',
                   arguments: {'chapter': pendingChapter!.title},
                   style: const TextStyle(fontSize: 12),
                 ),
@@ -577,6 +589,12 @@ class _ReaderPageState extends State<ReaderPage>
                         onPressed: load,
                         child: const LocalizedText('重试'),
                       ),
+                    if (chapterError != null &&
+                        widget.comic.sourceId != 'local')
+                      TextButton(
+                        onPressed: openChapterOriginal,
+                        child: const LocalizedText('在原站打开'),
+                      ),
                     TextButton(
                       onPressed: cancelLoad,
                       child: const LocalizedText('继续当前章'),
@@ -590,6 +608,7 @@ class _ReaderPageState extends State<ReaderPage>
 
   @override
   void dispose() {
+    preloader.dispose();
     chromeTimer?.cancel();
     saveTimer?.cancel();
     if (total > 0 && scene?.presented == true) {
@@ -1046,6 +1065,7 @@ class _ReaderPageState extends State<ReaderPage>
           setState(() => options[key] = value);
           update(() {});
           widget.library.setReaderOption(widget.comic, key, value);
+          preload();
         }
 
         Widget toggle(
