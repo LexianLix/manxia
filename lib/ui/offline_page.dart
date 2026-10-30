@@ -165,13 +165,9 @@ class _OfflinePageState extends State<OfflinePage> {
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, box) => SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 110),
                           child: ConstrainedBox(
                             constraints: BoxConstraints(
-                              minHeight: (box.maxHeight - 110).clamp(
-                                0,
-                                double.infinity,
-                              ),
+                              minHeight: box.maxHeight,
                             ),
                             child: Center(
                               child: Column(
@@ -218,7 +214,10 @@ class _OfflinePageState extends State<OfflinePage> {
                   else
                     Expanded(
                       child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
                         itemCount: offline.entries.length,
                         itemBuilder: (c, i) {
                           final e = offline.entries[i];
