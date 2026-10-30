@@ -15,6 +15,55 @@ import 'package:manxia/ui/localized_text.dart';
 import 'package:manxia/ui/reader_surfaces.dart';
 
 void main() {
+  testWidgets('scrubbing previews the target without navigating until release', (
+    tester,
+  ) async {
+    late Library library;
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({});
+      library = Library(await SharedPreferences.getInstance());
+      await library.load();
+      await cacheReaderImages(library);
+    });
+    final source = Dm5Source(
+      client: MockClient(
+        (_) async => http.Response(
+          "var newImgs=[${List.generate(6, (i) => "'https://images.cdndm5.com/${i + 1}.jpg'").join(',')}];",
+          200,
+        ),
+      ),
+    );
+    addTearDown(source.close);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReaderPage(
+          comic: library.samples.first,
+          chapter: const Chapter('/m1/', 'Chapter'),
+          library: library,
+          source: source,
+          web: false,
+        ),
+      ),
+    );
+    await settleFirstFrame(tester);
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChangeStart?.call(0);
+    slider.onChanged!(4);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<PageView>(find.byType(PageView)).controller!.page,
+      closeTo(0, .001),
+    );
+    expect(library.record(library.samples.first)!.page, 0);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd?.call(4);
+    await settleFirstFrame(tester);
+    expect(find.text('5 / 6'), findsOneWidget);
+    // Semantic/keyboard changes do not emit a pointer drag start or end.
+    tester.widget<Slider>(find.byType(Slider)).onChanged!(2);
+    await settleFirstFrame(tester);
+    expect(find.text('3 / 6'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   tearDown(() {
     OfflineLibrary.instance?.source.close();
     OfflineLibrary.instance = null;

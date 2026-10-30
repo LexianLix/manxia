@@ -27,10 +27,15 @@ class DiscoveryCollection extends StatelessWidget {
   final ValueChanged<Comic> onOpen;
   final String? path;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: library,
+    builder: (context, _) => buildCollection(context),
+  );
+  Widget buildCollection(BuildContext context) => Scaffold(
     appBar: AppBar(title: LocalizedText(title)),
     body: LayoutBuilder(
       builder: (context, box) {
+        final displayed = library.browseBooks(books);
         final inset = box.maxWidth > 1148 ? (box.maxWidth - 1100) / 2 : 24.0;
         if (path != null) {
           return CustomScrollView(
@@ -58,12 +63,12 @@ class DiscoveryCollection extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(inset, 16, inset, 24),
               sliver: SliverToBoxAdapter(
                 child: LocalizedText(
-                  '${books.length} 部漫画',
+                  '${displayed.length} 部漫画',
                   style: small(context),
                 ),
               ),
             ),
-            if (books.isEmpty)
+            if (displayed.isEmpty)
               const SliverToBoxAdapter(
                 child: EmptyState(
                   icon: Icons.auto_stories_outlined,
@@ -75,7 +80,8 @@ class DiscoveryCollection extends StatelessWidget {
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(inset, 0, inset, 48),
                 sliver: ComicGrid(
-                  books: books,
+                  books: displayed,
+                  library: library,
                   web: web,
                   onOpen: onOpen,
                   sliver: true,

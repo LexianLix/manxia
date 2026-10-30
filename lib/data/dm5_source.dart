@@ -17,6 +17,14 @@ class Dm5Source {
   final Uri? gateway;
   final http.Client _client;
   final bool allowOffline;
+  Future<void> Function(Comic comic, SourceException? error)? onDetailStatus;
+  Future<void> reportDetailStatus(Comic comic, SourceException? error) async {
+    try {
+      await onDetailStatus?.call(comic, error);
+    } catch (_) {
+      // A failed local status write must not make a readable chapter fail.
+    }
+  }
 
   /// A diagnostic owns its transport and reads the network rather than saved chapters.
   Dm5Source forkForCheck() => Dm5Source(gateway: gateway, allowOffline: false);
@@ -68,9 +76,7 @@ class Dm5Source {
       throw SourceException('$sourceName 连接失败，请检查网络后重试。');
     }
     if (response.statusCode == 404 || response.statusCode == 410) {
-      throw SourceException(
-        '$sourceName 的这个入口已失效（${response.statusCode}），请重新搜索或换源查找。',
-      );
+      throw SourceEntryException(sourceName, response.statusCode);
     }
     if (response.statusCode == 401) {
       throw SourceException('$sourceName 需要登录，请在原站打开。');
@@ -141,8 +147,12 @@ class Dm5Source {
         result = await readEdition(true);
       }
       chapterCatalogs[comic.path] = result.chapters;
+      await reportDetailStatus(comic, null);
       return result;
-    } catch (_) {
+    } catch (error) {
+      if (error is SourceCopyrightException || error is SourceEntryException) {
+        await reportDetailStatus(comic, error as SourceException);
+      }
       final stored = allowOffline ? await offlineDetail?.call(comic) : null;
       if (stored != null) return stored;
       rethrow;
@@ -321,6 +331,26 @@ class Dm5Source {
           path: path,
           title: title,
           cover: cover,
+          author:
+              item
+                  ?.querySelector(
+                    '.manga-list-2-author, .book-list-info-author, .rank-list-author',
+                  )
+                  ?.text
+                  .trim() ??
+              '',
+          tags: [
+            if ((item
+                        ?.querySelector('.book-list-info-bottom-right-font')
+                        ?.text
+                        .trim() ??
+                    '')
+                .isNotEmpty)
+              item!
+                  .querySelector('.book-list-info-bottom-right-font')!
+                  .text
+                  .trim(),
+          ],
           latest: item?.querySelector('.manga-list-2-tip')?.text.trim() ?? '',
           description:
               item?.querySelector('.book-list-info-desc')?.text.trim() ?? '',
@@ -567,6 +597,12 @@ class SourceException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+class SourceEntryException extends SourceException {
+  SourceEntryException(String name, this.statusCode)
+    : super('$name 的这个入口已失效（$statusCode），请重新搜索或换源查找。');
+  final int statusCode;
 }
 
 /// An explicit rights/removal notice from this source, never inferred from a

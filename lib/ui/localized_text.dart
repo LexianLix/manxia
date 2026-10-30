@@ -73,6 +73,38 @@ String translate(
 }
 
 const english = <String, String>{
+  '隐藏不可读': 'Hide unavailable',
+  '翻开这本漫画': 'Open this comic',
+  '清理临时图片缓存': 'Clear temporary image cache',
+  '清理内存中的解码图片；浏览器版可同时清理预览服务的网络缓存':
+      'Clear decoded images from memory and, in browser preview, the preview service image cache',
+  '搜索章节': 'Search chapters',
+  '定位当前章节': 'Find current chapter',
+  '没有匹配的章节': 'No matching chapters',
+  '当前源无版权': 'Unavailable for copyright reasons',
+  '入口已失效': 'Entry unavailable',
+  '隐藏已确认不可读的作品': 'Hide confirmed unavailable titles',
+  '仅影响在线浏览；状态保留 24 小时，收藏和离线章节始终保留':
+      'Applies to online browsing for 24 hours. Favorites and offline chapters stay available.',
+  '未读更新': 'Unread updates',
+  '检查失败': 'Failed checks',
+  '全部标为已读': 'Mark all as read',
+  '重试检查失败': 'Retry failed checks',
+  '当前分组没有作品': 'No titles in this view',
+  '尚未检查更新': 'Not checked yet',
+  '标为已读': 'Mark as read',
+  '下载任务操作': 'Download actions',
+  '重试所有失败任务': 'Retry all failed tasks',
+  '暂停所有下载': 'Pause all downloads',
+  '优先下载': 'Download first',
+  '清理临时图片缓存？': 'Clear temporary image cache?',
+  '清理': 'Clear',
+  '将清理解码图片和预览网络缓存，下次打开在线图片可能重新下载。已下载章节、收藏和阅读进度保留。':
+      'Clears decoded images and the preview network cache. Online images may download again. Downloaded chapters, favorites and reading progress are retained.',
+  '将清理解码图片缓存，已下载章节、收藏和阅读进度保留。':
+      'Clears decoded image cache. Downloaded chapters, favorites and reading progress are retained.',
+  '结果中的作品已隐藏，可关闭不可读筛选查看。':
+      'Matching titles are hidden. Disable the unavailable-title filter to view them.',
   '流畅度检测': 'Smoothness check',
   '记录滑动与翻页时的画面耗时': 'Measure frame work while scrolling and reading',
   '开始后返回书架或阅读器，重复滑动、开书和翻页。20 秒后自动结束，再回到这里查看结果。':
@@ -491,6 +523,34 @@ const english = <String, String>{
   '8 秒': '8 seconds',
 };
 const traditional = <String, String>{
+  '隐藏不可读': '隱藏不可讀',
+  '翻开这本漫画': '翻開這本漫畫',
+  '清理临时图片缓存': '清理暫存圖片快取',
+  '清理内存中的解码图片；浏览器版可同时清理预览服务的网络缓存': '清理記憶體中的解碼圖片；瀏覽器版可同時清理預覽服務的網路快取',
+  '搜索章节': '搜尋章節',
+  '定位当前章节': '定位目前章節',
+  '没有匹配的章节': '沒有符合的章節',
+  '当前源无版权': '目前來源無版權',
+  '入口已失效': '入口已失效',
+  '隐藏已确认不可读的作品': '隱藏已確認無法閱讀的作品',
+  '仅影响在线浏览；状态保留 24 小时，收藏和离线章节始终保留': '僅影響線上瀏覽；狀態保留 24 小時，收藏和離線章節始終保留',
+  '未读更新': '未讀更新',
+  '检查失败': '檢查失敗',
+  '全部标为已读': '全部標為已讀',
+  '重试检查失败': '重試檢查失敗',
+  '当前分组没有作品': '目前分組沒有作品',
+  '尚未检查更新': '尚未檢查更新',
+  '标为已读': '標為已讀',
+  '下载任务操作': '下載任務操作',
+  '重试所有失败任务': '重試所有失敗任務',
+  '暂停所有下载': '暫停所有下載',
+  '优先下载': '優先下載',
+  '清理临时图片缓存？': '清理暫存圖片快取？',
+  '清理': '清理',
+  '将清理解码图片和预览网络缓存，下次打开在线图片可能重新下载。已下载章节、收藏和阅读进度保留。':
+      '將清理解碼圖片和預覽網路快取，下次開啟線上圖片可能重新下載。已下載章節、收藏和閱讀進度保留。',
+  '将清理解码图片缓存，已下载章节、收藏和阅读进度保留。': '將清理解碼圖片快取，已下載章節、收藏和閱讀進度保留。',
+  '结果中的作品已隐藏，可关闭不可读筛选查看。': '結果中的作品已隱藏，可關閉無法閱讀篩選查看。',
   '流畅度检测': '流暢度檢測',
   '记录滑动与翻页时的画面耗时': '記錄捲動與翻頁時的畫面耗時',
   '开始后返回书架或阅读器，重复滑动、开书和翻页。20 秒后自动结束，再回到这里查看结果。':

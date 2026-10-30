@@ -14,7 +14,7 @@ if ($Rebuild -or -not (Test-Path -LiteralPath '.\build\web\index.html')) {
     if ($LASTEXITCODE -ne 0) { throw 'PDF 组件准备失败。' }
     node tools/plugin-sdk.mjs build
     if ($LASTEXITCODE -ne 0) { throw '插件目录生成失败。' }
-    & $flutterPath build web --no-web-resources-cdn --no-wasm-dry-run
+    & $flutterPath build web --wasm --no-web-resources-cdn
     if ($LASTEXITCODE -ne 0) { throw 'Flutter Web 编译失败。' }
     node tools/offline-shell.mjs
 }

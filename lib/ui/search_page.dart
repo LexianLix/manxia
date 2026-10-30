@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/search_relevance.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError;
 import 'localized_text.dart';
 import 'content_handoff.dart';
@@ -53,7 +54,7 @@ class _ComicSearchState extends State<ComicSearchPage> {
           : await widget.source.search(requested);
       if (mounted && current == generation) {
         setState(() {
-          results = books;
+          results = byAuthor ? books : relevantComics(books, requested);
           resultQuery = requested;
           revision++;
         });
@@ -79,6 +80,17 @@ class _ComicSearchState extends State<ComicSearchPage> {
     focus.requestFocus();
   }
 
+  void selectMode(bool value) {
+    if (authors == value) return;
+    generation++;
+    setState(() {
+      authors = value;
+      busy = false;
+      error = null;
+    });
+    if (query.isNotEmpty) search(query);
+  }
+
   @override
   void dispose() {
     generation++;
@@ -88,7 +100,13 @@ class _ComicSearchState extends State<ComicSearchPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.library,
+    builder: (context, _) => buildResults(context),
+  );
+  List<Comic>? get displayResults =>
+      results == null ? null : widget.library.browseBooks(results!);
+  Widget buildResults(BuildContext context) => Scaffold(
     appBar: AppBar(title: const LocalizedText('搜索漫画')),
     body: SafeArea(
       child: Center(
@@ -146,14 +164,12 @@ class _ComicSearchState extends State<ComicSearchPage> {
                               ChoiceChip(
                                 label: const LocalizedText('漫画名称'),
                                 selected: !authors,
-                                onSelected: (_) =>
-                                    setState(() => authors = false),
+                                onSelected: (_) => selectMode(false),
                               ),
                               ChoiceChip(
                                 label: const LocalizedText('作者'),
                                 selected: authors,
-                                onSelected: (_) =>
-                                    setState(() => authors = true),
+                                onSelected: (_) => selectMode(true),
                               ),
                             ],
                           ),
@@ -206,6 +222,24 @@ class _ComicSearchState extends State<ComicSearchPage> {
                             ],
                           ),
                         ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: FilterChip(
+                          label: const LocalizedText('隐藏不可读'),
+                          tooltip: translate(
+                            '仅影响在线浏览；状态保留 24 小时，收藏和离线章节始终保留',
+                            Localizations.localeOf(context),
+                          ),
+                          selected: widget.library.option<bool>(
+                            'hideUnavailable',
+                            false,
+                          ),
+                          onSelected: (value) => widget.library.setOption(
+                            'hideUnavailable',
+                            value,
+                          ),
+                        ),
+                      ),
                       ContentHandoff(
                         child: busy
                             ? const Padding(
@@ -224,7 +258,7 @@ class _ComicSearchState extends State<ComicSearchPage> {
                               'query': resultQuery.isEmpty
                                   ? query
                                   : resultQuery,
-                              'count': results?.length ?? 0,
+                              'count': displayResults?.length ?? 0,
                             },
                             style: const TextStyle(fontSize: 14),
                           ),
@@ -261,12 +295,14 @@ class _ComicSearchState extends State<ComicSearchPage> {
                   animate: widget.library.motion,
                   sliver: results == null
                       ? const SliverToBoxAdapter(child: SizedBox())
-                      : results!.isEmpty
-                      ? const SliverToBoxAdapter(
+                      : displayResults!.isEmpty
+                      ? SliverToBoxAdapter(
                           child: EmptyState(
                             icon: Icons.search_off,
                             title: '没有找到漫画',
-                            message: '试试更短的关键词。',
+                            message: results!.isNotEmpty
+                                ? '结果中的作品已隐藏，可关闭不可读筛选查看。'
+                                : '试试更短的关键词。',
                           ),
                         )
                       : SliverIgnorePointer(
@@ -274,7 +310,8 @@ class _ComicSearchState extends State<ComicSearchPage> {
                           sliver: SliverOpacity(
                             opacity: busy ? .55 : 1,
                             sliver: ComicGrid(
-                              books: results!,
+                              books: displayResults!,
+                              library: widget.library,
                               web: widget.web,
                               onOpen: widget.onOpen,
                               sliver: true,

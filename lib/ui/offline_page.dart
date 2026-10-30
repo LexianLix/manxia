@@ -116,6 +116,36 @@ class _OfflinePageState extends State<OfflinePage> {
                           onPressed: offline.pump,
                           icon: const Icon(Icons.refresh),
                         ),
+                        PopupMenuButton<String>(
+                          tooltip: translate(
+                            '下载任务操作',
+                            Localizations.localeOf(c),
+                          ),
+                          popUpAnimationStyle: RoomMotion.sheet(c),
+                          onSelected: (action) async {
+                            if (action == 'retry') await offline.retryFailed();
+                            if (action == 'pause') await offline.pauseAll();
+                          },
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'retry',
+                              enabled: offline.entries.any(
+                                (e) => e['status'] == 'failed',
+                              ),
+                              child: const LocalizedText('重试所有失败任务'),
+                            ),
+                            PopupMenuItem(
+                              value: 'pause',
+                              enabled: offline.entries.any(
+                                (e) => [
+                                  'queued',
+                                  'downloading',
+                                ].contains(e['status']),
+                              ),
+                              child: const LocalizedText('暂停所有下载'),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -133,45 +163,62 @@ class _OfflinePageState extends State<OfflinePage> {
                     ),
                   if (offline.entries.isEmpty)
                     Expanded(
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.auto_stories_outlined, size: 40),
-                            const SizedBox(height: 22),
-                            const LocalizedText(
-                              '把故事带到离线的地方',
-                              style: TextStyle(fontSize: 21),
-                            ),
-                            const SizedBox(height: 10),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 28),
-                              child: LocalizedText(
-                                '可从漫画详情下载章节，也可以导入本地漫画。',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
+                      child: LayoutBuilder(
+                        builder: (context, box) => SingleChildScrollView(
+                          padding: const EdgeInsets.only(bottom: 110),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: (box.maxHeight - 110).clamp(
+                                0,
+                                double.infinity,
                               ),
                             ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              onPressed: busy ? null : () => import('archive'),
-                              icon: const Icon(Icons.file_open_outlined),
-                              label: const LocalizedText('导入漫画'),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.auto_stories_outlined,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(height: 22),
+                                  const LocalizedText(
+                                    '把故事带到离线的地方',
+                                    style: TextStyle(fontSize: 21),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 28,
+                                    ),
+                                    child: LocalizedText(
+                                      '可从漫画详情下载章节，也可以导入本地漫画。',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  FilledButton.icon(
+                                    onPressed: busy
+                                        ? null
+                                        : () => import('archive'),
+                                    icon: const Icon(Icons.file_open_outlined),
+                                    label: const LocalizedText('导入漫画'),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     )
                   else
                     Expanded(
                       child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
                         itemCount: offline.entries.length,
                         itemBuilder: (c, i) {
                           final e = offline.entries[i];
@@ -240,6 +287,9 @@ class _OfflinePageState extends State<OfflinePage> {
                                           if (action == 'resume') {
                                             await offline.resume(e['id']);
                                           }
+                                          if (action == 'priority') {
+                                            await offline.prioritize(e['id']);
+                                          }
                                           if (action == 'export') {
                                             await FileActions.exportChapter(
                                               offline,
@@ -299,6 +349,11 @@ class _OfflinePageState extends State<OfflinePage> {
                                         }
                                       },
                                       itemBuilder: (_) => [
+                                        if (e['status'] != 'complete')
+                                          const PopupMenuItem(
+                                            value: 'priority',
+                                            child: LocalizedText('优先下载'),
+                                          ),
                                         if ([
                                           'queued',
                                           'downloading',
@@ -340,7 +395,9 @@ class _OfflinePageState extends State<OfflinePage> {
                                     value: (e['total'] as int) > 0
                                         ? (e['done'] as int) /
                                               (e['total'] as int)
-                                        : null,
+                                        : e['status'] == 'downloading'
+                                        ? null
+                                        : 0,
                                     minHeight: 2,
                                   ),
                                   const SizedBox(height: 8),

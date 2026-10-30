@@ -19,6 +19,6 @@ const worker=`const CACHE='manxia-shell-${version}';
 const ASSETS=${JSON.stringify(urls)};
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('manxia-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.includes('/api/')||u.pathname.includes('/offline-data/'))return;e.respondWith(caches.match(e.request,{cacheName:CACHE}).then(hit=>hit||fetch(e.request)));});`;
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.includes('/api/')||u.pathname.includes('/offline-data/'))return;const scope=new URL(self.registration.scope);const key=e.request.mode==='navigate'&&u.pathname===scope.pathname?new URL('./index.html',scope).href:e.request;e.respondWith(caches.match(key,{cacheName:CACHE}).then(hit=>hit||fetch(e.request)));});`;
 await writeFile(new URL('sw.js',root),worker);
 console.log(`Offline app shell ${version}: ${urls.length} files. First visit downloads assets; personal comics use a separate cache.`);

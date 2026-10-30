@@ -733,8 +733,10 @@ class ComicGrid extends StatelessWidget {
     this.sliver = false,
     this.itemArrival,
     this.arrivingFrom = 0,
+    this.library,
   });
   final List<Comic> books;
+  final Library? library;
   final bool web, sliver;
   final double minItemWidth;
   final Animation<double>? itemArrival;
@@ -808,7 +810,13 @@ class ComicGrid extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             LocalizedText(
-              comic.latest.isEmpty
+              library?.sourceStatus(comic)?['kind'] == 'copyright'
+                  ? '当前源无版权'
+                  : library?.sourceStatus(comic)?['kind'] == 'missing'
+                  ? '入口已失效'
+                  : comic.latest.isEmpty && comic.author.isNotEmpty
+                  ? comic.author
+                  : comic.latest.isEmpty
                   ? comic.sourceId == 'dm5'
                         ? '动漫屋'
                         : comic.sourceId == 'local'

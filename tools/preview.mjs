@@ -72,6 +72,9 @@ export function createServer({load = upstream, dav = fetch, updateRequest = fetc
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Enable skwasm's renderer worker while keeping source/image requests same-origin.
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
     if(url.pathname.startsWith('/api/'))res.setHeader('Content-Security-Policy',"default-src 'none'; sandbox");
     try {
       if (url.pathname === '/api/update') {
@@ -213,7 +216,9 @@ export function createServer({load = upstream, dav = fetch, updateRequest = fetc
       res.end(bytes);
     } catch (error) {
       if(res.headersSent){res.destroy();return;}
-      res.writeHead(error.code === 'ENOENT' ? 404 : 502, {'Content-Type':'text/plain; charset=utf-8'});
+      const status = error.code === 'ENOENT' ? 404 :
+        [401,403,404,410,429].includes(error.status) ? error.status : 502;
+      res.writeHead(status, {'Content-Type':'text/plain; charset=utf-8'});
       res.end(error.code === 'ENOENT' ? '请先运行 flutter build web。' : `来源暂不可用：${error.message}`);
     }
   });

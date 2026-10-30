@@ -40,6 +40,24 @@ test('reject invalid proxy requests before network access', async () => {
     assert.equal((await (await fetch(`${base}/api/health`)).json()).ok,true);
   } finally { await new Promise(resolve=>server.close(resolve)); }
 });
+
+test('source gateway preserves explicit missing and access statuses for reader classification', async () => {
+  let status = 404;
+  const server = createServer({load: async () => {
+    throw Object.assign(new Error('upstream unavailable'), {status});
+  }});
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    for (status of [401,403,404,410,429,500]) {
+      const response = await fetch(`${base}/api/source?path=/manhua-missing/`);
+      assert.equal(response.status, status === 500 ? 502 : status);
+    }
+    const home = await fetch(base);
+    assert.equal(home.headers.get('cross-origin-opener-policy'), 'same-origin');
+    assert.equal(home.headers.get('cross-origin-embedder-policy'), 'credentialless');
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
 test('deduplicate and briefly cache successful public source reads', async () => {
   let reads = 0;
   const server = createServer({load:async()=>{reads++;return new Response('<html>catalog</html>');}});

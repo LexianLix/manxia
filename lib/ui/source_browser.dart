@@ -282,7 +282,8 @@ class _SourceBrowserState extends State<SourceBrowser>
           SliverToBoxAdapter(child: controls(context)),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
           ComicGrid(
-            books: books,
+            books: widget.library.browseBooks(books),
+            library: widget.library,
             web: widget.web,
             onOpen: widget.onOpen,
             sliver: true,
@@ -305,7 +306,8 @@ class _SourceBrowserState extends State<SourceBrowser>
         controls(context),
         const SizedBox(height: 20),
         ComicGrid(
-          books: books,
+          books: widget.library.browseBooks(books),
+          library: widget.library,
           web: widget.web,
           onOpen: widget.onOpen,
           itemArrival: arrival,

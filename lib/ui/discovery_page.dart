@@ -63,6 +63,14 @@ class _DiscoveryPageState extends State<DiscoveryPage>
 
   String? error;
   bool checking = false;
+  String updateFilter = '未读更新';
+  Iterable<Comic> get followBooks => widget.library.favorites.where((book) {
+    if (book.sourceId == 'local') return false;
+    final update = widget.library.updates[book.path];
+    if (updateFilter == '全部收藏') return true;
+    if (updateFilter == '检查失败') return update?['checkError'] != null;
+    return update?['changed'] == true;
+  });
   List<Comic> dailyPicks(Discovery snapshot, DateTime date) => snapshot.daily(
     date,
     edition: widget.library.option<int>('dailyEdition', 0),
@@ -91,6 +99,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         )
       : ComicGrid(
           books: books.take(6).toList(),
+          library: widget.library,
           web: widget.web,
           onOpen: widget.onOpen,
           minItemWidth: 106,
@@ -246,11 +255,13 @@ class _DiscoveryPageState extends State<DiscoveryPage>
     ),
   );
   @override
-  Widget build(BuildContext context) =>
-      ContentHandoff(child: buildContent(context));
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.library,
+    builder: (context, _) => ContentHandoff(child: buildContent(context)),
+  );
   Widget buildContent(BuildContext context) {
-    final snapshot = shown;
-    if (snapshot == null) {
+    final loaded = shown;
+    if (loaded == null) {
       if (error != null && !refreshing) {
         return EmptyState(
           key: const ValueKey('discovery-error'),
@@ -280,6 +291,21 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         ],
       );
     }
+    final snapshot = !widget.library.option<bool>('hideUnavailable', false)
+        ? loaded
+        : Discovery(
+            books: widget.library.browseBooks(loaded.books),
+            sections: loaded.sections.map(
+              (k, v) => MapEntry(k, widget.library.browseBooks(v)),
+            ),
+            ranks: loaded.ranks.map(
+              (k, v) => MapEntry(k, widget.library.browseBooks(v)),
+            ),
+            capturedAt: loaded.capturedAt,
+            cached: loaded.cached,
+            sectionPaths: loaded.sectionPaths,
+            rankPaths: loaded.rankPaths,
+          );
     final date = DateTime.now().toUtc().add(const Duration(hours: 8));
     final day =
         '${date.month.toString().padLeft(2, '0')} / ${date.day.toString().padLeft(2, '0')}';
@@ -599,9 +625,41 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                         : () => checkUpdates(),
                     actionLabel: '检查更新',
                   ),
-                  for (final book in widget.library.favorites.where(
-                    (b) => widget.library.updates[b.path]?['changed'] == true,
-                  ))
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final filter in ['未读更新', '全部收藏', '检查失败'])
+                        ChoiceChip(
+                          label: LocalizedText(filter),
+                          selected: updateFilter == filter,
+                          onSelected: (_) =>
+                              setState(() => updateFilter = filter),
+                        ),
+                      TextButton(
+                        onPressed: () => widget.library.markUpdatesRead(
+                          widget.library.favorites.map((b) => b.path),
+                        ),
+                        child: const LocalizedText('全部标为已读'),
+                      ),
+                      if (widget.library.updates.values.any(
+                        (u) => u['checkError'] != null,
+                      ))
+                        TextButton(
+                          onPressed: checking
+                              ? null
+                              : () => checkUpdates(failedOnly: true),
+                          child: const LocalizedText('重试检查失败'),
+                        ),
+                    ],
+                  ),
+                  if (followBooks.isEmpty &&
+                      widget.library.favorites.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 18),
+                      child: LocalizedText('当前分组没有作品'),
+                    ),
+                  for (final book in followBooks)
                     BookLink(
                       comic: book,
                       web: widget.web,
@@ -618,9 +676,26 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                         ),
                         title: Text(book.title),
                         subtitle: LocalizedText(
-                          '新章 · ${widget.library.updates[book.path]!['latest']}',
+                          widget.library.updates[book.path]?['checkError']
+                                  as String? ??
+                              widget.library.updates[book.path]?['latest']
+                                  as String? ??
+                              '尚未检查更新',
                         ),
-                        trailing: const Icon(Icons.bookmark_added_outlined),
+                        trailing: IconButton(
+                          tooltip: translate(
+                            '标为已读',
+                            Localizations.localeOf(context),
+                          ),
+                          onPressed: () =>
+                              widget.library.markUpdatesRead([book.path]),
+                          icon: Icon(
+                            widget.library.updates[book.path]?['changed'] ==
+                                    true
+                                ? Icons.bookmark_added_outlined
+                                : Icons.done,
+                          ),
+                        ),
                         onTap: open,
                       ),
                     ),
@@ -644,6 +719,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                   ),
                   ComicGrid(
                     books: updated,
+                    library: widget.library,
                     web: widget.web,
                     onOpen: widget.onOpen,
                   ),
@@ -659,6 +735,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                   else
                     ComicGrid(
                       books: snapshot.books,
+                      library: widget.library,
                       web: widget.web,
                       onOpen: widget.onOpen,
                     ),
@@ -863,7 +940,15 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                             ),
                             const SizedBox(height: 10),
                             LocalizedText(
-                              comic.latest.isEmpty
+                              widget.library.sourceStatus(comic)?['kind'] ==
+                                      'copyright'
+                                  ? '当前源无版权'
+                                  : widget.library.sourceStatus(
+                                          comic,
+                                        )?['kind'] ==
+                                        'missing'
+                                  ? '入口已失效'
+                                  : comic.latest.isEmpty
                                   ? '给自己一段读漫画的时间。'
                                   : comic.latest,
                               maxLines: 2,
@@ -985,12 +1070,17 @@ class _DiscoveryPageState extends State<DiscoveryPage>
       ),
     ),
   );
-  Future<void> checkUpdates() async {
+  Future<void> checkUpdates({bool failedOnly = false}) async {
     if (checking) return;
     setState(() => checking = true);
     var failed = 0;
     final list = widget.library.favorites
-        .where((c) => c.sourceId != 'local')
+        .where(
+          (c) =>
+              c.sourceId != 'local' &&
+              (!failedOnly ||
+                  widget.library.updates[c.path]?['checkError'] != null),
+        )
         .toList();
     for (var i = 0; i < list.length; i += 3) {
       if (!mounted) break;
@@ -998,6 +1088,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         list.skip(i).take(3).map((book) async {
           try {
             final detail = await widget.source.detail(book);
+            if (!mounted || !widget.library.contains(book)) return;
             final prior = widget.library.updates[book.path];
             final latest = detail.comic.latest.isNotEmpty
                 ? detail.comic.latest
@@ -1011,11 +1102,21 @@ class _DiscoveryPageState extends State<DiscoveryPage>
               'latest': latest,
               'fingerprint': fingerprint,
               'changed': prior?['changed'] == true || changed,
+              if (prior?['seenFingerprint'] != null)
+                'seenFingerprint': prior!['seenFingerprint'],
+              if (prior?['readAt'] != null) 'readAt': prior!['readAt'],
               'checkedAt': now,
               'updatedAt': changed ? now : prior?['updatedAt'] ?? 0,
             };
-          } catch (_) {
+          } catch (error) {
             failed++;
+            if (mounted && widget.library.contains(book)) {
+              widget.library.updates[book.path] = {
+                ...?widget.library.updates[book.path],
+                'checkError': friendlyError(error),
+                'checkedAt': DateTime.now().millisecondsSinceEpoch,
+              };
+            }
           }
         }),
       );

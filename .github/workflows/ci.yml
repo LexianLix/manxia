@@ -39,7 +39,7 @@ jobs:
       - run: flutter analyze --no-pub
       - run: flutter test --timeout 30s
       - run: node --test tools/preview.test.mjs tools/plugin-sdk.test.mjs
-      - run: flutter build web --no-web-resources-cdn --no-wasm-dry-run
+      - run: flutter build web --wasm --no-web-resources-cdn
       - run: node tools/offline-shell.mjs
       - run: flutter build apk --profile
       - uses: actions/upload-artifact@v4

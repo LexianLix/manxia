@@ -190,6 +190,7 @@ class OfflineLibrary extends ChangeNotifier {
         e['urls'] = await source.networkPages(e['chapter']['path']);
         e['total'] = (e['urls'] as List).length;
       }
+      if ((e['urls'] as List).isEmpty) throw StateError('章节没有返回图片，请重新读取目录后重试。');
       final urls = List<String>.from(e['urls']);
       final keys = List<String>.from(e['keys']);
       for (var i = e['done'] as int; i < urls.length; i++) {
@@ -209,7 +210,11 @@ class OfflineLibrary extends ChangeNotifier {
               .timeout(const Duration(seconds: 30));
           if (response.statusCode != 200 ||
               !(response.headers['content-type'] ?? '').startsWith('image/')) {
-            throw StateError('第 ${i + 1} 页下载失败');
+            throw StateError(
+              response.statusCode == 200
+                  ? '第 ${i + 1} 页没有返回图片，请核对书源后重试。'
+                  : '第 ${i + 1} 页下载失败（HTTP ${response.statusCode}），可稍后重试。',
+            );
           }
           if (response.bodyBytes.length > 20 * 1024 * 1024) {
             throw StateError('单张图片超过 20 MB');
@@ -269,6 +274,40 @@ class OfflineLibrary extends ChangeNotifier {
   Future<void> pause(String id) async {
     final e = entries.firstWhere((e) => e['id'] == id);
     e['status'] = 'paused';
+    await persist();
+  }
+
+  bool isRunning(String id) => _running.contains(id);
+
+  /// Only queued order changes; the current image may finish normally.
+  Future<void> prioritize(String id) async {
+    final index = entries.indexWhere((e) => e['id'] == id);
+    if (index < 0) return;
+    final entry = entries[index];
+    if (entry['local'] == true || entry['status'] == 'complete') return;
+    entries.removeAt(index);
+    entries.insert(0, entry);
+    entry['status'] = _running.contains(id) ? 'downloading' : 'queued';
+    entry.remove('error');
+    await persist();
+    pump();
+  }
+
+  Future<void> retryFailed() async {
+    for (final e in entries.where((e) => e['status'] == 'failed')) {
+      e['status'] = 'queued';
+      e.remove('error');
+    }
+    await persist();
+    pump();
+  }
+
+  Future<void> pauseAll() async {
+    for (final e in entries.where(
+      (e) => ['queued', 'downloading'].contains(e['status']),
+    )) {
+      e['status'] = 'paused';
+    }
     await persist();
   }
 

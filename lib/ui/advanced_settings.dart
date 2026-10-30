@@ -739,7 +739,63 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
             children: _sections(context),
           ),
   );
+  Future<void> clearTemporaryCache() async {
+    final bytes = PaintingBinding.instance.imageCache.currentSizeBytes;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      animationStyle: RoomMotion.sheet(context),
+      builder: (c) => AlertDialog(
+        title: const LocalizedText('清理临时图片缓存？'),
+        scrollable: true,
+        content: LocalizedText(
+          widget.web
+              ? '将清理解码图片和预览网络缓存，下次打开在线图片可能重新下载。已下载章节、收藏和阅读进度保留。'
+              : '将清理解码图片缓存，已下载章节、收藏和阅读进度保留。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const LocalizedText('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const LocalizedText('清理'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await run(() async {
+      if (widget.web) {
+        final before = await http
+            .get(Uri.base.resolve('/api/cache'))
+            .timeout(const Duration(seconds: 10));
+        if (before.statusCode != 200) throw SourceException('无法读取预览缓存，请稍后重试。');
+        final size = (jsonDecode(before.body)['bytes'] as num) / 1024 / 1024;
+        final cleared = await http
+            .post(
+              Uri.base.resolve('/api/cache'),
+              headers: {'Content-Type': 'application/json'},
+              body: '{"action":"clear"}',
+            )
+            .timeout(const Duration(seconds: 10));
+        if (cleared.statusCode != 200) throw SourceException('预览缓存清理失败，请稍后重试。');
+        PaintingBinding.instance.imageCache.clear();
+        return '已清理 ${size.toStringAsFixed(1)} MB 网络缓存；已下载章节保存在离线书库。';
+      }
+      PaintingBinding.instance.imageCache.clear();
+      return '已清理 ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB 解码缓存；正在显示的图片保留。';
+    });
+  }
+
   Widget _sourceSection() => group('漫画源与维护', [
+    SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const LocalizedText('隐藏已确认不可读的作品'),
+      subtitle: const LocalizedText('仅影响在线浏览；状态保留 24 小时，收藏和离线章节始终保留'),
+      value: library.option<bool>('hideUnavailable', false),
+      onChanged: (value) => library.setOption('hideUnavailable', value),
+    ),
     choice('source', '默认发现源', {
       'dm5': '动漫屋',
       for (final p in [
@@ -813,26 +869,7 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
           leading: const Icon(Icons.cleaning_services_outlined),
           title: const LocalizedText('清理临时图片缓存'),
           subtitle: const LocalizedText('清理内存中的解码图片；浏览器版可同时清理预览服务的网络缓存'),
-          onTap: busy
-              ? null
-              : () => run(() async {
-                  PaintingBinding.instance.imageCache.clear();
-                  PaintingBinding.instance.imageCache.clearLiveImages();
-                  if (widget.web) {
-                    final before = await http.get(
-                      Uri.base.resolve('/api/cache'),
-                    );
-                    final size =
-                        (jsonDecode(before.body)['bytes'] as num) / 1024 / 1024;
-                    await http.post(
-                      Uri.base.resolve('/api/cache'),
-                      headers: {'Content-Type': 'application/json'},
-                      body: '{"action":"clear"}',
-                    );
-                    return '已清理 ${size.toStringAsFixed(1)} MB 网络缓存；已下载章节保存在离线书库。';
-                  }
-                  return '解码图片缓存已清理。';
-                }),
+          onTap: busy ? null : clearTemporaryCache,
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,

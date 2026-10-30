@@ -14,6 +14,60 @@ mixin LibraryFeatures on ChangeNotifier {
   final List<String> searchHistory = [];
   final List<Map<String, dynamic>> bookmarks = [], sourceProfiles = [];
   final Map<String, Map<String, dynamic>> updates = {};
+  final Map<String, Map<String, dynamic>> sourceStatuses = {};
+  String sourceStatusKey(Comic comic) => '${comic.sourceId}:${comic.path}';
+  Map<String, dynamic>? sourceStatus(Comic comic, {int? at}) {
+    final record = sourceStatuses[sourceStatusKey(comic)];
+    if (record == null || !['copyright', 'missing'].contains(record['kind'])) {
+      return null;
+    }
+    final age =
+        (at ?? DateTime.now().millisecondsSinceEpoch) -
+        (record['checkedAt'] as num).toInt();
+    return age >= 0 && age < const Duration(hours: 24).inMilliseconds
+        ? record
+        : null;
+  }
+
+  List<Comic> browseBooks(Iterable<Comic> books) =>
+      option<bool>('hideUnavailable', false)
+      ? books.where((c) => sourceStatus(c) == null).toList()
+      : books.toList();
+  Future<void> recordSourceStatus(
+    Comic comic,
+    String? kind, {
+    String message = '',
+  }) async {
+    final key = sourceStatusKey(comic);
+    if (kind == null) {
+      if (sourceStatuses.remove(key) == null) return;
+    } else {
+      if (!['copyright', 'missing'].contains(kind)) return;
+      sourceStatuses.remove(key);
+      sourceStatuses[key] = {
+        'kind': kind,
+        'message': message,
+        'checkedAt': DateTime.now().millisecondsSinceEpoch,
+      };
+      while (sourceStatuses.length > 400) {
+        sourceStatuses.remove(sourceStatuses.keys.first);
+      }
+    }
+    notifyListeners();
+    await prefs.setString('source.status.v1', jsonEncode(sourceStatuses));
+  }
+
+  Future<void> markUpdatesRead(Iterable<String> paths) async {
+    for (final path in paths) {
+      final item = updates[path];
+      if (item == null) continue;
+      item['changed'] = false;
+      item['seenFingerprint'] = item['fingerprint'] ?? item['latest'];
+      item['readAt'] = DateTime.now().millisecondsSinceEpoch;
+    }
+    await persistFeatures();
+  }
+
   final Map<String, int> tombstones = {}, favoriteTimes = {};
   T option<T>(String key, T fallback) =>
       options[key] is T ? options[key] as T : fallback;
@@ -38,6 +92,18 @@ mixin LibraryFeatures on ChangeNotifier {
     ...Map<String, dynamic>.from(meta(comic)['reader'] as Map? ?? {}),
   };
   void loadFeatures() {
+    try {
+      final value =
+          jsonDecode(prefs.getString('source.status.v1') ?? '{}') as Map;
+      for (final e in value.entries.take(400)) {
+        final record = Map<String, dynamic>.from(e.value);
+        if (record['checkedAt'] is num) {
+          sourceStatuses[e.key as String] = record;
+        }
+      }
+    } catch (_) {
+      sourceStatuses.clear();
+    }
     try {
       final j = jsonDecode(prefs.getString('features.v2') ?? '{}') as Map;
       for (final e in (j['metadata'] as Map? ?? {}).entries) {

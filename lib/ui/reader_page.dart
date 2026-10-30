@@ -14,6 +14,7 @@ import 'app_shell.dart' show EmptyState, friendlyError;
 import 'reader_surfaces.dart';
 import 'reader_layout.dart';
 import 'reader_preloader.dart';
+import 'chapter_catalog.dart';
 import 'content_handoff.dart';
 import 'materials.dart';
 
@@ -63,6 +64,8 @@ class _ReaderPageState extends State<ReaderPage>
         ..addStatusListener(finishTransition);
   _ChapterScene? paintScheduled;
   int page = 0, total = 0, request = 0;
+  int? scrubPage;
+  bool scrubbing = false;
   double fraction = 0;
   bool controls = true, first = true;
   Timer? saveTimer;
@@ -149,6 +152,8 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   Future<void> load([Chapter? selected, int? at, double? offset]) async {
+    scrubPage = null;
+    scrubbing = false;
     final target = selected ?? pendingChapter ?? chapter;
     if (selected != null &&
         pendingChapter?.path == target.path &&
@@ -790,10 +795,35 @@ class _ReaderPageState extends State<ReaderPage>
                           children: [
                             if (total > 1)
                               Slider(
-                                value: page.toDouble(),
+                                value: (scrubPage ?? page)
+                                    .clamp(0, total - 1)
+                                    .toDouble(),
                                 max: (total - 1).toDouble(),
                                 divisions: total - 1,
-                                onChanged: (v) => go(v.round()),
+                                label: '${(scrubPage ?? page) + 1} / $total',
+                                onChangeStart: (v) {
+                                  chromeTimer?.cancel();
+                                  setState(() {
+                                    scrubbing = true;
+                                    scrubPage = v.round();
+                                  });
+                                },
+                                onChanged: (v) {
+                                  if (scrubbing) {
+                                    setState(() => scrubPage = v.round());
+                                  } else {
+                                    // Keyboard and accessibility adjustments have no drag end.
+                                    go(v.round());
+                                  }
+                                },
+                                onChangeEnd: (v) {
+                                  setState(() {
+                                    scrubbing = false;
+                                    scrubPage = null;
+                                  });
+                                  go(v.round());
+                                  armChromeTimer();
+                                },
                               ),
                             Row(
                               children: [
@@ -810,7 +840,11 @@ class _ReaderPageState extends State<ReaderPage>
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       LocalizedText(
-                                        total == 0 ? '加载章节中' : pageLabel,
+                                        total == 0
+                                            ? '加载章节中'
+                                            : scrubPage != null
+                                            ? '${scrubPage! + 1} / $total'
+                                            : pageLabel,
                                         style: const TextStyle(fontSize: 12),
                                       ),
                                       LocalizedText(
@@ -974,21 +1008,12 @@ class _ReaderPageState extends State<ReaderPage>
                       ? const Center(
                           child: LocalizedText('当前没有完整目录，请返回漫画详情加载。'),
                         )
-                      : ListView.builder(
-                          itemCount: chapters.length,
-                          itemBuilder: (c, i) {
-                            final ch = chapters[i];
-                            return ListTile(
-                              title: Text(
-                                ch.title,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              selected: ch.path == chapter.path,
-                              onTap: () {
-                                Navigator.pop(c);
-                                changeChapter(ch);
-                              },
-                            );
+                      : ChapterCatalog(
+                          chapters: chapters,
+                          current: chapter.path,
+                          onSelected: (ch) {
+                            Navigator.pop(c);
+                            changeChapter(ch);
                           },
                         ),
                   ListenableBuilder(

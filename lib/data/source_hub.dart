@@ -12,6 +12,21 @@ class SourceHub extends Dm5Source {
   SourceHub(this.library, {super.gateway, http.Client? transport})
     : transport = transport ?? http.Client() {
     refreshImageOrigins();
+    onDetailStatus = (comic, error) async {
+      if (error == null ||
+          error is SourceCopyrightException ||
+          error is SourceEntryException) {
+        await library.recordSourceStatus(
+          comic,
+          error is SourceCopyrightException
+              ? 'copyright'
+              : error is SourceEntryException
+              ? 'missing'
+              : null,
+          message: error?.message ?? '',
+        );
+      }
+    };
   }
   final Library library;
   final http.Client transport;
@@ -149,8 +164,12 @@ class SourceHub extends Dm5Source {
     try {
       final result = p.detail(await customPage(p, p.decode(comic.path)), comic);
       Dm5Source.chapterCatalogs[comic.path] = result.chapters;
+      await reportDetailStatus(comic, null);
       return result;
-    } catch (_) {
+    } catch (error) {
+      if (error is SourceCopyrightException || error is SourceEntryException) {
+        await reportDetailStatus(comic, error as SourceException);
+      }
       final stored = allowOffline
           ? await Dm5Source.offlineDetail?.call(comic)
           : null;
