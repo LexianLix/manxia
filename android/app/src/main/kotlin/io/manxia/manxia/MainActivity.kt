@@ -6,6 +6,9 @@ import io.flutter.embedding.engine.FlutterShellArgs
 import io.flutter.plugin.common.MethodChannel
 import android.view.KeyEvent
 import android.os.Build
+import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 
 class MainActivity : FlutterActivity() {
     @Suppress("DEPRECATION")
@@ -26,8 +29,38 @@ class MainActivity : FlutterActivity() {
     private var volumeKeys = false
     private var channel: MethodChannel? = null
     private var updates: AppUpdateInstaller? = null
+    private var reminders: MethodChannel? = null
+    private var reminderPermission: Pair<Map<*, *>, MethodChannel.Result>? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        reminders = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/follow-reminder")
+        reminders?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "get" -> result.success(FollowReminders.config(this))
+                "takeOpen" -> {
+                    result.success(intent.getBooleanExtra("followCalendar", false))
+                    intent.removeExtra("followCalendar")
+                }
+                "configure" -> {
+                    val values = call.arguments as? Map<*, *>
+                    if (values == null) {
+                        result.error("arguments", "Invalid reminder configuration", null)
+                    } else if (reminderPermission != null) {
+                        result.error("busy", "Notification permission request is pending", null)
+                    } else if (values["enabled"] == true && Build.VERSION.SDK_INT >= 33 &&
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        reminderPermission = values to result
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 40501)
+                    } else {
+                        saveReminder(values, result)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        try { FollowReminders.schedule(this) } catch (error: Exception) {
+            android.util.Log.w("Manxia", "Unable to restore follow reminder", error)
+        }
         updates = AppUpdateInstaller(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/update").setMethodCallHandler { call, result ->
             when (call.method) {
@@ -68,8 +101,33 @@ class MainActivity : FlutterActivity() {
         return super.onKeyDown(keyCode, event)
     }
     override fun onDestroy() {
+        reminderPermission?.second?.error("closed", "Activity closed before permission completed", null)
+        reminderPermission = null
         updates?.close()
         super.onDestroy()
+    }
+    private fun saveReminder(values: Map<*, *>, result: MethodChannel.Result) {
+        try {
+            FollowReminders.configure(this, values)
+            result.success(FollowReminders.config(this))
+        } catch (error: Exception) {
+            result.error("reminder", error.message, null)
+        }
+    }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 40501) {
+            val pending = reminderPermission
+            reminderPermission = null
+            if (pending != null) saveReminder(pending.first, pending.second)
+        }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("followCalendar", false)) {
+            reminders?.invokeMethod("openCalendar", null)
+        }
     }
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         if (volumeKeys && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) return true

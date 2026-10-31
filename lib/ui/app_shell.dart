@@ -9,6 +9,8 @@ import 'settings_page.dart';
 import 'search_page.dart';
 import 'scroll_arrival.dart';
 import 'history_page.dart';
+import 'follow_calendar_page.dart';
+import '../platform/follow_reminder.dart';
 import '../data/library.dart';
 import '../data/reading_progress.dart';
 import 'reader_page.dart';
@@ -73,8 +75,58 @@ class _AppShellState extends State<AppShell> {
     widget.library,
     gateway: widget.web ? Uri.base : null,
   );
+  bool calendarOpening = false;
+  Future<void> openCalendar() async {
+    if (!mounted || calendarOpening) return;
+    calendarOpening = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FollowCalendarPage(
+            library: widget.library,
+            source: source,
+            web: widget.web,
+            onOpen: open,
+          ),
+        ),
+      );
+    } finally {
+      calendarOpening = false;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (FollowReminder.supported) {
+      FollowReminder.channel.setMethodCallHandler((call) async {
+        if (call.method == 'openCalendar') {
+          if (await FollowReminder.channel.invokeMethod<bool>('takeOpen') ==
+              true) {
+            openCalendar();
+          }
+        }
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          if (await FollowReminder.channel.invokeMethod<bool>('takeOpen') ==
+                  true &&
+              mounted) {
+            openCalendar();
+          }
+        } catch (_) {
+          /* Reminder integration must not block the library. */
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
+    if (FollowReminder.supported) {
+      FollowReminder.channel.setMethodCallHandler(null);
+    }
     atmosphere.dispose();
     source.close();
     super.dispose();
@@ -495,6 +547,17 @@ class _AppShellState extends State<AppShell> {
                     ),
                   ),
                   icon: const Icon(Icons.search, size: 21),
+                ),
+              ),
+              IconButton(
+                tooltip: translate('追漫日历', Localizations.localeOf(context)),
+                onPressed: openCalendar,
+                icon: Badge(
+                  isLabelVisible: widget.library.favorites.any(
+                    (book) =>
+                        widget.library.updates[book.path]?['changed'] == true,
+                  ),
+                  child: const Icon(Icons.calendar_month_outlined, size: 20),
                 ),
               ),
               const SizedBox(width: 6),

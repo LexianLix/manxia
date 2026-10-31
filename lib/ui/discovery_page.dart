@@ -7,6 +7,8 @@ import '../data/comic.dart';
 import '../data/discovery.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/follow_calendar.dart';
+import 'follow_calendar_page.dart';
 import '../data/source_hub.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, quiet, small;
 import 'materials.dart';
@@ -617,6 +619,24 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                   _browseLink(snapshot.books),
                 ],
                 if (section == '更新') ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_month_outlined),
+                    title: const LocalizedText('追漫日历'),
+                    subtitle: const LocalizedText('按日期查看收藏更新与待读章节'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FollowCalendarPage(
+                          library: widget.library,
+                          source: widget.source,
+                          web: widget.web,
+                          onOpen: widget.onOpen,
+                        ),
+                      ),
+                    ),
+                  ),
                   _sectionTitle(
                     '收藏追更',
                     checking ? '正在检查收藏…' : '检查收藏是否出现新章节',
@@ -1073,55 +1093,12 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   Future<void> checkUpdates({bool failedOnly = false}) async {
     if (checking) return;
     setState(() => checking = true);
-    var failed = 0;
-    final list = widget.library.favorites
-        .where(
-          (c) =>
-              c.sourceId != 'local' &&
-              (!failedOnly ||
-                  widget.library.updates[c.path]?['checkError'] != null),
-        )
-        .toList();
-    for (var i = 0; i < list.length; i += 3) {
-      if (!mounted) break;
-      await Future.wait(
-        list.skip(i).take(3).map((book) async {
-          try {
-            final detail = await widget.source.detail(book);
-            if (!mounted || !widget.library.contains(book)) return;
-            final prior = widget.library.updates[book.path];
-            final latest = detail.comic.latest.isNotEmpty
-                ? detail.comic.latest
-                : detail.chapters.firstOrNull?.title ?? '';
-            final fingerprint = detail.chapters.firstOrNull?.path ?? latest;
-            final changed =
-                prior != null &&
-                (prior['fingerprint'] ?? prior['latest']) != fingerprint;
-            final now = DateTime.now().millisecondsSinceEpoch;
-            widget.library.updates[book.path] = {
-              'latest': latest,
-              'fingerprint': fingerprint,
-              'changed': prior?['changed'] == true || changed,
-              if (prior?['seenFingerprint'] != null)
-                'seenFingerprint': prior!['seenFingerprint'],
-              if (prior?['readAt'] != null) 'readAt': prior!['readAt'],
-              'checkedAt': now,
-              'updatedAt': changed ? now : prior?['updatedAt'] ?? 0,
-            };
-          } catch (error) {
-            failed++;
-            if (mounted && widget.library.contains(book)) {
-              widget.library.updates[book.path] = {
-                ...?widget.library.updates[book.path],
-                'checkError': friendlyError(error),
-                'checkedAt': DateTime.now().millisecondsSinceEpoch,
-              };
-            }
-          }
-        }),
-      );
-    }
-    await widget.library.persistFeatures();
+    final failed = await FollowChecker.check(
+      widget.library,
+      widget.source,
+      failedOnly: failedOnly,
+      active: () => mounted,
+    );
     if (mounted) {
       setState(() => checking = false);
       ScaffoldMessenger.of(context).showSnackBar(
