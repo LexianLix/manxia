@@ -4,18 +4,28 @@ Uses synthetic preferences. Notification delivery is triggered through the real
 private receiver with adb root; this does not assert exact alarm timing.
 """
 import argparse
-import datetime as dt
 import json
 import pathlib
 import re
 import time
+import subprocess
 import xml.etree.ElementTree as ET
-from android_startup_smoke import adb, read_ui
 
 PACKAGE = 'io.manxia.manxia'
 DATA = f'/data/user/0/{PACKAGE}'
 ACTION = 'io.manxia.FOLLOW_REMINDER'
 OUT = pathlib.Path('follow-evidence')
+
+
+def adb(*args, binary=False, check=True, timeout=30):
+    result = subprocess.run(['adb', *args], capture_output=True,
+                            check=check, timeout=timeout)
+    return result.stdout if binary else result.stdout.decode('utf-8', 'replace')
+
+
+def read_ui():
+    adb('shell', 'uiautomator', 'dump', '/sdcard/follow-check.xml')
+    return adb('shell', 'cat', '/sdcard/follow-check.xml')
 
 
 def wait_ui(word, timeout=45):
