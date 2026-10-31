@@ -149,7 +149,13 @@ def main():
         adb('shell', 'input', 'keyevent', '4'); wait_ui('My library')
         receiver_notification()
         adb('shell', 'input', 'keyevent', '3')
-        adb('shell', 'am', 'kill', PACKAGE)
+        # am kill is advisory and may retain a bound process. Simulate process
+        # death on this rootable emulator without force-stop clearing alarms.
+        for process in adb('shell', 'pidof', PACKAGE, check=False).split():
+            assert process.isdigit()
+            command = adb('shell', 'cat', f'/proc/{process}/cmdline').split('\x00')[0]
+            assert command == PACKAGE
+            adb('shell', 'kill', '-9', process)
         time.sleep(2)
         assert not adb('shell', 'pidof', PACKAGE, check=False).strip(), 'App was not killed for cold navigation'
         click_notification(); capture('cold-calendar')
