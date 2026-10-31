@@ -160,12 +160,26 @@ def main():
         assert not adb('shell', 'pidof', PACKAGE, check=False).strip(), 'App was not killed for cold navigation'
         click_notification(); capture('cold-calendar')
         result['cold_notification_navigation'] = True
-        adb('reboot'); adb('wait-for-device', timeout=120)
+        boot_id = adb('shell', 'cat', '/proc/sys/kernel/random/boot_id').strip()
+        adb('reboot'); adb('wait-for-disconnect', timeout=60)
+        adb('wait-for-device', timeout=120)
         until = time.monotonic()+90
-        while time.monotonic() < until and adb('shell', 'getprop', 'sys.boot_completed').strip() != '1':
+        while time.monotonic() < until:
+            new_id = adb('shell', 'cat', '/proc/sys/kernel/random/boot_id').strip()
+            if new_id != boot_id and adb('shell', 'getprop', 'sys.boot_completed').strip() == '1':
+                break
             time.sleep(2)
-        root_emulator(); time.sleep(8)
-        assert alarm_present(), 'Boot did not restore the reminder'
+        assert new_id != boot_id, 'Emulator never entered a new boot'
+        root_emulator()
+        adb('shell', 'input', 'keyevent', '82')
+        # BOOT_COMPLETED delivery follows user unlock and can be deferred beyond
+        # sys.boot_completed. Wait for the observable alarm, not a fixed sleep.
+        start = time.monotonic()
+        while time.monotonic()-start < 60 and not alarm_present():
+            time.sleep(2)
+        (OUT/'boot-user.txt').write_text(adb('shell', 'dumpsys', 'user'), encoding='utf-8')
+        result['reboot_alarm_wait_seconds'] = round(time.monotonic()-start, 1)
+        assert alarm_present(), 'Boot did not restore the reminder after user unlock'
         result['reboot_rescheduled'] = True
         launch_calendar(); tap('Reading reminder'); wait_ui('Weekly reminder')
         tap('Weekly reminder'); tap('Save'); wait_ui('Follow calendar')
