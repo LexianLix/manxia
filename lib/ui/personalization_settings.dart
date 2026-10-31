@@ -159,6 +159,8 @@ class PersonalizationSettings extends StatelessWidget {
             '逐本设置优先；已启用的阅读插件可提供默认预设。',
             style: TextStyle(fontSize: 11),
           ),
+          toggle('autoArchiveRead', '读完自动归档', '只有全部已知章节标为已读时归档，收藏与进度保留', false),
+          toggle('warmNextChapter', '预备下一章首屏', '接近章末时准备下一章，关闭预载时不请求', true),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const LocalizedText('阅读时保持亮屏'),

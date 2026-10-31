@@ -10,6 +10,7 @@ import 'search_page.dart';
 import 'scroll_arrival.dart';
 import 'history_page.dart';
 import '../data/library.dart';
+import '../data/reading_progress.dart';
 import 'reader_page.dart';
 import 'living_shelf.dart';
 import 'discovery_page.dart';
@@ -464,7 +465,11 @@ class _AppShellState extends State<AppShell> {
         ),
       );
   Widget _shelf(bool compact) {
-    final books = List<Comic>.of(widget.library.books);
+    final archived = widget.library.option<bool>('showArchived', false);
+    final books = widget.library.books
+        .where((b) => widget.library.archived(b) == archived)
+        .toList();
+    final pinned = widget.library.option<bool>('continuePinned', true);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -519,7 +524,7 @@ class _AppShellState extends State<AppShell> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   LocalizedText(
-                    '全部收藏',
+                    archived ? '已归档' : '未归档收藏',
                     style: TextStyle(
                       fontSize: 13,
                       color: Theme.of(context).colorScheme.primary,
@@ -553,6 +558,30 @@ class _AppShellState extends State<AppShell> {
         ),
         const SizedBox(height: 10),
         Divider(color: Theme.of(context).dividerColor, height: 1),
+        if (widget.library.favorites.isNotEmpty ||
+            continueRecord != null ||
+            archived)
+          Wrap(
+            spacing: 8,
+            children: [
+              FilterChip(
+                label: const LocalizedText('已归档'),
+                selected: archived,
+                onSelected: (v) => widget.library.setOption('showArchived', v),
+              ),
+              FilterChip(
+                label: const LocalizedText('继续阅读置顶'),
+                selected: pinned,
+                onSelected: (v) =>
+                    widget.library.setOption('continuePinned', v),
+              ),
+            ],
+          ),
+        if (pinned && continueRecord != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: _continueCard(),
+          ),
         ContentHandoff(
           child: books.isEmpty
               ? Padding(
@@ -560,8 +589,14 @@ class _AppShellState extends State<AppShell> {
                   padding: const EdgeInsets.symmetric(vertical: 36),
                   child: EmptyState(
                     icon: Icons.auto_stories_outlined,
-                    title: '书架，等你放上第一本漫画',
-                    message: '去发现页搜索喜欢的漫画，加入收藏。',
+                    title: archived
+                        ? '归档书架暂时没有漫画'
+                        : widget.library.favorites.isNotEmpty
+                        ? '故事已收进归档书架'
+                        : '书架，等你放上第一本漫画',
+                    message: archived || widget.library.favorites.isNotEmpty
+                        ? '切换归档筛选可查看其他收藏，整理菜单可恢复到书架。'
+                        : '去发现页搜索喜欢的漫画，加入收藏。',
                     action: () => navigate(1),
                     actionLabel: '发现漫画',
                   ),
@@ -570,7 +605,12 @@ class _AppShellState extends State<AppShell> {
               ? Padding(
                   key: const ValueKey('grid-shelf'),
                   padding: const EdgeInsets.symmetric(vertical: 28),
-                  child: ComicGrid(books: books, web: widget.web, onOpen: open),
+                  child: ComicGrid(
+                    books: books,
+                    library: widget.library,
+                    web: widget.web,
+                    onOpen: open,
+                  ),
                 )
               : LivingShelf(
                   key: const ValueKey('living-shelf'),
@@ -585,7 +625,7 @@ class _AppShellState extends State<AppShell> {
                       openingOrigin = (comic.path, rect),
                 ),
         ),
-        if (widget.library.history.isNotEmpty) ...[
+        if (!pinned && continueRecord != null) ...[
           const SizedBox(height: 20),
           _continueCard(),
         ],
@@ -617,6 +657,7 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(height: 10),
           ComicGrid(
             books: books.take(6).toList(),
+            library: widget.library,
             web: widget.web,
             onOpen: open,
             minItemWidth: 100,
@@ -626,8 +667,15 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  ReadingRecord? get continueRecord => widget.library.history
+      .where(
+        (r) =>
+            !widget.library.archived(r.comic) &&
+            widget.library.meta(r.comic)['status'] != '已读',
+      )
+      .firstOrNull;
   Widget _continueCard() {
-    final record = widget.library.history.firstOrNull;
+    final record = continueRecord;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -814,6 +862,8 @@ class ComicGrid extends StatelessWidget {
                   ? '当前源无版权'
                   : library?.sourceStatus(comic)?['kind'] == 'missing'
                   ? '入口已失效'
+                  : library?.chapterCount(comic) != null
+                  ? '{read} / {count} 章已读'
                   : comic.latest.isEmpty && comic.author.isNotEmpty
                   ? comic.author
                   : comic.latest.isEmpty
@@ -823,6 +873,10 @@ class ComicGrid extends StatelessWidget {
                         ? '本地漫画'
                         : '漫画'
                   : comic.latest,
+              arguments: {
+                'read': library?.readChapterCount(comic) ?? 0,
+                'count': library?.chapterCount(comic) ?? 0,
+              },
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: small(context),

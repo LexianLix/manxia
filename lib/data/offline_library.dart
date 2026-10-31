@@ -8,6 +8,13 @@ import '../platform/storage.dart';
 import 'comic.dart';
 import 'dm5_source.dart';
 import 'library.dart';
+import 'chapter_links.dart';
+
+class OfflineCapacityException implements Exception {
+  const OfflineCapacityException();
+  @override
+  String toString() => '离线空间已达到上限，任务已暂停；请清理空间或提高容量上限后继续。';
+}
 
 class OfflineLibrary extends ChangeNotifier {
   OfflineLibrary(
@@ -29,6 +36,28 @@ class OfflineLibrary extends ChangeNotifier {
   final Map<String, List<String>> chapterCatalogs = {};
   final Map<String, Uint8List> _memory = {};
   int _memoryBytes = 0;
+  int _reservedBytes = 0;
+  int get capacityBytes =>
+      library.option<int>('offlineLimitMb', 0).clamp(0, 102400) * 1024 * 1024;
+  bool get nearCapacity => capacityBytes > 0 && bytes >= capacityBytes * .9;
+  int reclaimableBytes(Iterable<String> ids) {
+    final selected = entries.where((e) => ids.contains(e['id'])).toList();
+    var size = selected.fold<int>(0, (n, e) => n + (e['bytes'] as int? ?? 0));
+    final covers = <String, int>{
+      for (final e in selected)
+        if (e['coverKey'] is String)
+          e['coverKey']: e['coverBytes'] as int? ?? 0,
+    };
+    for (final cover in covers.entries) {
+      if (!entries.any(
+        (e) => !ids.contains(e['id']) && e['coverKey'] == cover.key,
+      )) {
+        size += cover.value;
+      }
+    }
+    return size;
+  }
+
   bool ready = false;
   Future<void> initialize() async {
     _store ??= await createBlobStore();
@@ -191,7 +220,8 @@ class OfflineLibrary extends ChangeNotifier {
         e['total'] = (e['urls'] as List).length;
       }
       if ((e['urls'] as List).isEmpty) throw StateError('章节没有返回图片，请重新读取目录后重试。');
-      final urls = List<String>.from(e['urls']);
+      var urls = List<String>.from(e['urls']);
+      var refreshed = false;
       final keys = List<String>.from(e['keys']);
       for (var i = e['done'] as int; i < urls.length; i++) {
         if (e['status'] != 'downloading') break;
@@ -210,6 +240,19 @@ class OfflineLibrary extends ChangeNotifier {
               .timeout(const Duration(seconds: 30));
           if (response.statusCode != 200 ||
               !(response.headers['content-type'] ?? '').startsWith('image/')) {
+            if (!refreshed && expiredImageStatus(response.statusCode)) {
+              refreshed = true;
+              urls = await refreshChapterLinks(
+                source,
+                e['chapter']['path'],
+                urls,
+                completed: i,
+              );
+              e['urls'] = urls;
+              await persist();
+              i--;
+              continue;
+            }
             throw StateError(
               response.statusCode == 200
                   ? '第 ${i + 1} 页没有返回图片，请核对书源后重试。'
@@ -219,8 +262,18 @@ class OfflineLibrary extends ChangeNotifier {
           if (response.bodyBytes.length > 20 * 1024 * 1024) {
             throw StateError('单张图片超过 20 MB');
           }
-          await _store!.write(imageKey, response.bodyBytes);
-          e['bytes'] = (e['bytes'] as int) + response.bodyBytes.length;
+          final size = response.bodyBytes.length;
+          if (capacityBytes > 0 &&
+              bytes + _reservedBytes + size > capacityBytes) {
+            throw const OfflineCapacityException();
+          }
+          _reservedBytes += size;
+          try {
+            await _store!.write(imageKey, response.bodyBytes);
+            e['bytes'] = (e['bytes'] as int) + size;
+          } finally {
+            _reservedBytes -= size;
+          }
         }
         if (i >= keys.length) keys.add(imageKey);
         e['keys'] = keys;
@@ -246,9 +299,18 @@ class OfflineLibrary extends ChangeNotifier {
             if (response.statusCode == 200 &&
                 (response.headers['content-type'] ?? '').startsWith('image/') &&
                 response.bodyBytes.length < 5 * 1024 * 1024) {
-              await _store!.write(coverKey, response.bodyBytes);
-              e['coverBytes'] = response.bodyBytes.length;
-              e['coverKey'] = coverKey;
+              final size = response.bodyBytes.length;
+              if (capacityBytes == 0 ||
+                  bytes + _reservedBytes + size <= capacityBytes) {
+                _reservedBytes += size;
+                try {
+                  await _store!.write(coverKey, response.bodyBytes);
+                  e['coverBytes'] = size;
+                  e['coverKey'] = coverKey;
+                } finally {
+                  _reservedBytes -= size;
+                }
+              }
             }
           } else {
             e['coverKey'] = coverKey;
@@ -261,7 +323,7 @@ class OfflineLibrary extends ChangeNotifier {
       }
     } catch (error) {
       if (e['status'] == 'downloading') {
-        e['status'] = 'failed';
+        e['status'] = error is OfflineCapacityException ? 'paused' : 'failed';
         e['error'] = error.toString();
       }
     } finally {
@@ -345,6 +407,16 @@ class OfflineLibrary extends ChangeNotifier {
     }
     for (final e in selected) {
       await remove(e['id']);
+    }
+  }
+
+  Future<void> removeMany(Iterable<String> ids) async {
+    final selected = entries.where((e) => ids.contains(e['id'])).toList();
+    if (selected.any((e) => _running.contains(e['id']))) {
+      throw StateError('选中任务仍在运行，请暂停并等待当前图片完成。');
+    }
+    for (final entry in selected) {
+      await remove(entry['id']);
     }
   }
 

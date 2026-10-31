@@ -48,6 +48,8 @@ class PagedSurface extends StatefulWidget {
     required this.onPosition,
     this.onReady,
     this.onLoadError,
+    this.onImageError,
+    this.onRetryPage,
     this.rtl = false,
     this.vertical = false,
     this.doublePage = false,
@@ -63,6 +65,8 @@ class PagedSurface extends StatefulWidget {
   final ReaderControl control;
   final PagePosition onPosition;
   final VoidCallback? onReady, onLoadError;
+  final void Function(int, Object)? onImageError;
+  final ValueChanged<int>? onRetryPage;
   @override
   State<PagedSurface> createState() => _PagedSurfaceState();
 }
@@ -291,6 +295,10 @@ class _PagedSurfaceState extends State<PagedSurface> {
     curl: curl,
     alignment: alignment,
     onReady: (_) => ready(index),
+    onImageError: (error) => widget.onImageError?.call(index, error),
+    onRetry: widget.onRetryPage == null
+        ? null
+        : () => widget.onRetryPage!(index),
     onLoadError: () {
       if (initialPages.contains(index)) widget.onLoadError?.call();
     },
@@ -436,6 +444,8 @@ class StripSurface extends StatefulWidget {
     required this.onPosition,
     this.onReady,
     this.onLoadError,
+    this.onImageError,
+    this.onRetryPage,
     this.speed = 0,
     this.crop = 0,
     this.autoCrop = false,
@@ -448,6 +458,8 @@ class StripSurface extends StatefulWidget {
   final ReaderControl control;
   final PagePosition onPosition;
   final VoidCallback? onReady, onLoadError;
+  final void Function(int, Object)? onImageError;
+  final ValueChanged<int>? onRetryPage;
   @override
   State<StripSurface> createState() => _StripSurfaceState();
 }
@@ -589,6 +601,10 @@ class _StripSurfaceState extends State<StripSurface> {
               decodeWidth: widget.decodeWidth,
               onReady: i == initialPage ? restore : null,
               onLoadError: i == initialPage ? widget.onLoadError : null,
+              onImageError: (error) => widget.onImageError?.call(i, error),
+              onRetry: widget.onRetryPage == null
+                  ? null
+                  : () => widget.onRetryPage!(i),
             ),
           ),
         ),
@@ -650,6 +666,8 @@ class PagePicture extends StatefulWidget {
     this.decodeWidth = 1800,
     this.onReady,
     this.onLoadError,
+    this.onImageError,
+    this.onRetry,
     this.curl = 0,
     this.alignment = Alignment.center,
   });
@@ -659,6 +677,8 @@ class PagePicture extends StatefulWidget {
   final int decodeWidth;
   final ValueChanged<double>? onReady;
   final VoidCallback? onLoadError;
+  final ValueChanged<Object>? onImageError;
+  final VoidCallback? onRetry;
   final double curl;
   final Alignment alignment;
   @override
@@ -736,18 +756,20 @@ class _PagePictureState extends State<PagePicture> {
           if (mounted && generation == request) {
             setState(() => error = '这一页加载失败');
             widget.onLoadError?.call();
+            widget.onImageError?.call(e);
           }
         },
       );
       stream!.addListener(listener!);
-    } catch (_) {
+    } catch (error) {
       if (mounted && generation == request) {
         setState(
-          () => error = widget.url.startsWith('offline:')
+          () => this.error = widget.url.startsWith('offline:')
               ? '离线图片不存在或无法读取'
               : '这一页加载失败',
         );
         widget.onLoadError?.call();
+        widget.onImageError?.call(error);
       }
     }
   }
@@ -775,7 +797,10 @@ class _PagePictureState extends State<PagePicture> {
                 error!,
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
-              TextButton(onPressed: load, child: const LocalizedText('重新加载图片')),
+              TextButton(
+                onPressed: widget.onRetry ?? load,
+                child: const LocalizedText('重新加载图片'),
+              ),
             ],
           ),
         ),

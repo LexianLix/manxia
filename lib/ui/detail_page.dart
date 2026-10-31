@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/reading_progress.dart';
 import '../data/source_hub.dart';
 import 'app_shell.dart';
 import 'book_object.dart';
@@ -42,7 +43,17 @@ class DetailPage extends StatefulWidget {
 }
 
 class _DetailPageState extends State<DetailPage> {
-  late Future<ComicDetail> detail = widget.source.detail(widget.comic);
+  Future<ComicDetail> fetchDetail() async {
+    final result = await widget.source.detail(widget.comic);
+    try {
+      await widget.library.rememberChapters(result.comic, result.chapters);
+    } catch (_) {
+      /* Local metadata must not block a readable catalog. */
+    }
+    return result;
+  }
+
+  late Future<ComicDetail> detail = fetchDetail();
   String group = '连载';
   bool ascending = true;
   bool enteringReader = false;
@@ -80,7 +91,7 @@ class _DetailPageState extends State<DetailPage> {
 
   final coverKey = GlobalKey();
   void retry() => setState(() {
-    detail = widget.source.detail(widget.comic);
+    detail = fetchDetail();
   });
 
   Future<void> copyDiagnostics(String path) async {
@@ -719,6 +730,14 @@ class _DetailPageState extends State<DetailPage> {
                                         ),
                                         if (marked)
                                           const Icon(Icons.bookmark, size: 14),
+                                        if (widget.library.chapterRead(
+                                          comic,
+                                          chapter.path,
+                                        ))
+                                          const Icon(
+                                            Icons.check_circle_outline,
+                                            size: 14,
+                                          ),
                                       ],
                                     ),
                                   );

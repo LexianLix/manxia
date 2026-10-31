@@ -10,10 +10,14 @@ class ChapterCatalog extends StatefulWidget {
     required this.chapters,
     required this.current,
     required this.onSelected,
+    this.isRead,
+    this.onToggleRead,
   });
   final List<Chapter> chapters;
   final String current;
   final ValueChanged<Chapter> onSelected;
+  final bool Function(Chapter)? isRead;
+  final Future<void> Function(Chapter)? onToggleRead;
   @override
   State<ChapterCatalog> createState() => _ChapterCatalogState();
 }
@@ -105,9 +109,32 @@ class _ChapterCatalogState extends State<ChapterCatalog> {
                       style: const TextStyle(fontSize: 13),
                     ),
                     selected: list[i].path == widget.current,
-                    trailing: list[i].path == widget.current
-                        ? const Icon(Icons.bookmark_outline, size: 18)
-                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (list[i].path == widget.current)
+                          const Icon(Icons.bookmark_outline, size: 18),
+                        if (widget.onToggleRead != null)
+                          IconButton(
+                            tooltip: translate(
+                              widget.isRead?.call(list[i]) == true
+                                  ? '标为未读'
+                                  : '标为已读',
+                              Localizations.localeOf(context),
+                            ),
+                            onPressed: () async {
+                              await widget.onToggleRead!(list[i]);
+                              if (mounted) setState(() {});
+                            },
+                            icon: Icon(
+                              widget.isRead?.call(list[i]) == true
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
+                              size: 19,
+                            ),
+                          ),
+                      ],
+                    ),
                     onTap: () => widget.onSelected(list[i]),
                   ),
                 ),

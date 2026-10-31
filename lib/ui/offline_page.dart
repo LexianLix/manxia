@@ -9,6 +9,7 @@ import '../data/offline_library.dart';
 import 'book_object.dart';
 import 'reader_page.dart';
 import 'room_motion.dart';
+import 'offline_storage_page.dart';
 
 class OfflinePage extends StatefulWidget {
   const OfflinePage({
@@ -59,6 +60,20 @@ class _OfflinePageState extends State<OfflinePage> {
       appBar: AppBar(
         title: const LocalizedText('下载与本地书库', style: TextStyle(fontSize: 18)),
         actions: [
+          if (offline != null)
+            IconButton(
+              tooltip: translate('离线空间', Localizations.localeOf(c)),
+              icon: const Icon(Icons.storage_outlined),
+              onPressed: () => Navigator.push(
+                c,
+                MaterialPageRoute(
+                  builder: (_) => OfflineStoragePage(
+                    library: widget.library,
+                    offline: offline,
+                  ),
+                ),
+              ),
+            ),
           PopupMenuButton<String>(
             tooltip: '导入漫画',
             enabled: !busy,
@@ -97,12 +112,21 @@ class _OfflinePageState extends State<OfflinePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               LocalizedText(
-                                '${offline.entries.where((e) => e['status'] == 'complete').length} 个离线章节',
+                                '{count} 个离线章节',
+                                arguments: {
+                                  'count': offline.entries
+                                      .where((e) => e['status'] == 'complete')
+                                      .length,
+                                },
                                 style: const TextStyle(fontSize: 23),
                               ),
                               const SizedBox(height: 7),
                               LocalizedText(
-                                '已用 ${(offline.bytes / 1024 / 1024).toStringAsFixed(1)} MB · 文件保存在当前设备',
+                                '已用 {size} MB · 文件保存在当前设备',
+                                arguments: {
+                                  'size': (offline.bytes / 1024 / 1024)
+                                      .toStringAsFixed(1),
+                                },
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey,
@@ -112,7 +136,7 @@ class _OfflinePageState extends State<OfflinePage> {
                           ),
                         ),
                         IconButton(
-                          tooltip: '刷新任务',
+                          tooltip: translate('刷新任务', Localizations.localeOf(c)),
                           onPressed: offline.pump,
                           icon: const Icon(Icons.refresh),
                         ),

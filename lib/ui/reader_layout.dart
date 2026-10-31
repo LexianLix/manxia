@@ -20,6 +20,8 @@ class ReaderLayout extends StatefulWidget {
     required this.onPosition,
     required this.onReady,
     required this.onLoadError,
+    this.onImageError,
+    this.onRetryPage,
     required this.paper,
     required this.crop,
     required this.autoCrop,
@@ -34,6 +36,8 @@ class ReaderLayout extends StatefulWidget {
   final ReaderControl control;
   final PagePosition onPosition;
   final VoidCallback onReady, onLoadError;
+  final void Function(int, Object)? onImageError;
+  final ValueChanged<int>? onRetryPage;
 
   @override
   State<ReaderLayout> createState() => _ReaderLayoutState();
@@ -203,6 +207,8 @@ class _ReaderLayoutState extends State<ReaderLayout>
             onPosition: (p, f) => positioned(layer, p, f),
             onReady: () => ready(layer),
             onLoadError: () => error(layer),
+            onImageError: widget.onImageError,
+            onRetryPage: widget.onRetryPage,
             speed: active ? widget.speed : 0,
             crop: widget.crop,
             autoCrop: widget.autoCrop,
@@ -216,6 +222,8 @@ class _ReaderLayoutState extends State<ReaderLayout>
             onPosition: (p, f) => positioned(layer, p, f),
             onReady: () => ready(layer),
             onLoadError: () => error(layer),
+            onImageError: widget.onImageError,
+            onRetryPage: widget.onRetryPage,
             rtl: layer.layout.rtl,
             vertical: layer.layout.mode == 'vertical',
             doublePage: layer.layout.paired,

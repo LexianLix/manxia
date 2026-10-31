@@ -2,6 +2,7 @@ import 'localized_text.dart';
 import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/library.dart';
+import '../data/reading_progress.dart';
 import 'book_object.dart';
 import 'book_link.dart';
 
@@ -17,6 +18,7 @@ Future<void> editBook(
   );
   final series = TextEditingController(text: meta['series'] ?? '');
   String status = meta['status'] ?? '未读';
+  bool archived = library.archived(comic);
   final save = await showDialog<bool>(
     context: context,
     builder: (c) => StatefulBuilder(
@@ -54,6 +56,12 @@ Future<void> editBook(
                 onChanged: (v) => update(() => status = v!),
                 decoration: const InputDecoration(label: LocalizedText('阅读状态')),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const LocalizedText('收进归档书架'),
+                value: archived,
+                onChanged: (v) => update(() => archived = v),
+              ),
             ],
           ),
         ),
@@ -80,6 +88,10 @@ Future<void> editBook(
           .where((v) => v.isNotEmpty)
           .toList(),
       'status': status,
+      'archived': archived,
+      'autoArchived': archived == library.archived(comic)
+          ? meta['autoArchived'] == true
+          : false,
     });
   }
   group.dispose();
@@ -371,7 +383,7 @@ class _LibraryManagerState extends State<LibraryManager> {
           ),
           title: LocalizedText(b.title, style: const TextStyle(fontSize: 14)),
           subtitle: LocalizedText(
-            '${m['group'] ?? '未分组'} · ${m['status'] ?? '未读'}',
+            '${m['group'] ?? '未分组'} · ${m['status'] ?? '未读'}${library.chapterCount(b) == null ? '' : ' · ${library.readChapterCount(b)}/${library.chapterCount(b)} 章'}',
             style: const TextStyle(fontSize: 11),
           ),
           trailing: Padding(
