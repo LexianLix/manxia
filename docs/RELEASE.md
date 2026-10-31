@@ -2,14 +2,14 @@
 
 ## 安装发行版
 
-从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.4.3 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
+从 [GitHub Releases](https://github.com/LexianLix/manxia/releases/latest) 下载设备对应的 APK。当前 v0.4.4 支持 Android 7.0（API 24）及以上，提供 ARM64、ARMv7 和 x86_64 三个分包。常见手机和平板优先选择 ARM64。
 
 发行包使用 Release 模式编译，并由项目固定密钥签名。发行页包含 `SHA256SUMS.txt` 与 `release-manifest.json`，后者记录构建提交、工作流、架构、版本码和签名证书指纹。GitHub 自动提供的 Source code 归档是源码，不是安装包。
 
 下载后可在 PowerShell 中检查文件哈希，并与发行页的校验文件比对：
 
 ```powershell
-Get-FileHash .\Manxia-0.4.3-arm64-v8a.apk -Algorithm SHA256
+Get-FileHash .\Manxia-0.4.4-arm64-v8a.apk -Algorithm SHA256
 ```
 
 项目签名证书 SHA-256：
@@ -75,8 +75,8 @@ flutter build apk --release --split-per-abi
 
 ## 维护者发布流程
 
-1. 更新 `pubspec.yaml` 的版本和构建号、`CHANGELOG.md`、README 下载链接。检查签名文件仍被 Git 忽略；提交源码与文档。
-2. 在待发布提交上创建 `vX.Y.Z` 标签，推送后手动运行 [Prepare Android release](https://github.com/LexianLix/manxia/actions/workflows/release-build.yml)，选择该标签。工作流通过代码分析、Flutter 与 Node 测试后，按架构构建 Release APK。
+1. 更新 `pubspec.yaml` 的版本和构建号、`CHANGELOG.md` 及产品文档。检查签名文件仍被 Git 忽略；提交并推送源码。README 下载入口在公开附件验证成功后更新。
+2. 在待发布提交所在分支手动运行 [Prepare Android release](https://github.com/LexianLix/manxia/actions/workflows/release-build.yml)，核对运行记录中的确切提交。工作流通过代码分析、Flutter 与 Node 测试后，按架构构建 Release APK。
 3. 下载该次运行的 `manxia-unsigned-release` 附件并解压。它是**未签名的准备产物**，不要直接放到 Releases 供安装。`build-info.json` 记录确切提交、版本与文件哈希。
 4. 在保存项目密钥的 Windows 机器上，使用 Android SDK Build Tools 执行本地签名：
 
@@ -87,9 +87,9 @@ flutter build apk --release --split-per-abi
 脚本核对输入哈希、版本、包名、架构与版本码，先执行 16 KB ZIP 对齐，再签名、验证签名和对齐。密码通过环境变量传递；输出包含 APK、`SHA256SUMS.txt`、`release-manifest.json` 及各架构的验证日志。已有 APK 不会被覆盖。
 
 5. 核对三包签名一致且与既往发行版相同。Flutter 分包会为构建号增加架构偏移，例如构建号 19 对应 ARMv7 `1019`、ARM64 `2019`、x86_64 `4019`，不要把这些值误认为版本不一致。
-6. 在 GitHub 创建关联标签的 Release 草稿，上传三个已签名 APK、哈希清单和发行清单。检查附件名称、大小和 SHA-256 与本机一致，先保留草稿。
+6. 在 GitHub 创建目标为该构建提交、标签名为 `vX.Y.Z` 的 Release 草稿，上传三个已签名 APK、哈希清单和发行清单。检查附件名称、大小和 SHA-256 与本机一致，先保留草稿。
 7. 运行 `Verify installed Android startup` 验证签名候选。草稿不可被只读 CI 令牌直接读取时，维护者可提供 GitHub 资产的短时下载地址 `candidate_url` 和本机已核对的 `candidate_sha256`；地址仅接受 HTTPS 的 `release-assets.githubusercontent.com`，工作流先校验文件和签名，再安装。不要传入账户令牌。`upgrade_from` 可检查从旧正式版覆盖安装的数据保留。
-8. 验证成功后发布草稿，并确认公开下载可用。发布后不替换同名安装包；修订应用需增加构建号并发布新版本。
+8. 验证成功后为确切构建提交创建并推送 `vX.Y.Z` 标签，再发布草稿。确认五个公开附件可下载、大小与哈希一致，并核对匿名下载的发行清单；随后更新 README 下载入口。发布后不替换同名安装包；修订应用需增加构建号并发布新版本。
 
 签名密钥保留本机，没有上传到 GitHub Secrets。CI 通过显式环境变量 `MANXIA_UNSIGNED_RELEASE=true` 准备未签名产物；只有维护者签名、核对并发布后的附件才是发行包。
 
