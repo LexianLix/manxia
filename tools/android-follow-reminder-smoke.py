@@ -99,6 +99,33 @@ def root_emulator():
     adb('root'); adb('wait-for-device')
 
 
+def check_network_callbacks():
+    adb('shell', 'input', 'keyevent', '4')
+    wait_ui('My library')
+    tap('Settings'); wait_ui('Preferences')
+    tap('Downloads & cache')
+    size = list(map(int, re.findall(r'\d+', adb('shell', 'wm', 'size'))))[-2:]
+    width, height = size
+    for _ in range(10):
+        if 'Download network:' in read_ui():
+            break
+        adb('shell', 'input', 'swipe', str(width//2), str(height*4//5),
+            str(width//2), str(height//3), '350')
+    process = adb('shell', 'pidof', PACKAGE).strip()
+    try:
+        adb('shell', 'svc', 'data', 'disable')
+        adb('shell', 'svc', 'wifi', 'enable')
+        wait_ui('Download network: Wi-Fi'); capture('network-wifi')
+        adb('shell', 'svc', 'wifi', 'disable')
+        wait_ui('Download network: Offline'); capture('network-offline')
+        adb('shell', 'svc', 'wifi', 'enable')
+        wait_ui('Download network: Wi-Fi'); capture('network-restored')
+        assert adb('shell', 'pidof', PACKAGE).strip() == process, 'Network check restarted the app'
+    finally:
+        adb('shell', 'svc', 'wifi', 'enable')
+        adb('shell', 'svc', 'data', 'enable')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apk', type=pathlib.Path)
@@ -194,6 +221,8 @@ def main():
         assert not alarm_present(), 'Disabled reminder still has a pending alarm'
         result['disable_cancelled'] = True
         capture('disabled')
+        check_network_callbacks()
+        result['network_callbacks_without_restart'] = True
         result['notification_delivery'] = 'Real receiver explicitly triggered by adb root; exact scheduled timing not asserted'
         result['passed'] = True
     finally:
