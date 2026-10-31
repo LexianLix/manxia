@@ -58,6 +58,8 @@ def capture(name):
 
 
 def launch_calendar():
+    adb('shell', 'input', 'keyevent', '224')
+    adb('shell', 'wm', 'dismiss-keyguard')
     adb('shell', 'am', 'start', '-W', '-n', f'{PACKAGE}/.MainActivity', '--ez', 'followCalendar', 'true')
     wait_ui('Follow calendar')
 
@@ -189,6 +191,11 @@ def main():
         result['notification_delivery'] = 'Real receiver explicitly triggered by adb root; exact scheduled timing not asserted'
         result['passed'] = True
     finally:
+        try:
+            capture('final')
+            (OUT/'window-final.txt').write_text(adb('shell', 'dumpsys', 'window'), encoding='utf-8')
+        except Exception as error:
+            (OUT/'capture-error.txt').write_text(str(error), encoding='utf-8')
         (OUT/'verdict.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
         (OUT/'logcat.txt').write_text(adb('logcat', '-d', check=False), encoding='utf-8')
     print(json.dumps(result), flush=True)
