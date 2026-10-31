@@ -32,6 +32,12 @@ def wait_ui(word, timeout=45):
     until = time.monotonic() + timeout
     while time.monotonic() < until:
         xml = read_ui()
+        if "Pixel Launcher isn't responding" in xml:
+            # Only the emulator launcher ANR may be dismissed. Never dismiss
+            # the app-under-test's errors or accept a hidden Flutter surface.
+            capture('emulator-launcher-anr')
+            tap('android:id/aerr_close', resource=True)
+            continue
         if word in xml:
             return xml
         time.sleep(1)
