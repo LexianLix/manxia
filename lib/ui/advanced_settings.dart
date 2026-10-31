@@ -20,6 +20,7 @@ import 'content_handoff.dart';
 import 'personalization_settings.dart';
 import 'app_update_page.dart';
 import 'release_notes.dart';
+import 'metadata_backups_page.dart';
 import '../platform/app_update.dart';
 
 class AdvancedSettings extends StatefulWidget {
@@ -903,6 +904,44 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
             },
           ),
         ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const LocalizedText('仅使用非计费 Wi-Fi 下载'),
+          subtitle: const LocalizedText('Android 可自动识别；无法判断网络时暂停，完成页保留'),
+          value: library.option<bool>('downloadWifiOnly', false),
+          onChanged: (v) => library.setOption('downloadWifiOnly', v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const LocalizedText('网络恢复后继续下载'),
+          subtitle: const LocalizedText('只恢复因网络暂停的任务，手动暂停不受影响'),
+          value: library.option<bool>('resumeDownloadsOnNetwork', true),
+          onChanged: (v) => library.setOption('resumeDownloadsOnNetwork', v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const LocalizedText('重新打开应用时继续未完成下载'),
+          value: library.option<bool>('resumeDownloadsOnLaunch', false),
+          onChanged: (v) => library.setOption('resumeDownloadsOnLaunch', v),
+        ),
+        if (OfflineLibrary.instance != null)
+          ListenableBuilder(
+            listenable: OfflineLibrary.instance!.network,
+            builder: (_, _) => LocalizedText(
+              '当前下载网络：{network}',
+              arguments: {
+                'network': translate(
+                  switch (OfflineLibrary.instance!.network.value.kind) {
+                    'wifi' => 'Wi-Fi',
+                    'mobile' => '移动网络',
+                    'none' => '未连接',
+                    _ => '无法判断',
+                  },
+                  Localizations.localeOf(context),
+                ),
+              },
+            ),
+          ),
       ]),
       group('可读性', [
         choice('language', '界面语言', {
@@ -932,6 +971,18 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
         ),
       ]),
       group('备份与同步', [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.history_rounded),
+          title: const LocalizedText('自动资料备份'),
+          subtitle: const LocalizedText('本机定期快照、恢复预览与冲突选择'),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MetadataBackupsPage(library: library),
+            ),
+          ),
+        ),
         if (OfflineLibrary.instance != null) ...[
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -999,7 +1050,9 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
           onTap: busy
               ? null
               : () => run(() async {
-                  return await FileActions.importBackup(library)
+                  final data = await FileActions.pickBackup();
+                  if (data == null || !context.mounted) return '已取消。';
+                  return await reviewBackup(context, library, data)
                       ? '备份已合并。'
                       : '已取消。';
                 }),

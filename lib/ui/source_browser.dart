@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/discovery_preferences.dart';
 import '../data/source_catalog.dart';
 import 'localized_text.dart';
 import 'app_shell.dart' show ComicGrid;
@@ -282,7 +283,8 @@ class _SourceBrowserState extends State<SourceBrowser>
           SliverToBoxAdapter(child: controls(context)),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
           ComicGrid(
-            books: widget.library.browseBooks(books),
+            discoveryActions: true,
+            books: widget.library.discoveryBooks(books),
             library: widget.library,
             web: widget.web,
             onOpen: widget.onOpen,
@@ -306,7 +308,8 @@ class _SourceBrowserState extends State<SourceBrowser>
         controls(context),
         const SizedBox(height: 20),
         ComicGrid(
-          books: widget.library.browseBooks(books),
+          discoveryActions: true,
+          books: widget.library.discoveryBooks(books),
           library: widget.library,
           web: widget.web,
           onOpen: widget.onOpen,

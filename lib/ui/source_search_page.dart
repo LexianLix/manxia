@@ -6,6 +6,7 @@ import 'advanced_settings.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, small;
 import 'content_handoff.dart';
 import 'localized_text.dart';
+import 'chapter_match_page.dart';
 
 /// User-selected lookups preserve source identities. No automatic replacement
 /// of a favorite or its reading record, and no unconfigured remote sources.
@@ -52,6 +53,7 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
   }
 
   Future<void> search() async {
+    if (opening) return;
     final id = active, query = input.text.trim();
     if (id == null || query.isEmpty) return;
     final name = sources[id]!;
@@ -107,11 +109,40 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
 
   Future<void> open(Comic comic) async {
     if (opening || busy) return;
-    opening = true;
+    setState(() {
+      opening = true;
+      error = null;
+    });
     try {
+      final prior = widget.library.record(widget.comic);
+      if (prior != null) {
+        final detail = await widget.source.detail(comic);
+        if (!mounted) return;
+        final choice = await Navigator.push<Object>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChapterMatchPage(record: prior, detail: detail),
+          ),
+        );
+        if (choice == null || !mounted) return;
+        if (choice is Chapter) {
+          await widget.library.save(
+            ReadingRecord(
+              comic: comic,
+              chapterPath: choice.path,
+              chapterTitle: choice.title,
+              page: 0,
+              total: 0,
+              updatedAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+        }
+      }
       await widget.onOpen(comic);
+    } catch (e) {
+      if (mounted) setState(() => error = friendlyError(e));
     } finally {
-      opening = false;
+      if (mounted) setState(() => opening = false);
     }
   }
 
@@ -158,6 +189,7 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                     ),
                     const SizedBox(height: 24),
                     TextField(
+                      enabled: !opening,
                       controller: input,
                       onSubmitted: (_) => search(),
                       textInputAction: TextInputAction.search,
@@ -165,7 +197,7 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                         label: const LocalizedText('漫画名'),
                         suffixIcon: IconButton(
                           tooltip: '搜索这个书源',
-                          onPressed: active == null ? null : search,
+                          onPressed: active == null || opening ? null : search,
                           icon: const Icon(Icons.search),
                         ),
                       ),
@@ -188,15 +220,17 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                             ChoiceChip(
                               label: Text(choice.value),
                               selected: active == choice.key,
-                              onSelected: (_) {
-                                setState(() => selected = choice.key);
-                                search();
-                              },
+                              onSelected: opening
+                                  ? null
+                                  : (_) {
+                                      setState(() => selected = choice.key);
+                                      search();
+                                    },
                             ),
                         ],
                       ),
                     ContentHandoff(
-                      child: busy
+                      child: busy || opening
                           ? const Padding(
                               key: ValueKey('source-search-busy'),
                               padding: EdgeInsets.symmetric(vertical: 20),
@@ -235,9 +269,9 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                       ),
                       const SizedBox(height: 16),
                       IgnorePointer(
-                        ignoring: busy,
+                        ignoring: busy || opening,
                         child: AnimatedOpacity(
-                          opacity: busy ? .55 : 1,
+                          opacity: busy || opening ? .55 : 1,
                           duration: MediaQuery.disableAnimationsOf(context)
                               ? Duration.zero
                               : const Duration(milliseconds: 180),

@@ -14,6 +14,7 @@ import 'package:manxia/data/offline_library.dart';
 import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/reader_page.dart';
 import 'package:manxia/ui/reader_surfaces.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:manxia/ui/room_motion.dart';
 import 'package:manxia/ui/localized_text.dart';
 
@@ -25,6 +26,85 @@ const comic = Comic(
 const a = Chapter('/old/', 'Old chapter'), b = Chapter('/new/', 'New chapter');
 const c = Chapter('/third/', 'Third chapter');
 void main() {
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'continuous chapters keep local history through mode changes; reduced=$reduced',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 700);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = await _Fixture.start(
+          tester,
+          mode: 'strip',
+          continuous: true,
+          waitInitial: false,
+          reduced: reduced,
+          initialPage: 1,
+          initialPosition: .25,
+          initialUrls: const [
+            'offline:old',
+            'offline:old',
+            'offline:old',
+            'offline:old',
+          ],
+          pageSets: {
+            b.path: const ['offline:new', 'offline:new', 'offline:new'],
+          },
+        );
+        f.store.next.complete(f.bytes);
+        await _decode(tester);
+        expect(f.library.record(comic)!.chapterPath, a.path);
+        expect(f.library.record(comic)!.page, 1);
+        var list = tester.widget<ScrollablePositionedList>(
+          find.byType(ScrollablePositionedList),
+        );
+        list.itemScrollController!.jumpTo(index: 5);
+        await _decode(tester);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          f.library.record(comic)!.chapterPath,
+          a.path,
+          reason: 'Preparing a neighbor must not change the current chapter',
+        );
+        list = tester.widget<ScrollablePositionedList>(
+          find.byType(ScrollablePositionedList),
+        );
+        expect(list.itemCount, 11);
+        list.itemScrollController!.jumpTo(index: 8);
+        await _decode(tester);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(f.library.record(comic)!.chapterPath, b.path);
+        expect(f.library.record(comic)!.page, 1);
+        expect(f.library.record(comic)!.total, 3);
+        await tester.tap(find.byTooltip('阅读设置'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('横向'));
+        Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+        await _decode(tester);
+        expect(find.byType(PageView), findsOneWidget);
+        expect(f.library.record(comic)!.chapterPath, b.path);
+        expect(f.library.record(comic)!.page, 1);
+        await tester.tap(find.byTooltip('阅读设置'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('连续条漫'));
+        Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+        await _decode(tester);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(f.library.record(comic)!.chapterPath, b.path);
+        expect(f.library.record(comic)!.page, 1);
+        list = tester.widget<ScrollablePositionedList>(
+          find.byType(ScrollablePositionedList),
+        );
+        list.itemScrollController!.jumpTo(index: 4);
+        await _decode(tester);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(f.library.record(comic)!.chapterPath, a.path);
+        expect(f.library.record(comic)!.page, 2);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('tapping the edge of a zoomed page does not turn or reset zoom', (
     tester,
   ) async {
@@ -576,8 +656,9 @@ class _Store extends MemoryBlobStore {
 }
 
 class _Pages extends Dm5Source {
-  _Pages({this.initialUrls = const ['offline:old']});
+  _Pages({this.initialUrls = const ['offline:old'], this.pageSets = const {}});
   final List<String> initialUrls;
+  final Map<String, List<String>> pageSets;
   final calls = <String>[];
   final pending = <Completer<List<String>>>[];
   Completer<List<String>> get next => pending.last;
@@ -585,6 +666,7 @@ class _Pages extends Dm5Source {
   Future<List<String>> pages(String path) async {
     calls.add(path);
     if (path == a.path) return initialUrls;
+    if (pageSets.containsKey(path)) return pageSets[path]!;
     final response = Completer<List<String>>();
     pending.add(response);
     return response.future;
@@ -601,6 +683,8 @@ class _Fixture {
   static Future<_Fixture> start(
     WidgetTester tester, {
     String mode = 'page',
+    bool continuous = false,
+    Map<String, List<String>> pageSets = const {},
     bool reduced = false,
     List<Chapter> catalog = const [a, b],
     Chapter initial = a,
@@ -611,7 +695,8 @@ class _Fixture {
     Locale locale = const Locale('zh', 'CN'),
     double textScale = 1,
   }) async {
-    final source = _Pages(initialUrls: initialUrls), store = _Store();
+    final source = _Pages(initialUrls: initialUrls, pageSets: pageSets),
+        store = _Store();
     final boundary = GlobalKey();
     late Library library;
     late Uint8List bytes;
@@ -620,6 +705,9 @@ class _Fixture {
       library = Library(await SharedPreferences.getInstance());
       await library.load();
       await library.setReaderOption(comic, 'mode', mode);
+      if (continuous) {
+        await library.setReaderOption(comic, 'continuousStrip', true);
+      }
       if (initial.path != a.path) {
         await library.save(
           const ReadingRecord(

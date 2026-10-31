@@ -4,6 +4,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterShellArgs
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import android.view.KeyEvent
 import android.os.Build
 import android.content.Intent
@@ -30,9 +31,15 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var updates: AppUpdateInstaller? = null
     private var reminders: MethodChannel? = null
+    private var networkMonitor: NetworkMonitor? = null
     private var reminderPermission: Pair<Map<*, *>, MethodChannel.Result>? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        networkMonitor = NetworkMonitor(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/network").setMethodCallHandler { call, result ->
+            if (call.method == "state") result.success(networkMonitor?.state()) else result.notImplemented()
+        }
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/network-events").setStreamHandler(networkMonitor)
         reminders = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/follow-reminder")
         reminders?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -101,6 +108,7 @@ class MainActivity : FlutterActivity() {
         return super.onKeyDown(keyCode, event)
     }
     override fun onDestroy() {
+        networkMonitor?.close()
         reminderPermission?.second?.error("closed", "Activity closed before permission completed", null)
         reminderPermission = null
         updates?.close()

@@ -35,5 +35,7 @@ class WebBlobStore implements BlobStore {
 Future<BlobStore> createBlobStore() async => WebBlobStore();
 Future<BlobStore> createWallpaperStore() async =>
     WebBlobStore(namespace: 'appearance');
+Future<BlobStore> createBackupStore() async =>
+    WebBlobStore(namespace: 'backups');
 Future<List<({String name, Uint8List bytes})>> readImageFolder(String path) =>
     throw UnsupportedError('浏览器请使用多选图片导入。');

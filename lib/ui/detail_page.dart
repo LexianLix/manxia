@@ -320,6 +320,15 @@ class _DetailPageState extends State<DetailPage> {
                     onPressed: () => editBook(context, widget.library, comic),
                     icon: const Icon(Icons.more_horiz, size: 20),
                   ),
+                  if (widget.source is SourceHub &&
+                      comic.sourceId != 'local' &&
+                      !noCopyright &&
+                      !snapshot.hasError)
+                    TextButton.icon(
+                      onPressed: findAnotherSource,
+                      icon: const Icon(Icons.travel_explore, size: 17),
+                      label: const LocalizedText('切换书源续读'),
+                    ),
                   ListenableBuilder(
                     listenable: widget.library,
                     builder: (context, _) => OutlinedButton.icon(

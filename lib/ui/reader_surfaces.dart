@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'comic_image.dart';
 import 'room_motion.dart';
+import 'reader_zoom.dart';
 
 class ReaderControl extends ChangeNotifier {
   int page = 0;
@@ -16,6 +17,7 @@ class ReaderControl extends ChangeNotifier {
   Matrix4 transform = Matrix4.identity();
   int transformPage = 0;
   VoidCallback? onTransform;
+  ValueChanged<Offset>? onZoom;
   void go(int value, {double position = 0}) {
     page = value;
     target = value;
@@ -71,7 +73,8 @@ class PagedSurface extends StatefulWidget {
   State<PagedSurface> createState() => _PagedSurfaceState();
 }
 
-class _PagedSurfaceState extends State<PagedSurface> {
+class _PagedSurfaceState extends State<PagedSurface>
+    with SingleTickerProviderStateMixin {
   late final viewport = TransformationController(
     Matrix4.copy(widget.control.transform),
   );
@@ -79,7 +82,9 @@ class _PagedSurfaceState extends State<PagedSurface> {
   ScrollHoldController? hold;
   Offset gestureTravel = Offset.zero;
   bool zoomed = false;
+  late final zoom = ReaderZoomAnimation(this, viewport);
   void interactStart(ScaleStartDetails details) {
+    zoom.stop();
     if (!controller.hasClients) return;
     gestureTravel = Offset.zero;
     if (zoomed || details.pointerCount > 1) {
@@ -214,6 +219,15 @@ class _PagedSurfaceState extends State<PagedSurface> {
   void initState() {
     super.initState();
     viewport.addListener(transformed);
+    widget.control.onZoom = (global) {
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null) {
+        zoom.toggle(
+          box.globalToLocal(global),
+          MediaQuery.disableAnimationsOf(context),
+        );
+      }
+    };
     zoomed = viewport.value.getMaxScaleOnAxis() > 1.001;
     widget.control.addListener(jump);
   }
@@ -222,6 +236,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final target = widget.control.target;
+    if (MediaQuery.disableAnimationsOf(context)) zoom.finish();
     if (target != null && MediaQuery.disableAnimationsOf(context)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted &&
@@ -235,6 +250,7 @@ class _PagedSurfaceState extends State<PagedSurface> {
   }
 
   void jump() {
+    zoom.stop();
     if (controller.hasClients) {
       if (zoomed) viewport.value = Matrix4.identity();
       final target = view(widget.control.page);
@@ -276,6 +292,8 @@ class _PagedSurfaceState extends State<PagedSurface> {
     drag?.cancel();
     hold?.cancel();
     widget.control.removeListener(jump);
+    widget.control.onZoom = null;
+    zoom.dispose();
     viewport.dispose();
     controller.dispose();
     super.dispose();
@@ -465,6 +483,7 @@ class StripSurface extends StatefulWidget {
 }
 
 class _StripSurfaceState extends State<StripSurface> {
+  final zoomTargets = <Object, bool Function(Offset)>{};
   final scroll = ItemScrollController();
   final positions = ItemPositionsListener.create();
   final offset = ScrollOffsetController();
@@ -478,6 +497,11 @@ class _StripSurfaceState extends State<StripSurface> {
     super.initState();
     positions.itemPositions.addListener(report);
     widget.control.addListener(jump);
+    widget.control.onZoom = (point) {
+      for (final open in zoomTargets.values.toList().reversed) {
+        if (open(point)) break;
+      }
+    };
     auto();
   }
 
@@ -574,6 +598,7 @@ class _StripSurfaceState extends State<StripSurface> {
     timer?.cancel();
     positions.itemPositions.removeListener(report);
     widget.control.removeListener(jump);
+    widget.control.onZoom = null;
     super.dispose();
   }
 
@@ -594,6 +619,13 @@ class _StripSurfaceState extends State<StripSurface> {
             constraints: const BoxConstraints(maxWidth: 1000),
             child: PagePicture(
               widget.urls[i],
+              registerZoom: (owner, open) {
+                if (open == null) {
+                  zoomTargets.remove(owner);
+                } else {
+                  zoomTargets[owner] = open;
+                }
+              },
               web: widget.web,
               strip: true,
               crop: widget.crop,
@@ -668,6 +700,8 @@ class PagePicture extends StatefulWidget {
     this.onLoadError,
     this.onImageError,
     this.onRetry,
+    this.registerZoom,
+    this.knownAspect,
     this.curl = 0,
     this.alignment = Alignment.center,
   });
@@ -680,6 +714,8 @@ class PagePicture extends StatefulWidget {
   final ValueChanged<Object>? onImageError;
   final VoidCallback? onRetry;
   final double curl;
+  final void Function(Object, bool Function(Offset)?)? registerZoom;
+  final double? knownAspect;
   final Alignment alignment;
   @override
   State<PagePicture> createState() => _PagePictureState();
@@ -695,6 +731,24 @@ class _PagePictureState extends State<PagePicture> {
   int request = 0;
   int decodedRequest = -1;
   bool announced = false;
+  bool zoomAt(Offset global) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null ||
+        !box.hasSize ||
+        image == null ||
+        !(Offset.zero & box.size).contains(box.globalToLocal(global))) {
+      return false;
+    }
+    openZoom(global);
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.registerZoom?.call(this, zoomAt);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -704,6 +758,11 @@ class _PagePictureState extends State<PagePicture> {
   @override
   void didUpdateWidget(PagePicture old) {
     super.didUpdateWidget(old);
+    if (old.crop != widget.crop) announced = false;
+    if (old.registerZoom != widget.registerZoom) {
+      old.registerZoom?.call(this, null);
+      widget.registerZoom?.call(this, zoomAt);
+    }
     if (old.url != widget.url ||
         old.web != widget.web ||
         old.autoCrop != widget.autoCrop ||
@@ -777,17 +836,54 @@ class _PagePictureState extends State<PagePicture> {
   @override
   void dispose() {
     request++;
+    widget.registerZoom?.call(this, null);
     if (listener != null) stream?.removeListener(listener!);
     frame?.dispose();
     super.dispose();
   }
 
+  void openZoom([Offset? global]) {
+    final bitmap = image;
+    if (bitmap == null) return;
+    var source =
+        trim ??
+        Rect.fromLTWH(0, 0, bitmap.width.toDouble(), bitmap.height.toDouble());
+    source = source.deflate(
+      math.min(source.width, source.height) * widget.crop.clamp(0, .18),
+    );
+    final box = context.findRenderObject() as RenderBox?;
+    final tap = global != null && box != null
+        ? box.globalToLocal(global)
+        : null;
+    final fraction = tap != null && box != null
+        ? Offset(
+            (tap.dx / box.size.width).clamp(0, 1),
+            (tap.dy / box.size.height).clamp(0, 1),
+          )
+        : null;
+    final preview = bitmap.clone();
+    showDialog<void>(
+      context: context,
+      animationStyle: RoomMotion.sheet(context),
+      builder: (_) =>
+          _ImageZoomDialog(image: preview, source: source, point: fraction),
+    );
+  }
+
+  Widget placeholder(double fallback, Widget child) {
+    final aspect = widget.knownAspect;
+    if (widget.strip && aspect != null && aspect.isFinite && aspect > 0) {
+      return AspectRatio(aspectRatio: aspect, child: child);
+    }
+    return SizedBox(height: widget.strip ? fallback : null, child: child);
+  }
+
   @override
   Widget build(BuildContext c) {
     if (error != null) {
-      return SizedBox(
-        height: widget.strip ? 260 : null,
-        child: Center(
+      return placeholder(
+        260,
+        Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -807,9 +903,9 @@ class _PagePictureState extends State<PagePicture> {
       );
     }
     if (image == null) {
-      return SizedBox(
-        height: widget.strip ? 300 : null,
-        child: Center(
+      return placeholder(
+        300,
+        Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
             color: Theme.of(c).colorScheme.primary,
@@ -839,35 +935,7 @@ class _PagePictureState extends State<PagePicture> {
           });
         }
         return GestureDetector(
-          onLongPress: () => showDialog(
-            context: c,
-            animationStyle: RoomMotion.sheet(c),
-            builder: (dialogContext) => Dialog.fullscreen(
-              backgroundColor: Colors.black,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: InteractiveViewer(
-                      minScale: 1,
-                      maxScale: 5,
-                      child: Center(
-                        child: RawImage(image: bitmap, fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      tooltip: '关闭大图',
-                      onPressed: () => Navigator.pop(dialogContext),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          onLongPress: openZoom,
           child: SizedBox(
             width: width,
             height: height,
@@ -1008,4 +1076,124 @@ class _PicturePainter extends CustomPainter {
       old.source != source ||
       old.curl != curl ||
       old.alignment != alignment;
+}
+
+class _ImageZoomDialog extends StatefulWidget {
+  const _ImageZoomDialog({
+    required this.image,
+    required this.source,
+    this.point,
+  });
+  final ui.Image image;
+  final Rect source;
+  final Offset? point;
+  @override
+  State<_ImageZoomDialog> createState() => _ImageZoomDialogState();
+}
+
+class _ImageZoomDialogState extends State<_ImageZoomDialog>
+    with SingleTickerProviderStateMixin {
+  final viewport = TransformationController();
+  late final zoom = ReaderZoomAnimation(this, viewport);
+  bool placed = false;
+  Offset tap = Offset.zero;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) zoom.finish();
+  }
+
+  @override
+  void dispose() {
+    zoom.dispose();
+    viewport.dispose();
+    widget.image.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog.fullscreen(
+    backgroundColor: Colors.black,
+    child: Stack(
+      children: [
+        Positioned.fill(
+          child: LayoutBuilder(
+            builder: (context, box) {
+              if (!placed && widget.point != null) {
+                placed = true;
+                final size = Size(box.maxWidth, box.maxHeight);
+                final fitted = applyBoxFit(
+                  BoxFit.contain,
+                  widget.source.size,
+                  size,
+                ).destination;
+                final rect = Alignment.center.inscribe(
+                  fitted,
+                  Offset.zero & size,
+                );
+                final point =
+                    rect.topLeft +
+                    Offset(
+                      widget.point!.dx * rect.width,
+                      widget.point!.dy * rect.height,
+                    );
+                final scale = (size.width / fitted.width).clamp(2.4, 8.0);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  zoom.animate(
+                    Matrix4.identity()
+                      ..translateByDouble(
+                        (size.width / 2 - point.dx * scale).clamp(
+                          -size.width * (scale - 1),
+                          0,
+                        ),
+                        (size.height / 2 - point.dy * scale).clamp(
+                          -size.height * (scale - 1),
+                          0,
+                        ),
+                        0,
+                        1,
+                      )
+                      ..scaleByDouble(scale, scale, 1, 1),
+                    MediaQuery.disableAnimationsOf(context),
+                  );
+                });
+              }
+              return GestureDetector(
+                onDoubleTapDown: (d) => tap = d.localPosition,
+                onDoubleTap: () =>
+                    zoom.toggle(tap, MediaQuery.disableAnimationsOf(context)),
+                child: InteractiveViewer(
+                  transformationController: viewport,
+                  minScale: 1,
+                  maxScale: 8,
+                  onInteractionStart: (_) => zoom.stop(),
+                  child: SizedBox.expand(
+                    child: CustomPaint(
+                      painter: _PicturePainter(
+                        widget.image,
+                        widget.source,
+                        0,
+                        Alignment.center,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              tooltip: translate('关闭大图', Localizations.localeOf(context)),
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

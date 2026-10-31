@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'reader_surfaces.dart';
 import 'room_motion.dart';
 import 'localized_text.dart';
+import '../data/comic.dart';
+import '../data/dm5_source.dart';
+import 'continuous_strip.dart';
 
 /// Keeps the last decoded layout visible until its replacement is ready.
 /// Each visible layer owns its controller; a rapid reversal starts at the
@@ -27,6 +30,15 @@ class ReaderLayout extends StatefulWidget {
     required this.autoCrop,
     required this.decodeWidth,
     required this.speed,
+    this.source,
+    this.chapter,
+    this.catalog = const [],
+    this.continuous = false,
+    this.active = true,
+    this.warm = true,
+    this.onChapter,
+    this.onStreamError,
+    this.onRestart,
   });
   final List<String> urls;
   final bool web, rtl, paired, paper, autoCrop;
@@ -38,12 +50,19 @@ class ReaderLayout extends StatefulWidget {
   final VoidCallback onReady, onLoadError;
   final void Function(int, Object)? onImageError;
   final ValueChanged<int>? onRetryPage;
+  final Dm5Source? source;
+  final Chapter? chapter;
+  final List<Chapter> catalog;
+  final bool continuous, active, warm;
+  final void Function(Chapter, List<String>)? onChapter;
+  final ValueChanged<Object>? onStreamError;
+  final ValueChanged<Chapter>? onRestart;
 
   @override
   State<ReaderLayout> createState() => _ReaderLayoutState();
 }
 
-typedef _Layout = ({String mode, bool rtl, bool paired});
+typedef _Layout = ({String mode, bool rtl, bool paired, bool continuous});
 
 class _ReaderLayoutState extends State<ReaderLayout>
     with SingleTickerProviderStateMixin {
@@ -58,8 +77,16 @@ class _ReaderLayoutState extends State<ReaderLayout>
   late int stripPage = page;
   late double stripPosition = widget.position;
   bool failed = false;
-  _Layout get layout =>
-      (mode: widget.mode, rtl: widget.rtl, paired: widget.paired);
+  _Layout get layout => (
+    mode: widget.mode,
+    rtl: widget.rtl,
+    paired: widget.paired,
+    continuous:
+        widget.mode == 'strip' &&
+        widget.continuous &&
+        widget.source != null &&
+        widget.chapter != null,
+  );
   double opacity(_LayoutLayer layer) =>
       layer.from +
       ((identical(layer, current) ? 1 : 0) - layer.from) *
@@ -69,6 +96,7 @@ class _ReaderLayoutState extends State<ReaderLayout>
   void initState() {
     super.initState();
     widget.control.addListener(jump);
+    widget.control.onZoom = (point) => current?.control.onZoom?.call(point);
     prepare();
   }
 
@@ -187,6 +215,7 @@ class _ReaderLayoutState extends State<ReaderLayout>
 
   @override
   void dispose() {
+    widget.control.onZoom = null;
     widget.control.removeListener(jump);
     clock.dispose();
     for (final layer in layers) {
@@ -198,22 +227,51 @@ class _ReaderLayoutState extends State<ReaderLayout>
   Widget body(_LayoutLayer layer) {
     final active = identical(layer, current) && pending == null;
     return layer.layout.mode == 'strip'
-        ? StripSurface(
-            urls: widget.urls,
-            web: widget.web,
-            startPage: layer.startPage,
-            position: layer.startPosition,
-            control: layer.control,
-            onPosition: (p, f) => positioned(layer, p, f),
-            onReady: () => ready(layer),
-            onLoadError: () => error(layer),
-            onImageError: widget.onImageError,
-            onRetryPage: widget.onRetryPage,
-            speed: active ? widget.speed : 0,
-            crop: widget.crop,
-            autoCrop: widget.autoCrop,
-            decodeWidth: widget.decodeWidth,
-          )
+        ? layer.layout.continuous
+              ? ContinuousStrip(
+                  chapter: widget.chapter!,
+                  urls: widget.urls,
+                  catalog: widget.catalog,
+                  source: widget.source!,
+                  control: layer.control,
+                  startPage: layer.startPage,
+                  position: layer.startPosition,
+                  web: widget.web,
+                  onPosition: (chapter, urls, p, f) {
+                    if (identical(layer, current)) {
+                      widget.onChapter?.call(chapter, urls);
+                    }
+                    positioned(layer, p, f);
+                  },
+                  onReady: () => ready(layer),
+                  onInitialError: (e) {
+                    error(layer);
+                    widget.onStreamError?.call(e);
+                  },
+                  onRestart: widget.onRestart ?? (_) {},
+                  active: active && widget.active,
+                  warm: widget.warm,
+                  speed: active ? widget.speed : 0,
+                  crop: widget.crop,
+                  autoCrop: widget.autoCrop,
+                  decodeWidth: widget.decodeWidth,
+                )
+              : StripSurface(
+                  urls: widget.urls,
+                  web: widget.web,
+                  startPage: layer.startPage,
+                  position: layer.startPosition,
+                  control: layer.control,
+                  onPosition: (p, f) => positioned(layer, p, f),
+                  onReady: () => ready(layer),
+                  onLoadError: () => error(layer),
+                  onImageError: widget.onImageError,
+                  onRetryPage: widget.onRetryPage,
+                  speed: active ? widget.speed : 0,
+                  crop: widget.crop,
+                  autoCrop: widget.autoCrop,
+                  decodeWidth: widget.decodeWidth,
+                )
         : PagedSurface(
             urls: widget.urls,
             web: widget.web,

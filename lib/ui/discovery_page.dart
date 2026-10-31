@@ -8,6 +8,8 @@ import '../data/discovery.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
 import '../data/follow_calendar.dart';
+import '../data/discovery_preferences.dart';
+import 'discovery_preferences_page.dart';
 import 'follow_calendar_page.dart';
 import '../data/source_hub.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, quiet, small;
@@ -100,6 +102,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
           child: LocalizedText('这个栏目暂时没有漫画，试试其他栏目。', style: small(context)),
         )
       : ComicGrid(
+          discoveryActions: true,
           books: books.take(6).toList(),
           library: widget.library,
           web: widget.web,
@@ -293,21 +296,19 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         ],
       );
     }
-    final snapshot = !widget.library.option<bool>('hideUnavailable', false)
-        ? loaded
-        : Discovery(
-            books: widget.library.browseBooks(loaded.books),
-            sections: loaded.sections.map(
-              (k, v) => MapEntry(k, widget.library.browseBooks(v)),
-            ),
-            ranks: loaded.ranks.map(
-              (k, v) => MapEntry(k, widget.library.browseBooks(v)),
-            ),
-            capturedAt: loaded.capturedAt,
-            cached: loaded.cached,
-            sectionPaths: loaded.sectionPaths,
-            rankPaths: loaded.rankPaths,
-          );
+    final snapshot = Discovery(
+      books: widget.library.discoveryBooks(loaded.books),
+      sections: loaded.sections.map(
+        (k, v) => MapEntry(k, widget.library.discoveryBooks(v)),
+      ),
+      ranks: loaded.ranks.map(
+        (k, v) => MapEntry(k, widget.library.discoveryBooks(v)),
+      ),
+      capturedAt: loaded.capturedAt,
+      cached: loaded.cached,
+      sectionPaths: loaded.sectionPaths,
+      rankPaths: loaded.rankPaths,
+    );
     final date = DateTime.now().toUtc().add(const Duration(hours: 8));
     final day =
         '${date.month.toString().padLeft(2, '0')} / ${date.day.toString().padLeft(2, '0')}';
@@ -335,27 +336,43 @@ class _DiscoveryPageState extends State<DiscoveryPage>
             child: heading(
               '发现漫画',
               '今天，也有值得翻开的故事。',
-              trailing: pending != null
-                  ? TextButton(
-                      onPressed: applying ? null : applyPending,
-                      child: const LocalizedText('查看新内容'),
-                    )
-                  : IconButton(
-                      tooltip: translate(
-                        '刷新发现页',
-                        Localizations.localeOf(context),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: translate('发现偏好', Localizations.localeOf(context)),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            DiscoveryPreferencesPage(library: widget.library),
                       ),
-                      onPressed: refreshing ? null : refresh,
-                      icon: refreshing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                              ),
-                            )
-                          : const Icon(Icons.refresh, size: 20),
                     ),
+                    icon: const Icon(Icons.tune_rounded, size: 20),
+                  ),
+                  pending != null
+                      ? TextButton(
+                          onPressed: applying ? null : applyPending,
+                          child: const LocalizedText('查看新内容'),
+                        )
+                      : IconButton(
+                          tooltip: translate(
+                            '刷新发现页',
+                            Localizations.localeOf(context),
+                          ),
+                          onPressed: refreshing ? null : refresh,
+                          icon: refreshing
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh, size: 20),
+                        ),
+                ],
+              ),
             ),
           ),
           Padding(
@@ -717,6 +734,11 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                           ),
                         ),
                         onTap: open,
+                        onLongPress: () => showDiscoveryInterest(
+                          context,
+                          widget.library,
+                          book,
+                        ),
                       ),
                     ),
                   if (widget.library.favorites.isEmpty)
@@ -738,6 +760,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                     actionLabel: '查看全部',
                   ),
                   ComicGrid(
+                    discoveryActions: true,
                     books: updated,
                     library: widget.library,
                     web: widget.web,
@@ -754,6 +777,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                     )
                   else
                     ComicGrid(
+                      discoveryActions: true,
                       books: snapshot.books,
                       library: widget.library,
                       web: widget.web,
@@ -913,6 +937,8 @@ class _DiscoveryPageState extends State<DiscoveryPage>
               Expanded(
                 child: InkWell(
                   onTap: open,
+                  onLongPress: () =>
+                      showDiscoveryInterest(context, widget.library, comic),
                   child: Row(
                     children: [
                       SizedBox(
@@ -1012,6 +1038,11 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                                   onOpen: widget.onOpen,
                                   builder: (cover, open) => InkWell(
                                     onTap: open,
+                                    onLongPress: () => showDiscoveryInterest(
+                                      context,
+                                      widget.library,
+                                      companion,
+                                    ),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -1058,6 +1089,8 @@ class _DiscoveryPageState extends State<DiscoveryPage>
       padding: const EdgeInsets.only(bottom: 16),
       child: InkWell(
         onTap: open,
+        onLongPress: () =>
+            showDiscoveryInterest(context, widget.library, comic),
         child: Row(
           children: [
             SizedBox(

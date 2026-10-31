@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/library.dart';
+import '../data/metadata_backups.dart';
 import '../data/offline_library.dart';
 import '../data/source_hub.dart';
 import '../data/plugin.dart';
@@ -30,6 +31,10 @@ Future<Library> initializeLibrary(StartupProgress report) async {
     SourceHub(library, gateway: kIsWeb ? Uri.base : null),
     store: store,
   ).initialize();
+  // Optional snapshots initialize after the library, without delaying its UI.
+  unawaited(
+    MetadataBackups.open(library).then<void>((_) {}, onError: (Object _) {}),
+  );
   return library;
 }
 

@@ -6,3 +6,4 @@ Future<List<({String name, Uint8List bytes})>> readImageFolder(String path) =>
 
 Future<BlobStore> createBlobStore() async => MemoryBlobStore();
 Future<BlobStore> createWallpaperStore() async => MemoryBlobStore();
+Future<BlobStore> createBackupStore() async => MemoryBlobStore();

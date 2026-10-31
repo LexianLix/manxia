@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'comic.dart';
 import 'source_profile.dart';
 import 'plugin.dart';
+import 'backup_preview.dart';
 
 mixin LibraryFeatures on ChangeNotifier {
   SharedPreferences get prefs;
@@ -87,6 +88,9 @@ mixin LibraryFeatures on ChangeNotifier {
     'background': 'theme',
     'autoScroll': 0.0,
     'tapZones': true,
+    'doubleTapZoom': false,
+    'continuousStrip': false,
+    'smartOfflineChapters': 0,
     'hand': 'auto',
     'leftTapWidth': .24,
     'rightTapWidth': .24,
@@ -272,6 +276,7 @@ mixin LibraryFeatures on ChangeNotifier {
     Map<String, dynamic> j, {
     bool restoreOptions = false,
   }) async {
+    validateBackup(j);
     if (j['format'] != 'manxia' || (j['schema'] as num? ?? 0) > 2) {
       throw const FormatException('这不是受支持的漫匣备份。');
     }

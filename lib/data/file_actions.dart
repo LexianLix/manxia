@@ -113,18 +113,24 @@ class FileActions {
     ),
     mimeType: 'application/json',
   );
-  static Future<bool> importBackup(Library library) async {
+  static Future<Map<String, dynamic>?> pickBackup() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    if (file == null) return false;
-    await library.restore(
-      Map<String, dynamic>.from(
-        jsonDecode(utf8.decode(await file.readAsBytes())),
-      ),
-      restoreOptions: true,
+    if (file == null) return null;
+    if ((await file.length() ?? 0) > 10 * 1024 * 1024) {
+      throw const FormatException('资料备份超过 10 MB。');
+    }
+    return Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(await file.readAsBytes())),
     );
+  }
+
+  static Future<bool> importBackup(Library library) async {
+    final data = await pickBackup();
+    if (data == null) return false;
+    await library.restore(data, restoreOptions: true);
     return true;
   }
 

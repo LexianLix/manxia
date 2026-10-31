@@ -83,6 +83,13 @@ void main() {
         library,
         transport: MockClient((r) async {
           requests.add(r.url);
+          if (r.url.path == '/book/') {
+            return http.Response(
+              '<div class="chapters"><a href="/chapter-1/">第1话</a></div>',
+              200,
+              headers: {'content-type': 'text/html;charset=utf-8'},
+            );
+          }
           expect(r.url.queryParameters['q'], original.title);
           return r.url.host == 'first.example'
               ? delayed.future
@@ -117,6 +124,9 @@ void main() {
       await tester.ensureVisible(find.text('第二源结果').last);
       await tester.tap(find.text('第二源结果').last);
       await tester.pumpAndSettle();
+      expect(find.text('匹配新来源章节'), findsOneWidget);
+      await tester.tap(find.text('仅查看详情'));
+      await tester.pumpAndSettle();
       expect(opened.single.path, startsWith('custom:second:'));
       expect(library.option<String>('source', 'dm5'), 'dm5');
       expect(library.favorites.single.path, original.path);
@@ -126,7 +136,7 @@ void main() {
         hub.searchIn('removed', original.title),
         throwsA(isA<SourceException>()),
       );
-      expect(requests, hasLength(2));
+      expect(requests, hasLength(3));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
@@ -179,15 +189,21 @@ void main() {
       await tester.ensureVisible(find.text('测试漫画·另一版本').last);
       await tester.tap(find.text('测试漫画·另一版本').last);
       await tester.pumpAndSettle();
+      expect(find.text('匹配新来源章节'), findsOneWidget);
+      await tester.tap(find.text('第2话'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('从此章节开头继续'));
+      await tester.pumpAndSettle();
       final current = tester.widget<DetailPage>(find.byType(DetailPage).last);
       await _capture(tester, 'alternative-detail');
       expect(current.comic.sourceId, 'alternative');
       expect(find.text('MANGA / alternative 书源'), findsOneWidget);
-      expect(find.text('开始阅读'), findsOneWidget);
+      expect(find.text('继续阅读').last, findsOneWidget);
       expect(library.option<String>('source', 'dm5'), 'dm5');
       expect(library.favorites.single.path, original.path);
       expect(library.record(original)!.page, 4);
-      expect(library.record(current.comic), isNull);
+      expect(library.record(current.comic)!.page, 0);
+      expect(library.record(current.comic)!.chapterTitle, '第2话');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

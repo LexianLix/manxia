@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
+import '../data/discovery_preferences.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, small;
 import 'localized_text.dart';
 import 'source_browser.dart';
@@ -35,7 +36,7 @@ class DiscoveryCollection extends StatelessWidget {
     appBar: AppBar(title: LocalizedText(title)),
     body: LayoutBuilder(
       builder: (context, box) {
-        final displayed = library.browseBooks(books);
+        final displayed = library.discoveryBooks(books);
         final inset = box.maxWidth > 1148 ? (box.maxWidth - 1100) / 2 : 24.0;
         if (path != null) {
           return CustomScrollView(
@@ -80,6 +81,7 @@ class DiscoveryCollection extends StatelessWidget {
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(inset, 0, inset, 48),
                 sliver: ComicGrid(
+                  discoveryActions: true,
                   books: displayed,
                   library: library,
                   web: web,

@@ -4,11 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'comic.dart';
 import 'library_features.dart';
+import 'metadata_backups.dart';
 
 class Library extends ChangeNotifier with LibraryFeatures {
   Library(this.prefs);
   @override
   final SharedPreferences prefs;
+  MetadataBackups? backups;
+  @override
+  void dispose() {
+    backups?.dispose();
+    super.dispose();
+  }
+
   @override
   List<Comic> favorites = [];
   List<Comic> samples = [];

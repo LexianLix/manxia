@@ -163,6 +163,47 @@ class PersonalizationSettings extends StatelessWidget {
           toggle('warmNextChapter', '预备下一章首屏', '接近章末时准备下一章，关闭预载时不请求', true),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
+            title: const LocalizedText('默认启用条漫连续跨章'),
+            value: defaults['continuousStrip'] == true,
+            onChanged: (v) => reader('continuousStrip', v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const LocalizedText('默认启用双击局部放大'),
+            value: defaults['doubleTapZoom'] == true,
+            onChanged: (v) => reader('doubleTapZoom', v),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: DropdownButtonFormField<int>(
+              isExpanded: true,
+              decoration: const InputDecoration(
+                label: LocalizedText('智能离线默认值'),
+                helper: LocalizedText('智能离线仅在非计费 Wi-Fi 下下载'),
+                helperMaxLines: 2,
+              ),
+              initialValue:
+                  [0, 3, 5, 10].contains(defaults['smartOfflineChapters'])
+                  ? (defaults['smartOfflineChapters'] as num).toInt()
+                  : 0,
+              items: [0, 3, 5, 10]
+                  .map(
+                    (v) => DropdownMenuItem(
+                      value: v,
+                      child: LocalizedText(
+                        v == 0 ? '关闭智能离线' : '后续 {count} 章',
+                        arguments: {'count': v},
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) reader('smartOfflineChapters', v);
+              },
+            ),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: const LocalizedText('阅读时保持亮屏'),
             value: defaults['keepAwake'] == true,
             onChanged: (v) => reader('keepAwake', v),

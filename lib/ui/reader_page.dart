@@ -72,6 +72,7 @@ class _ReaderPageState extends State<ReaderPage>
   bool scrubbing = false;
   double fraction = 0;
   bool controls = true, first = true;
+  Offset doubleTapPoint = Offset.zero;
   bool foreground = true;
   String? warmPath;
   List<String>? warmUrls;
@@ -154,6 +155,7 @@ class _ReaderPageState extends State<ReaderPage>
                   .reversed
                   .toList(),
             );
+            if (scene?.presented == true) prepareOffline();
           })
           .catchError((Object _) {});
     }
@@ -221,8 +223,8 @@ class _ReaderPageState extends State<ReaderPage>
             ? record!.position
             : 0);
     final obsolete = incoming;
-    final previousUrls = scene?.chapter.path == target.path
-        ? scene!.urls
+    final previousUrls = scene?.activeChapter.path == target.path
+        ? scene!.activeUrls
         : incoming?.urls;
     setState(() {
       incoming = null;
@@ -318,9 +320,9 @@ class _ReaderPageState extends State<ReaderPage>
     saveTimer?.cancel();
     final previous = scene;
     if (previous?.presented == true &&
-        previous!.chapter.path != value.chapter.path) {
+        previous!.activeChapter.path != value.chapter.path) {
       value.previous = (
-        chapter: previous.chapter,
+        chapter: previous.activeChapter,
         page: previous.page,
         position: previous.position,
       );
@@ -378,6 +380,7 @@ class _ReaderPageState extends State<ReaderPage>
       });
       save();
       preload();
+      prepareOffline();
       final prior = value.previous;
       if (prior != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -427,6 +430,28 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   bool forward = true;
+  Future<void> prepareOffline() async {
+    final offline = OfflineLibrary.instance;
+    if (offline == null || widget.comic.sourceId == 'local') return;
+    final configured = options['smartOfflineChapters'];
+    final count =
+        configured is num &&
+            configured.isFinite &&
+            [3, 5, 10].contains(configured)
+        ? configured.toInt()
+        : 0;
+    final index = chapters.indexWhere((c) => c.path == chapter.path);
+    if (index < 0) return;
+    try {
+      await offline.prepareNext(
+        widget.comic,
+        chapters.skip(index + 1).take(count),
+      );
+    } catch (_) {
+      /* Optional preparation must not interrupt the current page. */
+    }
+  }
+
   late final preloader = ReaderPreloader((url, width) async {
     final provider = await pageProvider(url, widget.web, width);
     if (!mounted) return false;
@@ -435,6 +460,10 @@ class _ReaderPageState extends State<ReaderPage>
     return success;
   });
   void preload() {
+    if (mode == 'strip' && options['continuousStrip'] == true) {
+      preloader.clear();
+      return;
+    }
     if (!foreground || total == 0 || pendingChapter != null) {
       preloader.clear();
       return;
@@ -488,7 +517,9 @@ class _ReaderPageState extends State<ReaderPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    foreground = state == AppLifecycleState.resumed;
+    if (mounted) {
+      setState(() => foreground = state == AppLifecycleState.resumed);
+    }
     if (!foreground) {
       preloader.clear();
       warmGeneration++;
@@ -640,6 +671,16 @@ class _ReaderPageState extends State<ReaderPage>
   Widget surface(_ChapterScene value) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
+      onDoubleTapDown: options['doubleTapZoom'] == true
+          ? (details) => doubleTapPoint = details.globalPosition
+          : null,
+      onDoubleTap: options['doubleTapZoom'] == true
+          ? () {
+              if (identical(scene, value) && value.presented) {
+                value.control.onZoom?.call(doubleTapPoint);
+              }
+            }
+          : null,
       onTapUp: (d) {
         if (!identical(scene, value) || !value.presented) return;
         final width = MediaQuery.sizeOf(context).width;
@@ -660,7 +701,34 @@ class _ReaderPageState extends State<ReaderPage>
       },
       child: ReaderLayout(
         key: ObjectKey(value),
-        urls: value.urls,
+        urls: value.activeUrls,
+        source: widget.source,
+        chapter: value.activeChapter,
+        catalog: chapters,
+        continuous: options['continuousStrip'] == true,
+        active: value.presented && foreground,
+        warm: widget.library.option<int>('preload', 2) > 0,
+        onChapter: (current, links) {
+          if (!identical(scene, value) || !value.presented) return;
+          if (chapter.path == current.path && identical(urls, links)) return;
+          final changed = chapter.path != current.path;
+          setState(() {
+            value.streamChapter = current;
+            value.streamUrls = links;
+            chapter = current;
+            urls = links;
+            total = links.length;
+          });
+          if (changed) prepareOffline();
+        },
+        onStreamError: (error) {
+          if (!identical(incoming, value)) return;
+          setState(() {
+            chapterError = friendlyError(error);
+            chapterImagesChanged = error is ChapterImagesChanged;
+          });
+        },
+        onRestart: (chapter) => load(chapter, 0, 0),
         web: widget.web,
         mode: mode,
         rtl: rtl,
@@ -682,7 +750,7 @@ class _ReaderPageState extends State<ReaderPage>
         onRetryPage: value.urls.any((url) => !url.startsWith('offline:'))
             ? (index) => retryImage(value, index)
             : null,
-        speed: identical(scene, value) && value.presented
+        speed: identical(scene, value) && value.presented && foreground
             ? (options['autoScroll'] as num).toDouble()
             : 0,
         paper: options['turn'] == 'paper',
@@ -1439,6 +1507,37 @@ class _ReaderPageState extends State<ReaderPage>
                   toggle('宽屏自动双页', 'doublePage'),
                   toggle('自动裁白边', 'autoCrop'),
                   toggle('分区点击翻页', 'tapZones'),
+                  toggle('双击局部放大', 'doubleTapZoom'),
+                  toggle('条漫连续跨章', 'continuousStrip'),
+                  DropdownButtonFormField<int>(
+                    isExpanded: true,
+                    initialValue:
+                        [0, 3, 5, 10].contains(options['smartOfflineChapters'])
+                        ? (options['smartOfflineChapters'] as num).toInt()
+                        : 0,
+                    decoration: const InputDecoration(
+                      label: LocalizedText('提前下载后续章节'),
+                      helper: LocalizedText('智能离线仅在非计费 Wi-Fi 下下载'),
+                      helperMaxLines: 2,
+                    ),
+                    items: [0, 3, 5, 10]
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: LocalizedText(
+                              v == 0 ? '关闭智能离线' : '后续 {count} 章',
+                              arguments: {'count': v},
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        set('smartOfflineChapters', v);
+                        prepareOffline();
+                      }
+                    },
+                  ),
                   DropdownButtonFormField<String>(
                     initialValue: options['hand'] as String? ?? 'auto',
                     isExpanded: true,
@@ -1657,6 +1756,10 @@ class _ChapterScene {
   );
   final Chapter chapter;
   final List<String> urls;
+  Chapter? streamChapter;
+  List<String>? streamUrls;
+  Chapter get activeChapter => streamChapter ?? chapter;
+  List<String> get activeUrls => streamUrls ?? urls;
   final int request;
   final control = ReaderControl();
   int page;

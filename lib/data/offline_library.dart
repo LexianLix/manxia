@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'comic.dart';
 import 'dm5_source.dart';
 import 'library.dart';
 import 'chapter_links.dart';
+import '../platform/network_monitor.dart';
 
 class OfflineCapacityException implements Exception {
   const OfflineCapacityException();
@@ -22,14 +24,88 @@ class OfflineLibrary extends ChangeNotifier {
     this.source, {
     BlobStore? store,
     http.Client? client,
+    NetworkMonitor? network,
   }) : _store = store {
     _client = client ?? http.Client();
+    this.network = network ?? NetworkMonitor();
     instance = this;
   }
   static OfflineLibrary? instance;
   final Library library;
   final Dm5Source source;
   late final http.Client _client;
+  late final NetworkMonitor network;
+  final _aborts = <String, Completer<void>>{};
+  bool _closed = false;
+  (NetworkInfo, bool)? _lastPolicy;
+  bool get networkAllowed =>
+      network.value.permits(library.option<bool>('downloadWifiOnly', false));
+  bool allowed(Map<String, dynamic> entry) => network.value.permits(
+    entry['automatic'] == true ||
+        library.option<bool>('downloadWifiOnly', false),
+  );
+  void pauseForNetwork(Map<String, dynamic> entry) {
+    entry['status'] = 'paused';
+    entry['pauseReason'] = 'network';
+    entry['error'] = '当前网络不符合下载设置，已暂停并保留完成页。';
+    final abort = _aborts[entry['id']];
+    if (abort != null && !abort.isCompleted) abort.complete();
+  }
+
+  void networkChanged() {
+    if (!ready) return;
+    final policy = (
+      network.value,
+      library.option<bool>('downloadWifiOnly', false),
+    );
+    if (policy == _lastPolicy) return;
+    _lastPolicy = policy;
+    for (final e in entries) {
+      if (!allowed(e) && ['queued', 'downloading'].contains(e['status'])) {
+        pauseForNetwork(e);
+      } else if (allowed(e) &&
+          library.option<bool>('resumeDownloadsOnNetwork', true) &&
+          e['status'] == 'paused' &&
+          e['pauseReason'] == 'network') {
+        e['status'] = 'queued';
+        e.remove('pauseReason');
+        e.remove('error');
+      }
+    }
+    unawaited(persist());
+    pump();
+  }
+
+  Future<http.Response> requestImage(
+    String id,
+    String image, {
+    int timeout = 30,
+  }) async {
+    final abort = Completer<void>();
+    _aborts[id] = abort;
+    final url = kIsWeb
+        ? Uri.base
+              .resolve('/api/image')
+              .replace(queryParameters: {'url': image})
+        : Uri.parse(image);
+    final request = http.AbortableRequest(
+      'GET',
+      url,
+      abortTrigger: abort.future,
+    );
+    if (!kIsWeb) request.headers.addAll(Dm5Source.headersForImage(image));
+    try {
+      return await (() async => http.Response.fromStream(
+        await _client.send(request),
+      ))().timeout(Duration(seconds: timeout));
+    } on TimeoutException {
+      if (!abort.isCompleted) abort.complete();
+      rethrow;
+    } finally {
+      if (identical(_aborts[id], abort)) _aborts.remove(id);
+    }
+  }
+
   BlobStore? _store;
   final List<Map<String, dynamic>> entries = [];
   final Set<String> _running = {};
@@ -77,8 +153,26 @@ class OfflineLibrary extends ChangeNotifier {
       );
     } catch (_) {}
     for (final e in entries) {
-      if (e['status'] == 'downloading') e['status'] = 'paused';
+      if (e['status'] == 'downloading') {
+        e['status'] = library.option<bool>('resumeDownloadsOnLaunch', false)
+            ? 'queued'
+            : 'paused';
+      }
+      if (e['status'] == 'paused' &&
+          e['pauseReason'] == 'network' &&
+          !library.option<bool>('resumeDownloadsOnLaunch', false)) {
+        e['pauseReason'] = 'restart';
+      } else if (e['status'] == 'paused' && e['pauseReason'] == 'network') {
+        e['status'] = 'queued';
+      }
     }
+    await network.start();
+    _lastPolicy = (
+      network.value,
+      library.option<bool>('downloadWifiOnly', false),
+    );
+    network.addListener(networkChanged);
+    library.addListener(networkChanged);
     Dm5Source.offlinePages = pages;
     Dm5Source.offlineDetail = detail;
     ready = true;
@@ -128,6 +222,7 @@ class OfflineLibrary extends ChangeNotifier {
           e['coverKey']: e['coverBytes'] as int? ?? 0,
       }.values.fold<int>(0, (n, b) => n + b);
   Future<void> persist() async {
+    if (_closed) return;
     notifyListeners();
     await library.prefs.setString('offline.v1', jsonEncode(entries));
   }
@@ -171,7 +266,11 @@ class OfflineLibrary extends ChangeNotifier {
     return list.isEmpty ? null : ComicDetail(c, list);
   }
 
-  Future<void> enqueue(Comic comic, Chapter chapter) async {
+  Future<void> enqueue(
+    Comic comic,
+    Chapter chapter, {
+    bool automatic = false,
+  }) async {
     if (!ready) throw StateError('离线书库正在初始化');
     if (entries.any((e) => e['chapter']['path'] == chapter.path)) return;
     final canonical = Dm5Source.chapterCatalogs[comic.path]
@@ -196,14 +295,44 @@ class OfflineLibrary extends ChangeNotifier {
       'total': 0,
       'bytes': 0,
       'local': false,
+      'automatic': automatic,
     });
     await persist();
     pump();
   }
 
+  Future<void> prepareNext(Comic comic, Iterable<Chapter> wanted) async {
+    final list = wanted.take(10).toList(),
+        paths = wanted.take(10).map((c) => c.path).toSet();
+    for (final e
+        in entries
+            .where(
+              (e) =>
+                  e['comic']['path'] == comic.path &&
+                  e['automatic'] == true &&
+                  !paths.contains(e['chapter']['path']) &&
+                  e['done'] == 0 &&
+                  !_running.contains(e['id']),
+            )
+            .toList()) {
+      entries.remove(e);
+    }
+    for (final chapter in list) {
+      if (entries.any((e) => e['chapter']['path'] == chapter.path)) continue;
+      await enqueue(comic, chapter, automatic: true);
+    }
+    await persist();
+  }
+
   void pump() {
+    if (_closed) return;
     final limit = library.option<int>('downloadParallel', 2).clamp(1, 4);
     for (final e in entries.where((e) => e['status'] == 'queued').toList()) {
+      if (!allowed(e)) {
+        pauseForNetwork(e);
+        unawaited(persist());
+        continue;
+      }
       if (_running.contains(e['id'])) continue;
       if (_running.length >= limit) break;
       _running.add(e['id']);
@@ -213,6 +342,7 @@ class OfflineLibrary extends ChangeNotifier {
 
   Future<void> _run(Map<String, dynamic> e) async {
     e['status'] = 'downloading';
+    e.remove('pauseReason');
     await persist();
     try {
       if ((e['urls'] as List).isEmpty) {
@@ -224,20 +354,11 @@ class OfflineLibrary extends ChangeNotifier {
       var refreshed = false;
       final keys = List<String>.from(e['keys']);
       for (var i = e['done'] as int; i < urls.length; i++) {
-        if (e['status'] != 'downloading') break;
+        if (e['status'] != 'downloading' || !allowed(e)) break;
         final imageKey = key('${e['chapter']['path']}/$i');
         if (await read(imageKey) == null) {
-          final url = kIsWeb
-              ? Uri.base
-                    .resolve('/api/image')
-                    .replace(queryParameters: {'url': urls[i]})
-              : Uri.parse(urls[i]);
-          final response = await _client
-              .get(
-                url,
-                headers: kIsWeb ? null : Dm5Source.headersForImage(urls[i]),
-              )
-              .timeout(const Duration(seconds: 30));
+          final response = await requestImage(e['id'], urls[i]);
+          if (!allowed(e) || e['pauseReason'] == 'network') break;
           if (response.statusCode != 200 ||
               !(response.headers['content-type'] ?? '').startsWith('image/')) {
             if (!refreshed && expiredImageStatus(response.statusCode)) {
@@ -280,22 +401,13 @@ class OfflineLibrary extends ChangeNotifier {
         e['done'] = i + 1;
         await persist();
       }
-      if (e['done'] == urls.length) {
+      if (e['done'] == urls.length && e['status'] == 'downloading') {
         try {
           final cover = e['comic']['cover'] as String;
           final coverKey = key('cover:$cover');
           if (await read(coverKey) == null) {
-            final target = kIsWeb
-                ? Uri.base
-                      .resolve('/api/image')
-                      .replace(queryParameters: {'url': cover})
-                : Uri.parse(cover);
-            final response = await _client
-                .get(
-                  target,
-                  headers: kIsWeb ? null : Dm5Source.headersForImage(cover),
-                )
-                .timeout(const Duration(seconds: 15));
+            if (!allowed(e)) throw StateError('Network changed');
+            final response = await requestImage(e['id'], cover, timeout: 15);
             if (response.statusCode == 200 &&
                 (response.headers['content-type'] ?? '').startsWith('image/') &&
                 response.bodyBytes.length < 5 * 1024 * 1024) {
@@ -336,6 +448,7 @@ class OfflineLibrary extends ChangeNotifier {
   Future<void> pause(String id) async {
     final e = entries.firstWhere((e) => e['id'] == id);
     e['status'] = 'paused';
+    e['pauseReason'] = 'manual';
     await persist();
   }
 
@@ -369,6 +482,7 @@ class OfflineLibrary extends ChangeNotifier {
       (e) => ['queued', 'downloading'].contains(e['status']),
     )) {
       e['status'] = 'paused';
+      e['pauseReason'] = 'manual';
     }
     await persist();
   }
@@ -377,6 +491,7 @@ class OfflineLibrary extends ChangeNotifier {
     final e = entries.firstWhere((e) => e['id'] == id);
     e['status'] = 'queued';
     e.remove('error');
+    e.remove('pauseReason');
     await persist();
     pump();
   }
@@ -418,6 +533,19 @@ class OfflineLibrary extends ChangeNotifier {
     for (final entry in selected) {
       await remove(entry['id']);
     }
+  }
+
+  @override
+  void dispose() {
+    _closed = true;
+    library.removeListener(networkChanged);
+    network.removeListener(networkChanged);
+    for (final abort in _aborts.values) {
+      if (!abort.isCompleted) abort.complete();
+    }
+    network.dispose();
+    _client.close();
+    super.dispose();
   }
 
   Future<Comic> importImages(

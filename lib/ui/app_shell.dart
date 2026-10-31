@@ -16,6 +16,7 @@ import '../data/reading_progress.dart';
 import 'reader_page.dart';
 import 'living_shelf.dart';
 import 'discovery_page.dart';
+import 'discovery_preferences_page.dart';
 import 'glass_navigation.dart';
 import 'retained_pages.dart';
 import 'offline_page.dart';
@@ -845,7 +846,9 @@ class ComicGrid extends StatelessWidget {
     this.itemArrival,
     this.arrivingFrom = 0,
     this.library,
+    this.discoveryActions = false,
   });
+  final bool discoveryActions;
   final List<Comic> books;
   final Library? library;
   final bool web, sliver;
@@ -890,6 +893,9 @@ class ComicGrid extends StatelessWidget {
       onOpen: onOpen,
       builder: (cover, open) => InkWell(
         onTap: open,
+        onLongPress: discoveryActions && library != null
+            ? () => showDiscoveryInterest(context, library!, comic)
+            : null,
         borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
