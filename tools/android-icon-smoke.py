@@ -42,7 +42,7 @@ def main():
         screen.crop((max(0,left-16), max(0,top-100), min(width,right+16), min(height,bottom+10))).save(output/'icon-crop.png')
     adb('shell', 'input', 'tap', str((left+right)//2), str((top+bottom)//2))
     time.sleep(3)
-    windows = adb('shell', 'dumpsys', 'window', 'windows')
+    windows = adb('shell', 'dumpsys', 'window')
     (output/'launched-window.txt').write_text(windows, encoding='utf-8')
     opened = bool(re.search(r'mCurrentFocus=.*io\.manxia\.manxia/', windows))
     result = {'launcher_entry_present':True, 'launch_from_icon':opened,

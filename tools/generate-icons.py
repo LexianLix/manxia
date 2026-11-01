@@ -1,4 +1,4 @@
-"""Package the approved transparent Xiaxia artwork into launcher resources."""
+"""Package the transparent Xiaxia artwork into launcher resources."""
 from pathlib import Path
 import math
 from PIL import Image
@@ -46,7 +46,7 @@ def generate():
         icon(image, size).save(ROOT / f'web/icons/Icon-{size}.png')
         icon(image, size, safe_circle=.38).save(ROOT / f'web/icons/Icon-maskable-{size}.png')
     icon(image, 64).save(ROOT / 'web/favicon.png')
-    # Adaptive layers are 108dp; keep the artwork within the 66dp safe circle.
+    # Keep a padded source for launchers/tools that explicitly request a layer.
     icon(image, 432, safe_circle=32/108).save(
         ROOT / 'android/app/src/main/res/drawable/manxia_launcher_foreground.png'
     )
@@ -55,6 +55,11 @@ def generate():
         '<color name="manxia_launcher_background">#00000000</color></resources>\n',
         encoding='utf-8',
     )
+    # Use density PNGs as the installed icon. Transparent AdaptiveIconDrawable
+    # backgrounds can be flattened to black by Android launcher rendering.
+    adaptive = ROOT / 'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml'
+    if adaptive.exists():
+        adaptive.unlink()
     print('Transparent Xiaxia Android, web and branding icons packaged.')
 
 
