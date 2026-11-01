@@ -23,6 +23,10 @@ def read_ui():
     adb('shell','uiautomator','dump','/sdcard/manxia-navigation.xml')
     return adb('shell','cat','/sdcard/manxia-navigation.xml')
 
+def has_label(xml, word):
+    return any(word in n.get('text','')+' '+n.get('content-desc','')
+               for n in ET.fromstring(xml).iter('node'))
+
 def capture(name):
     xml = read_ui()
     png = adb('exec-out','screencap','-p',binary=True)
@@ -50,14 +54,14 @@ def wait_ui(word, timeout=45):
             system_dialogs+=1;capture(f'emulator-dialog-{system_dialogs}')
             tap('android:id/aerr_wait' if "System UI isn't responding" in titles else 'android:id/aerr_close',resource=True)
             continue
-        if word in xml:return xml
+        if has_label(xml, word):return xml
         time.sleep(.5)
     raise RuntimeError('UI did not show '+word)
 
 def scroll_to(word):
     width,height = map(int,re.findall(r'\d+',adb('shell','wm','size'))[-2:])
     for _ in range(10):
-        if word in read_ui():return
+        if has_label(read_ui(), word):return
         adb('shell','input','swipe',str(width//2),str(height*4//5),str(width//2),str(height//3),'300')
     raise RuntimeError('Cannot scroll to '+word)
 
