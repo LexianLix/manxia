@@ -50,6 +50,15 @@ Widget ink(Color color) => Scaffold(
 bool mixed(List<int> rgba) => rgba[0] - rgba[1] > 8 && rgba[2] - rgba[1] > 8;
 
 void main() {
+  test('route fade-through has equal, reversible content handoffs', () {
+    expect(RoomMotion.routeCovered(.2), closeTo(.6, .0001));
+    expect(RoomMotion.routeEnter(.8), closeTo(.6, .0001));
+    for (var i = 0; i <= 100; i++) {
+      final p = i / 100;
+      expect(RoomMotion.routeEnter(p) * RoomMotion.routeCovered(p), 0);
+      expect(RoomMotion.routeEnter(p), RoomMotion.routeCovered(1 - p));
+    }
+  });
   for (final reduced in [false, true]) {
     testWidgets(
       'return from a normal route to a book route isolates both content layers (reduced: $reduced)',

@@ -21,9 +21,8 @@ abstract final class RoomMotion {
       ((weight - .5) * 2).clamp(0, 1);
 
   static double routeEnter(double progress) =>
-      ease.transform(((progress - .3) / .7).clamp(0, 1));
-  static double routeCovered(double progress) =>
-      1 - ease.transform((progress / .3).clamp(0, 1));
+      ((progress - .5) * 2).clamp(0, 1);
+  static double routeCovered(double progress) => (1 - progress * 2).clamp(0, 1);
 
   static Duration duration(BuildContext context, Duration value) =>
       MediaQuery.disableAnimationsOf(context) ? Duration.zero : value;
