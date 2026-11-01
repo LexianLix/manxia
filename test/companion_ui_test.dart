@@ -1,3 +1,4 @@
+import 'package:manxia/ui/reading_profiles_page.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:manxia/data/character_assets.dart';
 import 'package:manxia/data/character_definition.dart';
@@ -251,4 +252,26 @@ void main() {
     expect(prefs.visible, true);
     expect(prefs.size, 'small');
   });
+  testWidgets(
+    'profile selection and its management menu have separate semantics',
+    (tester) async {
+      final library = await setup(tester, role: false);
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh', 'CN'),
+          supportedLocales: const [Locale('zh', 'CN')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          home: ReadingProfilesPage(library: library),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final node = tester.getSemantics(find.byType(RadioListTile<String>).last);
+      expect(node.label, '条漫');
+      expect(find.byTooltip('方案操作'), findsNWidgets(3));
+      await tester.pumpWidget(const SizedBox());
+      semantics.dispose();
+      library.dispose();
+    },
+  );
 }

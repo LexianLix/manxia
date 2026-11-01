@@ -269,31 +269,38 @@ class _ReadingProfilesPanelState extends State<ReadingProfilesPanel> {
             child: Column(
               children: [
                 for (final p in profiles)
-                  RadioListTile<String>(
-                    value: p.id,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(readingProfileName(context, p)),
-                    subtitle:
-                        widget.library.options['reader.profileDefault'] == p.id
-                        ? const LocalizedText('默认方案')
-                        : null,
-                    secondary: PopupMenuButton<String>(
-                      tooltip: translate(
-                        '方案操作',
-                        Localizations.localeOf(context),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          value: p.id,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(readingProfileName(context, p)),
+                          subtitle:
+                              widget.library.options['reader.profileDefault'] ==
+                                  p.id
+                              ? const LocalizedText('默认方案')
+                              : null,
+                        ),
                       ),
-                      onSelected: (v) => edit(p, v),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: LocalizedText('重命名'),
+                      PopupMenuButton<String>(
+                        tooltip: translate(
+                          '方案操作',
+                          Localizations.localeOf(context),
                         ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: LocalizedText('删除'),
-                        ),
-                      ],
-                    ),
+                        onSelected: (v) => edit(p, v),
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'rename',
+                            child: LocalizedText('重命名'),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: LocalizedText('删除'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
               ],
             ),
