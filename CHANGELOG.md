@@ -2,6 +2,13 @@
 
 版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
+## [0.4.7] - 2026-11-01
+
+### 改进
+
+- 应用图标更换为小夏眨眼、比 V 的透明形象，同步 Android 桌面、自适应图标与 Web/PWA 图标。
+- 统一图标源素材与生成工具，适配不同尺寸及桌面裁切。
+
 ## [0.4.6] - 2026-11-01
 
 ### 修复
