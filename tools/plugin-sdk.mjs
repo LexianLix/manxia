@@ -73,8 +73,10 @@ async function main() {
     const folder = resolve(root, 'plugins/packages');
     const manifests = [], entries = [], ids = new Set();
     for (const name of (await readdir(folder)).filter(n => n.endsWith('.json')).sort()) {
-      const bytes = await readFile(resolve(folder,name));
+      const original = await readFile(resolve(folder,name));
+      const bytes = Buffer.from(original.toString('utf8').replace(/\r\n/g,'\n'));
       const p = validatePlugin(JSON.parse(bytes));
+      if (!bytes.equals(original)) await writeFile(resolve(folder,name),bytes);
       if (ids.has(p.id)) throw new Error(`Duplicate id ${p.id}`);
       ids.add(p.id); manifests.push(p);
       let packageName=name,packageBytes=bytes;

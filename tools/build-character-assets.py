@@ -17,8 +17,8 @@ for i,name in enumerate(['idle','blink','happy','puzzled']):
     key=hashlib.sha256(target.read_bytes()).hexdigest()
     images[key]=target.relative_to(root).as_posix()
     states[name]={'file':name+'.png','sha256':key}
-(root/'assets/characters/index.json').write_text(json.dumps({'schemaVersion':1,'images':images},indent=2)+'\n',encoding='utf-8')
+(root/'assets/characters/index.json').write_text(json.dumps({'schemaVersion':1,'images':images},indent=2)+'\n',encoding='utf-8',newline='\n')
 manifest=json.loads((root/'plugins/packages/xiaxia.json').read_text(encoding='utf-8'))
 manifest['contributes']['character']={'states':states}
-(root/'plugins/packages/xiaxia.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+(root/'plugins/packages/xiaxia.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
 print('Bundled character frames, hashes and manifest generated.')
