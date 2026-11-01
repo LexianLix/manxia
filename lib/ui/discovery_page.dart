@@ -1,3 +1,4 @@
+import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -7,10 +8,9 @@ import '../data/comic.dart';
 import '../data/discovery.dart';
 import '../data/dm5_source.dart';
 import '../data/library.dart';
-import '../data/follow_calendar.dart';
+import '../data/follow_updates.dart';
 import '../data/discovery_preferences.dart';
 import 'discovery_preferences_page.dart';
-import 'follow_calendar_page.dart';
 import '../data/source_hub.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, quiet, small;
 import 'materials.dart';
@@ -260,7 +260,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
     ),
   );
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => VisibleListenableBuilder(
     listenable: widget.library,
     builder: (context, _) => ContentHandoff(child: buildContent(context)),
   );
@@ -636,24 +636,6 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                   _browseLink(snapshot.books),
                 ],
                 if (section == '更新') ...[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.calendar_month_outlined),
-                    title: const LocalizedText('追漫日历'),
-                    subtitle: const LocalizedText('按日期查看收藏更新与待读章节'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => FollowCalendarPage(
-                          library: widget.library,
-                          source: widget.source,
-                          web: widget.web,
-                          onOpen: widget.onOpen,
-                        ),
-                      ),
-                    ),
-                  ),
                   _sectionTitle(
                     '收藏追更',
                     checking ? '正在检查收藏…' : '检查收藏是否出现新章节',
@@ -666,19 +648,29 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                     spacing: 8,
                     runSpacing: 4,
                     children: [
-                      for (final filter in ['未读更新', '全部收藏', '检查失败'])
+                      for (final filter in [
+                        '未读更新',
+                        '全部收藏',
+                        if (widget.library.updates.values.any(
+                          (u) => u['checkError'] != null,
+                        ))
+                          '检查失败',
+                      ])
                         ChoiceChip(
                           label: LocalizedText(filter),
                           selected: updateFilter == filter,
                           onSelected: (_) =>
                               setState(() => updateFilter = filter),
                         ),
-                      TextButton(
-                        onPressed: () => widget.library.markUpdatesRead(
-                          widget.library.favorites.map((b) => b.path),
+                      if (widget.library.updates.values.any(
+                        (u) => u['changed'] == true,
+                      ))
+                        TextButton(
+                          onPressed: () => widget.library.markUpdatesRead(
+                            widget.library.favorites.map((b) => b.path),
+                          ),
+                          child: const LocalizedText('全部标为已读'),
                         ),
-                        child: const LocalizedText('全部标为已读'),
-                      ),
                       if (widget.library.updates.values.any(
                         (u) => u['checkError'] != null,
                       ))

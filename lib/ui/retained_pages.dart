@@ -30,6 +30,8 @@ class _RetainedPagesState extends State<RetainedPages>
     value: 1,
   );
   late final visited = <int>{widget.index};
+  final pages = <int, Widget>{};
+  final dirty = <int>{};
   final starts = <int, (double, double)>{};
   final ends = <int, (double, double)>{};
   bool dragging = false;
@@ -82,7 +84,9 @@ class _RetainedPagesState extends State<RetainedPages>
       return;
     }
     setState(() {
-      dragTarget = widget.order[at];
+      final target = widget.order[at];
+      if (target != dragTarget) dirty.add(target);
+      dragTarget = target;
       visited.add(dragTarget!);
       if ((dragStarts[dragTarget]?.$1 ?? 0) < .001) {
         dragStarts[dragTarget!] = (0, direction * 20);
@@ -137,6 +141,7 @@ class _RetainedPagesState extends State<RetainedPages>
   @override
   void didUpdateWidget(RetainedPages old) {
     super.didUpdateWidget(old);
+    dirty.add(widget.index);
     if (dragging && !listEquals(old.order, widget.order)) endDrag();
     if (old.index != widget.index) {
       if (dragging) captureDrag();
@@ -180,6 +185,12 @@ class _RetainedPagesState extends State<RetainedPages>
   @override
   Widget build(BuildContext context) {
     width = MediaQuery.sizeOf(context).width;
+    for (final index in visited) {
+      final refresh = dirty.remove(index);
+      if (!pages.containsKey(index) || refresh) {
+        pages[index] = widget.builder(index);
+      }
+    }
     final stack = Stack(
       fit: StackFit.expand,
       children: [
@@ -187,7 +198,7 @@ class _RetainedPagesState extends State<RetainedPages>
           AnimatedBuilder(
             key: ValueKey(index),
             animation: clock,
-            child: RepaintBoundary(child: widget.builder(index)),
+            child: RepaintBoundary(child: pages[index]),
             builder: (context, child) {
               final current = index == widget.index;
               final (alpha, dx) = pose(index);
@@ -206,7 +217,7 @@ class _RetainedPagesState extends State<RetainedPages>
                         child: Transform.translate(
                           offset: Offset(dx, 0),
                           child: Opacity(
-                            opacity: alpha.clamp(0, 1),
+                            opacity: RoomMotion.contentOpacity(alpha),
                             child: child!,
                           ),
                         ),

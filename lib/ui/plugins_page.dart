@@ -1,3 +1,4 @@
+import 'visible_listenable_builder.dart';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -347,26 +348,24 @@ class _PluginsPageState extends State<PluginsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => VisibleListenableBuilder(
     listenable: widget.library,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
         title: const Text('插件商城'),
         actions: [
-          IconButton(
-            tooltip: '插件开发文档',
-            onPressed: () => launchUrl(
-              Uri.parse(
-                'https://github.com/LexianLix/manxia/blob/main/docs/PLUGINS.md',
-              ),
-              mode: LaunchMode.externalApplication,
-            ),
-            icon: const Icon(Icons.code),
-          ),
           PopupMenuButton<String>(
             tooltip: '插件管理',
             enabled: !busy,
             onSelected: (value) async {
+              if (value == 'docs') {
+                await launchUrl(
+                  Uri.parse(
+                    'https://github.com/LexianLix/manxia/blob/main/docs/PLUGINS.md',
+                  ),
+                  mode: LaunchMode.externalApplication,
+                );
+              }
               if (value == 'file') {
                 await importFile();
               }
@@ -395,6 +394,7 @@ class _PluginsPageState extends State<PluginsPage> {
               PopupMenuItem(value: 'json', child: Text('从 JSON 安装')),
               PopupMenuItem(value: 'repo', child: Text('添加 / 刷新在线仓库')),
               PopupMenuItem(value: 'bundled', child: Text('使用内置目录')),
+              PopupMenuItem(value: 'docs', child: Text('插件开发文档')),
             ],
           ),
         ],

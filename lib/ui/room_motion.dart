@@ -15,6 +15,16 @@ abstract final class RoomMotion {
   static const ease = Cubic(.22, 1, .36, 1);
   static const travel = Cubic(.2, .75, .25, 1);
 
+  /// Fade through the shared backdrop instead of drawing two readable pages
+  /// over each other. The raw weight still drives position and layout.
+  static double contentOpacity(double weight) =>
+      ((weight - .5) * 2).clamp(0, 1);
+
+  static double routeEnter(double progress) =>
+      ease.transform(((progress - .3) / .7).clamp(0, 1));
+  static double routeCovered(double progress) =>
+      1 - ease.transform((progress / .3).clamp(0, 1));
+
   static Duration duration(BuildContext context, Duration value) =>
       MediaQuery.disableAnimationsOf(context) ? Duration.zero : value;
 
@@ -34,6 +44,33 @@ abstract final class RoomMotion {
 class RoomPageTransitions extends PageTransitionsBuilder {
   const RoomPageTransitions();
   @override
+  DelegatedTransitionBuilder get delegatedTransition => _coverPrevious;
+
+  static Widget _coverPrevious(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondary,
+    bool allowSnapshotting,
+    Widget? child,
+  ) => AnimatedBuilder(
+    animation: secondary,
+    child: child,
+    builder: (context, child) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        return Offstage(
+          offstage:
+              secondary.status == AnimationStatus.forward ||
+              secondary.status == AnimationStatus.completed,
+          child: child,
+        );
+      }
+      return Opacity(
+        opacity: RoomMotion.routeCovered(secondary.value),
+        child: child,
+      );
+    },
+  );
+  @override
   Duration get transitionDuration => RoomMotion.scene;
   @override
   Duration get reverseTransitionDuration => RoomMotion.scene;
@@ -46,16 +83,27 @@ class RoomPageTransitions extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    if (MediaQuery.disableAnimationsOf(context)) return child;
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return AnimatedBuilder(
       animation: Listenable.merge([animation, secondaryAnimation]),
       child: child,
       builder: (_, child) {
+        if (reduced) {
+          final covered =
+              secondaryAnimation.status == AnimationStatus.forward ||
+              secondaryAnimation.status == AnimationStatus.completed;
+          return Offstage(
+            offstage: covered || animation.status == AnimationStatus.reverse,
+            child: child,
+          );
+        }
         final t = RoomMotion.ease.transform(animation.value);
         final depth = RoomMotion.ease.transform(secondaryAnimation.value);
+        final enter = RoomMotion.routeEnter(animation.value);
+        final leave = RoomMotion.routeCovered(secondaryAnimation.value);
         return Transform.translate(
           offset: Offset(0, 16 * (1 - t) - 4 * depth),
-          child: Opacity(opacity: t, child: child!),
+          child: Opacity(opacity: enter * leave, child: child!),
         );
       },
     );

@@ -497,7 +497,7 @@ class _LivingShelfState extends State<LivingShelf>
               child: AnimatedSwitcher(
                 duration: animate ? RoomMotion.feedback : Duration.zero,
                 transitionBuilder: (child, a) => FadeTransition(
-                  opacity: a,
+                  opacity: a.drive(CurveTween(curve: const Interval(.5, 1))),
                   child: SlideTransition(
                     position:
                         Tween(
@@ -526,9 +526,19 @@ class _LivingShelfState extends State<LivingShelf>
                     ),
                     const SizedBox(height: 8),
                     LocalizedText(
-                      widget.library.record(comic) == null
+                      widget.library.updates[comic.path]?['changed'] == true
+                          ? '有更新 · {chapter}'
+                          : widget.library.record(comic) == null
                           ? '动漫屋 · 拖动书架，挑选故事'
                           : '书签 · ${widget.library.record(comic)!.chapterTitle}',
+                      arguments: {
+                        'chapter':
+                            widget.library.updates[comic.path]?['latest']
+                                as String? ??
+                            comic.latest,
+                      },
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 11, color: muted),
                     ),
                   ],
@@ -609,7 +619,7 @@ class _LivingShelfState extends State<LivingShelf>
 
 /// The cover travels in the Hero layer; this layer reveals the reading room.
 /// A single reversible progress value also supports an early back action.
-class OpenBookTransition extends StatelessWidget {
+class OpenBookTransition extends StatefulWidget {
   const OpenBookTransition({
     super.key,
     required this.animation,
@@ -618,6 +628,7 @@ class OpenBookTransition extends StatelessWidget {
     required this.child,
     this.origin,
     this.library,
+    this.secondaryAnimation,
   });
   final Animation<double> animation;
   final Comic comic;
@@ -625,43 +636,81 @@ class OpenBookTransition extends StatelessWidget {
   final Widget child;
   final Rect? origin;
   final Library? library;
+  final Animation<double>? secondaryAnimation;
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: animation,
-    child: child,
-    builder: (context, child) {
-      final t = const Interval(
-        .45,
-        .95,
-        curve: RoomMotion.ease,
-      ).transform(animation.value);
-      final background = const Interval(
-        0,
-        .24,
-        curve: RoomMotion.ease,
-      ).transform(animation.value);
-      return IgnorePointer(
-        ignoring: animation.value < .12,
-        child: ExcludeSemantics(
-          excluding: animation.value < .12,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Opacity(
-                opacity: background,
-                child: library == null
-                    ? ColoredBox(color: Theme.of(context).colorScheme.surface)
-                    : RoomBackdrop(
-                        library: library!,
-                        child: const SizedBox.expand(),
-                      ),
+  State<OpenBookTransition> createState() => _OpenBookTransitionState();
+}
+
+class _OpenBookTransitionState extends State<OpenBookTransition> {
+  Widget? backdrop;
+  Object? appearance;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    backdrop = null;
+  }
+
+  @override
+  void didUpdateWidget(OpenBookTransition old) {
+    super.didUpdateWidget(old);
+    if (old.library != widget.library) backdrop = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = widget.library?.options['appearance'];
+    if (backdrop == null || !identical(appearance, options)) {
+      appearance = options;
+      backdrop = RepaintBoundary(
+        child: widget.library == null
+            ? ColoredBox(color: Theme.of(context).colorScheme.surface)
+            : RoomBackdrop(
+                library: widget.library!,
+                child: const SizedBox.expand(),
               ),
-              Opacity(opacity: t, child: child),
-            ],
-          ),
-        ),
       );
-    },
-  );
+    }
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        widget.animation,
+        ?widget.secondaryAnimation,
+      ]),
+      child: widget.child,
+      builder: (context, child) {
+        final t = const Interval(
+          .45,
+          .95,
+          curve: RoomMotion.ease,
+        ).transform(widget.animation.value);
+        final background = const Interval(
+          0,
+          .24,
+          curve: RoomMotion.ease,
+        ).transform(widget.animation.value);
+        final secondary = widget.secondaryAnimation;
+        final coverage = secondary == null
+            ? 1.0
+            : MediaQuery.disableAnimationsOf(context)
+            ? (secondary.status == AnimationStatus.forward ||
+                      secondary.status == AnimationStatus.completed
+                  ? 0.0
+                  : 1.0)
+            : RoomMotion.routeCovered(secondary.value);
+        return IgnorePointer(
+          ignoring: widget.animation.value < .12,
+          child: ExcludeSemantics(
+            excluding: widget.animation.value < .12 || coverage < .001,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Opacity(opacity: background, child: backdrop),
+                Opacity(opacity: t * coverage, child: child),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

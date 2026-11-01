@@ -28,6 +28,8 @@ class _RetainedSectionsState extends State<RetainedSections>
     value: 1,
   );
   late final visited = <String>{widget.index};
+  final sections = <String, Widget>{};
+  final dirty = <String>{};
   final starts = <String, (double, double)>{};
   final ends = <String, (double, double)>{};
   bool get animate =>
@@ -51,6 +53,7 @@ class _RetainedSectionsState extends State<RetainedSections>
   @override
   void didUpdateWidget(RetainedSections old) {
     super.didUpdateWidget(old);
+    dirty.add(widget.index);
     if (old.index == widget.index) {
       if (!animate) clock.value = 1;
       return;
@@ -82,11 +85,17 @@ class _RetainedSectionsState extends State<RetainedSections>
   @override
   Widget build(BuildContext context) {
     final ids = visited.toList();
+    for (final id in ids) {
+      final refresh = dirty.remove(id);
+      if (!sections.containsKey(id) || refresh) {
+        sections[id] = widget.builder(id);
+      }
+    }
     // These subtrees remain identical throughout clock ticks. In particular,
     // grids and source parsers are not rebuilt once per animation frame.
     final children = [
       for (final id in ids)
-        KeyedSubtree(key: ValueKey(id), child: widget.builder(id)),
+        KeyedSubtree(key: ValueKey(id), child: sections[id]!),
     ];
     return AnimatedBuilder(
       animation: clock,
@@ -110,7 +119,7 @@ class _RetainedSectionsState extends State<RetainedSections>
                         // Fade through a shared paper surface: two text-heavy
                         // sections must never be legible over each other.
                         // Height still follows the continuous section weights.
-                        opacity: poses[i].$1.clamp(0, 1),
+                        opacity: RoomMotion.contentOpacity(poses[i].$1),
                         child: Transform.translate(
                           offset: Offset(
                             poses[i].$2 / 3,

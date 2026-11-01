@@ -1,3 +1,4 @@
+import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -731,7 +732,7 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
   );
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => VisibleListenableBuilder(
     listenable: library,
     builder: (context, _) => widget.sliver
         ? SliverList.list(children: _sections(context))
@@ -925,7 +926,7 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
           onChanged: (v) => library.setOption('resumeDownloadsOnLaunch', v),
         ),
         if (OfflineLibrary.instance != null)
-          ListenableBuilder(
+          VisibleListenableBuilder(
             listenable: OfflineLibrary.instance!.network,
             builder: (_, _) => LocalizedText(
               '当前下载网络：{network}',

@@ -54,10 +54,10 @@ void main() {
         .map((w) => w.opacity)
         .toList();
     expect(before, inExclusiveRange(200, 400));
-    // Crossfade without an empty midpoint, including interrupted transitions.
+    // Height keeps interpolating while readable content fades through.
     expect(
-      opacity.fold<double>(0, (sum, value) => sum + value),
-      closeTo(1, .001),
+      opacity.where((value) => value > .001).length,
+      lessThanOrEqualTo(1),
     );
     update(() => selected = 'c');
     await tester.pump();

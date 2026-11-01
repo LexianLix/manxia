@@ -34,8 +34,9 @@ PageRoute<void> comicDetailRoute(
         library.books.indexWhere((b) => b.path == comic.path) + 1,
       ),
     ),
-    transitionsBuilder: (_, animation, _, child) => OpenBookTransition(
+    transitionsBuilder: (_, animation, secondary, child) => OpenBookTransition(
       animation: animation,
+      secondaryAnimation: secondary,
       comic: comic,
       web: web,
       origin: origin,

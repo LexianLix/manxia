@@ -1,6 +1,8 @@
+import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'room_motion.dart';
 import 'dart:math' as math;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
@@ -9,8 +11,7 @@ import 'settings_page.dart';
 import 'search_page.dart';
 import 'scroll_arrival.dart';
 import 'history_page.dart';
-import 'follow_calendar_page.dart';
-import '../platform/follow_reminder.dart';
+import '../data/follow_updates.dart';
 import '../data/library.dart';
 import '../data/reading_progress.dart';
 import 'reader_page.dart';
@@ -45,10 +46,51 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late int tab = widget.library.option<int>('startTab', 0).clamp(0, 5);
   bool opening = false;
   bool openingLicenses = false;
+  Timer? followTimer;
+  bool foreground = true;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  bool get canCheckUpdates =>
+      mounted && foreground && (ModalRoute.of(context)?.isCurrent ?? true);
+  void queueUpdates() {
+    followTimer?.cancel();
+    if (!canCheckUpdates ||
+        widget.library.favorites.every((b) => b.sourceId == 'local')) {
+      return;
+    }
+    followTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!canCheckUpdates) return;
+      unawaited(
+        FollowChecker.check(
+          widget.library,
+          source,
+          onlyDue: true,
+          active: () => canCheckUpdates,
+        ).catchError((Object _) => 0),
+      );
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    queueUpdates();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    foreground = state == AppLifecycleState.resumed;
+    queueUpdates();
+  }
+
   Future<void> licenses() async {
     if (openingLicenses) return;
     openingLicenses = true;
@@ -76,58 +118,10 @@ class _AppShellState extends State<AppShell> {
     widget.library,
     gateway: widget.web ? Uri.base : null,
   );
-  bool calendarOpening = false;
-  Future<void> openCalendar() async {
-    if (!mounted || calendarOpening) return;
-    calendarOpening = true;
-    try {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => FollowCalendarPage(
-            library: widget.library,
-            source: source,
-            web: widget.web,
-            onOpen: open,
-          ),
-        ),
-      );
-    } finally {
-      calendarOpening = false;
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    if (FollowReminder.supported) {
-      FollowReminder.channel.setMethodCallHandler((call) async {
-        if (call.method == 'openCalendar') {
-          if (await FollowReminder.channel.invokeMethod<bool>('takeOpen') ==
-              true) {
-            openCalendar();
-          }
-        }
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          if (await FollowReminder.channel.invokeMethod<bool>('takeOpen') ==
-                  true &&
-              mounted) {
-            openCalendar();
-          }
-        } catch (_) {
-          /* Reminder integration must not block the library. */
-        }
-      });
-    }
-  }
-
   @override
   void dispose() {
-    if (FollowReminder.supported) {
-      FollowReminder.channel.setMethodCallHandler(null);
-    }
+    followTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     atmosphere.dispose();
     source.close();
     super.dispose();
@@ -164,7 +158,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => VisibleListenableBuilder(
     listenable: widget.library,
     builder: (context, _) => LayoutBuilder(
       builder: (context, box) {
@@ -550,17 +544,6 @@ class _AppShellState extends State<AppShell> {
                   icon: const Icon(Icons.search, size: 21),
                 ),
               ),
-              IconButton(
-                tooltip: translate('追漫日历', Localizations.localeOf(context)),
-                onPressed: openCalendar,
-                icon: Badge(
-                  isLabelVisible: widget.library.favorites.any(
-                    (book) =>
-                        widget.library.updates[book.path]?['changed'] == true,
-                  ),
-                  child: const Icon(Icons.calendar_month_outlined, size: 20),
-                ),
-              ),
               const SizedBox(width: 6),
               IconButton(
                 tooltip: translate(
@@ -601,6 +584,25 @@ class _AppShellState extends State<AppShell> {
                     },
                     style: small(context),
                   ),
+                  if (books.any(
+                    (b) => widget.library.updates[b.path]?['changed'] == true,
+                  ))
+                    LocalizedText(
+                      '有更新 {count}',
+                      arguments: {
+                        'count': books
+                            .where(
+                              (b) =>
+                                  widget.library.updates[b.path]?['changed'] ==
+                                  true,
+                            )
+                            .length,
+                      },
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -931,6 +933,8 @@ class ComicGrid extends StatelessWidget {
                   ? '当前源无版权'
                   : library?.sourceStatus(comic)?['kind'] == 'missing'
                   ? '入口已失效'
+                  : library?.updates[comic.path]?['changed'] == true
+                  ? '有更新 · {chapter}'
                   : library?.chapterCount(comic) != null
                   ? '{read} / {count} 章已读'
                   : comic.latest.isEmpty && comic.author.isNotEmpty
@@ -945,6 +949,9 @@ class ComicGrid extends StatelessWidget {
               arguments: {
                 'read': library?.readChapterCount(comic) ?? 0,
                 'count': library?.chapterCount(comic) ?? 0,
+                'chapter':
+                    library?.updates[comic.path]?['latest'] as String? ??
+                    comic.latest,
               },
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

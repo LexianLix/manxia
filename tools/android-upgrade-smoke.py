@@ -57,6 +57,7 @@ def main():
     adb('root')
     adb('wait-for-device')
     owner = uid()
+    retire_reminder = 'versionName=0.4.5' in adb('shell', 'dumpsys', 'package', PACKAGE)
     adb('shell', 'am', 'force-stop', PACKAGE)
     raw = subprocess.run(['adb', 'shell', 'cat', PREFS], capture_output=True, text=True, timeout=30)
     root = ET.fromstring(raw.stdout) if raw.returncode == 0 else ET.Element('map')
@@ -69,7 +70,7 @@ def main():
     values = {
         'flutter.favorites':json.dumps([comic], ensure_ascii=False),
         'flutter.history':json.dumps([record], ensure_ascii=False),
-        'flutter.features.v2':json.dumps({'metadata':{comic['path']:{'group':'升级校验组'}},'options':{'startTab':0,'language':'zh_CN'},'searchHistory':['升级保留关键字']}, ensure_ascii=False),
+        'flutter.features.v2':json.dumps({'metadata':{comic['path']:{'group':'升级校验组'}},'options':{'startTab':0,'language':'zh_CN'},'updates':{comic['path']:{'fingerprint':'/m123/','changed':False,'checkedAt':int(adb('shell','date','+%s').strip())*1000}},'searchHistory':['升级保留关键字']}, ensure_ascii=False),
     }
     for key, value in values.items():
         for node in list(root):
@@ -88,7 +89,19 @@ def main():
     adb('push', str(marker), remote_marker)
     adb('shell', 'chown', f'{owner}:{owner}', remote_marker)
     adb('shell', 'restorecon', remote_marker)
+    if retire_reminder:
+        if int(adb('shell','getprop','ro.build.version.sdk').strip()) >= 33:
+            adb('shell','pm','grant',PACKAGE,'android.permission.POST_NOTIFICATIONS')
+        hour = (int(adb('shell','date','+%H').strip()) + 2) % 24
+        legacy = args.output/'legacy-reminder.xml'
+        legacy.write_text('<map><boolean name="enabled" value="true"/><set name="days">'+''.join(f'<string>{day}</string>' for day in range(1,8))+f'</set><int name="hour" value="{hour}"/><int name="minute" value="0"/></map>',encoding='utf-8')
+        remote = f'{DATA}/shared_prefs/follow-reminder.xml'
+        adb('push',str(legacy),remote);adb('shell','chown',f'{owner}:{owner}',remote);adb('shell','chmod','600',remote);adb('shell','restorecon',remote)
     launch()
+    if retire_reminder:
+        alarm = adb('shell','dumpsys','alarm')
+        (args.output/'legacy-alarm-before.txt').write_text(alarm,encoding='utf-8')
+        assert re.search(r'(?m)^\s*tag=\*walarm\*:io\.manxia\.FOLLOW_REMINDER\s*$',alarm), 'Old version did not register the synthetic reminder'
     old_xml, _ = capture(args.output, 'old-library')
     if comic['title'] not in old_xml:
         raise RuntimeError('Old release did not load the synthetic library')
@@ -105,9 +118,14 @@ def main():
     painted = home_title_evidence(new_xml, screen)
     result = {'in_place_install':True,'same_uid':uid()==owner,'preferences_retained':kept,'files_retained':marker_kept,
               'library_visible':comic['title'] in new_xml,'home_painted':painted,'scope':'synthetic library, signed APK replacement on emulator'}
+    if retire_reminder:
+        alarm = adb('shell','dumpsys','alarm')
+        (args.output/'legacy-alarm-after.txt').write_text(alarm,encoding='utf-8')
+        preferences = ET.fromstring(adb('shell','cat',f'{DATA}/shared_prefs/follow-reminder.xml'))
+        result['legacy_reminder_retired'] = not re.search(r'(?m)^\s*tag=\*walarm\*:io\.manxia\.FOLLOW_REMINDER\s*$',alarm) and any(n.get('name')=='enabled' and n.get('value')=='false' for n in preferences)
     (args.output / 'upgrade-verdict.json').write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False), flush=True)
-    if not all([result['same_uid'],kept,marker_kept,result['library_visible'],painted['painted']]):
+    if not all([result['same_uid'],kept,marker_kept,result['library_visible'],painted['painted'],result.get('legacy_reminder_retired',True)]):
         raise SystemExit(1)
 
 if __name__ == '__main__':

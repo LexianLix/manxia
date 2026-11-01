@@ -134,7 +134,7 @@ class _ManxiaAppState extends State<ManxiaApp> {
       colorScheme: scheme,
       visualDensity: VisualDensity.standard,
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface.withValues(alpha: .78),
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,

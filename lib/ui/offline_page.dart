@@ -1,3 +1,4 @@
+import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -60,7 +61,7 @@ class _OfflinePageState extends State<OfflinePage> {
       appBar: AppBar(
         title: const LocalizedText('下载与本地书库', style: TextStyle(fontSize: 18)),
         actions: [
-          if (offline != null)
+          if (offline != null && offline.entries.isNotEmpty)
             IconButton(
               tooltip: translate('离线空间', Localizations.localeOf(c)),
               icon: const Icon(Icons.storage_outlined),
@@ -99,7 +100,7 @@ class _OfflinePageState extends State<OfflinePage> {
       ),
       body: offline == null
           ? const Center(child: LocalizedText('离线书库尚未初始化'))
-          : ListenableBuilder(
+          : VisibleListenableBuilder(
               listenable: offline,
               builder: (c, _) => Column(
                 children: [
@@ -135,41 +136,39 @@ class _OfflinePageState extends State<OfflinePage> {
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: translate('刷新任务', Localizations.localeOf(c)),
-                          onPressed: offline.pump,
-                          icon: const Icon(Icons.refresh),
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: translate(
-                            '下载任务操作',
-                            Localizations.localeOf(c),
+                        if (offline.entries.isNotEmpty)
+                          PopupMenuButton<String>(
+                            tooltip: translate(
+                              '下载任务操作',
+                              Localizations.localeOf(c),
+                            ),
+                            popUpAnimationStyle: RoomMotion.sheet(c),
+                            onSelected: (action) async {
+                              if (action == 'retry') {
+                                await offline.retryFailed();
+                              }
+                              if (action == 'pause') await offline.pauseAll();
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'retry',
+                                enabled: offline.entries.any(
+                                  (e) => e['status'] == 'failed',
+                                ),
+                                child: const LocalizedText('重试所有失败任务'),
+                              ),
+                              PopupMenuItem(
+                                value: 'pause',
+                                enabled: offline.entries.any(
+                                  (e) => [
+                                    'queued',
+                                    'downloading',
+                                  ].contains(e['status']),
+                                ),
+                                child: const LocalizedText('暂停所有下载'),
+                              ),
+                            ],
                           ),
-                          popUpAnimationStyle: RoomMotion.sheet(c),
-                          onSelected: (action) async {
-                            if (action == 'retry') await offline.retryFailed();
-                            if (action == 'pause') await offline.pauseAll();
-                          },
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                              value: 'retry',
-                              enabled: offline.entries.any(
-                                (e) => e['status'] == 'failed',
-                              ),
-                              child: const LocalizedText('重试所有失败任务'),
-                            ),
-                            PopupMenuItem(
-                              value: 'pause',
-                              enabled: offline.entries.any(
-                                (e) => [
-                                  'queued',
-                                  'downloading',
-                                ].contains(e['status']),
-                              ),
-                              child: const LocalizedText('暂停所有下载'),
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),

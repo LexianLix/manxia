@@ -105,7 +105,7 @@ void main() {
               find.ancestor(of: settings, matching: find.byType(Opacity)).first,
             )
             .opacity,
-        inExclusiveRange(0, 1),
+        0,
       );
       await capture('route-forward-50');
       final before = tester

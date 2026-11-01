@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manxia/data/comic.dart';
 import 'package:manxia/data/dm5_source.dart';
-import 'package:manxia/data/follow_calendar.dart';
+import 'package:manxia/data/follow_updates.dart';
 import 'package:manxia/data/library.dart';
-import 'package:manxia/data/reading_progress.dart';
 import 'features_test.dart' as fixtures;
 
 class _Source extends Dm5Source {
@@ -24,7 +23,7 @@ class _Source extends Dm5Source {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
-    'baseline has no fake updates; new chapters retain observation date and deduplicate',
+    'baseline has no fake updates; new chapters retain a direct unread flag',
     () async {
       final library = await fixtures.library();
       await library.toggle(fixtures.comic);
@@ -37,22 +36,17 @@ void main() {
         Chapter('/one/', 'One'),
       ]);
       await library.recordFollow(first, at: DateTime(2026, 10, 29));
-      expect(library.followEvents, isEmpty);
+      expect(library.updates[fixtures.comic.path]!['changed'], false);
       await library.recordFollow(next, at: DateTime(2026, 10, 31, 20));
-      expect(library.followEvents, hasLength(1));
-      final event = library.followEvents.single;
-      expect(event.observedAt, DateTime(2026, 10, 31, 20));
-      expect(event.chapters.map((c) => c.path), ['/three/', '/two/']);
-      expect(event.value.containsKey('publishedAt'), false);
+      expect(library.updates[fixtures.comic.path]!['changed'], true);
+      expect(library.updates[fixtures.comic.path]!['latest'], 'Three');
+      expect(library.meta(fixtures.comic).containsKey('followEvents'), false);
       await library.recordFollow(next, at: DateTime(2026, 11, 1));
       await library.recordFollow(first);
       await library.recordFollow(next);
-      expect(library.followEvents, hasLength(1));
-      expect(library.eventUnread(event), true);
-      await library.markEventRead(event, true);
-      expect(library.eventUnread(event), false);
-      await library.markEventRead(event, false);
-      expect(library.chapterRead(fixtures.comic, '/two/'), false);
+      expect(library.updates[fixtures.comic.path]!['changed'], true);
+      await library.markUpdatesRead([fixtures.comic.path]);
+      expect(library.updates[fixtures.comic.path]!['changed'], false);
     },
   );
 
@@ -74,19 +68,20 @@ void main() {
           Chapter('/1/', '1'),
         ]),
       );
-      expect(library.followEvents.single.chapters.single.path, '/extra/');
+      expect(library.updates[fixtures.comic.path]!['changed'], true);
+      await library.markUpdatesRead([fixtures.comic.path]);
       await library.recordFollow(
         ComicDetail(fixtures.comic, const [
           Chapter('/x/', 'X'),
           Chapter('/y/', 'Y'),
         ]),
       );
-      expect(library.followEvents, hasLength(1));
+      expect(library.updates[fixtures.comic.path]!['changed'], false);
     },
   );
 
   test(
-    'legacy update state migrates; journal and focus survive reload and backup',
+    'direct update state reloads and old metadata remains compatible with backup',
     () async {
       final library = await fixtures.library();
       await library.toggle(fixtures.comic);
@@ -94,20 +89,24 @@ void main() {
         'fingerprint': '/old/',
         'changed': false,
       };
+      await library.setMeta(fixtures.comic, {
+        'followEvents': [
+          {'id': 'legacy', 'observedAt': 1, 'chapters': []},
+        ],
+      });
       await library.recordFollow(
         ComicDetail(fixtures.comic, const [Chapter('/new/', 'New')]),
       );
       await library.setMeta(fixtures.comic, {'followPinned': true});
       final reloaded = Library(library.prefs);
       await reloaded.load();
-      expect(reloaded.followEvents, hasLength(1));
+      expect(reloaded.updates[fixtures.comic.path]!['changed'], true);
       final backup = library.backup();
       final restored = await fixtures.library();
       await restored.restore(backup);
-      expect(restored.followEvents.single.chapters.single.path, '/new/');
+      expect(restored.meta(fixtures.comic)['followEvents'][0]['id'], 'legacy');
       expect(restored.meta(fixtures.comic)['followPinned'], true);
       await restored.toggle(fixtures.comic);
-      expect(restored.followEvents, isEmpty);
       expect(
         restored.metadata[fixtures.comic.path]!['followEvents'],
         isNotEmpty,
@@ -127,7 +126,13 @@ void main() {
         FollowChecker.check(library, source),
       ]);
       expect(source.calls, 1);
-      expect(library.followEvents, isEmpty);
+      expect(library.updates[fixtures.comic.path]!['changed'], false);
+      await FollowChecker.check(library, source, onlyDue: true);
+      expect(
+        source.calls,
+        1,
+        reason: 'Repeated foreground checks must not refetch a recent catalog',
+      );
       final prior = library.updates[fixtures.comic.path]!['fingerprint'];
       source.failing = true;
       expect(await FollowChecker.check(library, source), 1);

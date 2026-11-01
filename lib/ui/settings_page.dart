@@ -1,3 +1,4 @@
+import 'visible_listenable_builder.dart';
 import 'package:flutter/material.dart';
 import '../data/library.dart';
 import '../data/dm5_source.dart';
@@ -107,7 +108,7 @@ class SettingsSection extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: ListenableBuilder(
+          child: VisibleListenableBuilder(
             listenable: library,
             builder: (context, _) => ListView(
               key: PageStorageKey('settings-section-$section'),

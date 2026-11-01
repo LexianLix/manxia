@@ -1,4 +1,4 @@
-name: Verify Android reading features
+name: Verify Android navigation
 on:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ permissions:
   contents: read
   actions: read
 jobs:
-  reminders:
+  navigation:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -25,6 +25,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - run: python3 -m pip install Pillow
       - name: Download the exact profile build
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,7 +41,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Exercise reminder permissions and lifecycle
+      - name: Exercise shared headers, navigation and network callbacks
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
@@ -49,10 +50,10 @@ jobs:
           profile: pixel_2
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: python3 tools/android-follow-reminder-smoke.py prepared/app-profile.apk
+          script: python3 tools/android-navigation-smoke.py prepared/app-profile.apk
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: follow-android-${{ matrix.api }}
-          path: follow-evidence/
+          name: navigation-android-${{ matrix.api }}
+          path: navigation-evidence/
           if-no-files-found: warn
