@@ -2,6 +2,7 @@ import {readFile, writeFile, readdir, mkdir} from 'node:fs/promises';
 import {resolve, dirname, basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
+import {checkCharacter,characterZip} from './character-package.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function validatePlugin(p) {
@@ -12,8 +13,15 @@ export function validatePlugin(p) {
   if (!/^[a-z][a-z0-9_-]{0,31}\.[a-z0-9][a-z0-9_.-]{0,63}$/.test(p.id)) fail('Invalid author.name id');
   if (!/^\d+\.\d+\.\d+$/.test(p.version)) fail('Expected x.y.z version');
   for (const key of ['name', 'author', 'license']) if (typeof p[key] !== 'string' || !p[key].trim() || p[key].length > 100) fail(`Invalid ${key}`);
+  if(p.locales!=null) {
+    if(typeof p.locales!=='object'||Array.isArray(p.locales))fail('Invalid plugin locales');
+    for(const [tag,fields] of Object.entries(p.locales)) {
+      if(!['en','zh_TW'].includes(tag)||!fields||typeof fields!=='object'||Array.isArray(fields))fail('Invalid plugin locale');
+      for(const [key,text] of Object.entries(fields))if(!['name','description'].includes(key)||typeof text!=='string'||!text.trim()||text.length>(key==='name'?100:1200))fail('Invalid localized plugin text');
+    }
+  }
   const c = p.contributes;
-  if (!c || Array.isArray(c) || !Object.keys(c).length || Object.keys(c).some(k => !['theme','reader','navigation','source'].includes(k))) fail('Unsupported contribution');
+  if (!c || Array.isArray(c) || !Object.keys(c).length || Object.keys(c).some(k => !['theme','reader','navigation','source','character'].includes(k))) fail('Unsupported contribution');
   const settings = new Map();
   for (const s of p.settings ?? []) {
     if (!/^[a-z][a-zA-Z0-9_]{0,39}$/.test(s.key) || settings.has(s.key)) fail('Invalid/duplicate setting');
@@ -52,11 +60,12 @@ export function validatePlugin(p) {
     if (url.protocol !== 'https:' || url.username || url.password || !/^[a-z0-9_-]{1,40}$/.test(s.id) || ['dm5','local'].includes(s.id)) fail('Invalid source address/id');
     for (const key of ['name','cards','title','link','cover','chapters','pages']) if (typeof s[key] !== 'string' || !s[key].trim()) fail(`Missing source ${key}`);
   }
+  if(resolved.character)checkCharacter(resolved.character);
   return p;
 }
 
 async function main() {
-  const [command, path] = process.argv.slice(2);
+  const [command, path, output] = process.argv.slice(2);
   if (command === 'validate') {
     const p = validatePlugin(JSON.parse(await readFile(resolve(path), 'utf8')));
     console.log(`Valid: ${p.id}@${p.version} (host additionally validates CSS selectors)`);
@@ -68,12 +77,38 @@ async function main() {
       const p = validatePlugin(JSON.parse(bytes));
       if (ids.has(p.id)) throw new Error(`Duplicate id ${p.id}`);
       ids.add(p.id); manifests.push(p);
-      entries.push({id:p.id, version:p.version, url:`https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/${encodeURIComponent(name)}`,sha256:createHash('sha256').update(bytes).digest('hex')});
+      let packageName=name,packageBytes=bytes;
+      if(p.contributes.character) {
+        const index=JSON.parse(await readFile(resolve(root,'assets/characters/index.json'),'utf8'));
+        const images=new Map();
+        for(const f of Object.values(p.contributes.character.states)) {
+          const asset=index.images[f.sha256];
+          if(typeof asset!=='string' || !asset.startsWith('assets/characters/') || asset.includes('..'))throw new Error(`Missing bundled image ${f.file}`);
+          images.set(f.file,await readFile(resolve(root,asset)));
+        }
+        packageName=name.replace(/\.json$/,'.zip');packageBytes=characterZip(p,images);
+        await writeFile(resolve(folder,packageName),packageBytes);
+      }
+      entries.push({id:p.id, version:p.version, url:`https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/${encodeURIComponent(packageName)}`,sha256:createHash('sha256').update(packageBytes).digest('hex')});
     }
     await mkdir(resolve(root,'assets/plugins'), {recursive:true});
-    await writeFile(resolve(root,'plugins/index.json'), JSON.stringify({schemaVersion:1, plugins:entries},null,2)+'\n');
+    // Keep the original catalog consumable by hosts predating character packs.
+    const legacy=entries.filter(e=>!manifests.find(p=>p.id===e.id).contributes.character);
+    await writeFile(resolve(root,'plugins/index.json'), JSON.stringify({schemaVersion:1, plugins:legacy},null,2)+'\n');
+    await mkdir(resolve(root,'plugins/v1.1'),{recursive:true});
+    await writeFile(resolve(root,'plugins/v1.1/index.json'),JSON.stringify({schemaVersion:1,plugins:entries},null,2)+'\n');
     await writeFile(resolve(root,'assets/plugins/catalog.json'), JSON.stringify({schemaVersion:1,plugins:manifests},null,2)+'\n');
     console.log(`Built ${manifests.length} plugins and SHA-256 catalog`);
-  } else throw new Error('Usage: node tools/plugin-sdk.mjs validate <manifest.json> | build');
+  } else if(command==='pack-character') {
+    const folder=resolve(path),p=JSON.parse(await readFile(resolve(folder,'manifest.json'),'utf8')),images=new Map();
+    for(const f of Object.values(p.contributes?.character?.states??{})) {
+      if(!/^[a-z][a-z0-9_-]{0,30}\.png$/.test(f.file))throw new Error('Invalid character image filename');
+      const bytes=await readFile(resolve(folder,f.file));images.set(f.file,bytes);f.sha256=createHash('sha256').update(bytes).digest('hex');
+    }
+    validatePlugin(p);
+    const target=resolve(output??`${basename(folder)}.zip`);
+    await writeFile(target,characterZip(p,images),{flag:'wx'});
+    console.log(`Created ${target}`);
+  } else throw new Error('Usage: node tools/plugin-sdk.mjs validate <manifest.json> | build | pack-character <folder> [output.zip]');
 }
 if (process.argv[1] && basename(process.argv[1]) === 'plugin-sdk.mjs') main().catch(e => {console.error(e.message);process.exitCode=1;});

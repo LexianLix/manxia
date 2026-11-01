@@ -4,11 +4,30 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'library.dart';
 import 'plugin.dart';
+import 'plugin_package.dart';
+import 'character_assets.dart';
+import 'character_definition.dart';
 export 'plugin.dart';
 
 class PluginRegistry {
-  PluginRegistry(this.library);
+  PluginRegistry(this.library, {CharacterAssets? characterAssets})
+    : assets = characterAssets ?? CharacterAssets.shared;
   final Library library;
+  final CharacterAssets assets;
+  static final _operations = Expando<Future<void>>();
+  Future<void> _run(Future<void> Function() action) {
+    final prior = _operations[library] ?? Future<void>.value();
+    final next = prior.then((_) => action());
+    final quiet = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    _operations[library] = quiet;
+    return next.whenComplete(() {
+      if (identical(_operations[library], quiet)) _operations[library] = null;
+    });
+  }
+
   List<Map<String, dynamic>> get installed {
     final raw = library.options['plugins.installed'];
     if (raw is! List) return [];
@@ -32,7 +51,8 @@ class PluginRegistry {
   Future<void> save(List<Map<String, dynamic>> list) =>
       library.setOption('plugins.installed', list);
 
-  Future<void> install(ManxiaPlugin plugin) async {
+  Future<void> install(ManxiaPlugin plugin) => _run(() => _install(plugin));
+  Future<void> _install(ManxiaPlugin plugin) async {
     final list = installed;
     final old = entry(plugin.id);
     if (old != null &&
@@ -43,7 +63,14 @@ class PluginRegistry {
       if ((plugin.contributions.containsKey('theme') &&
               (item['manifest']['contributes'] as Map).containsKey('theme')) ||
           (plugin.contributions.containsKey('reader') &&
-              (item['manifest']['contributes'] as Map).containsKey('reader'))) {
+              (item['manifest']['contributes'] as Map).containsKey('reader')) ||
+          (plugin.contributions.containsKey('character') &&
+              (item['manifest']['contributes'] as Map).containsKey(
+                'character',
+              ))) {
+        if (item['enabled'] == true && item['manifest']['id'] != plugin.id) {
+          item['disabledBy'] = plugin.id;
+        }
         item['enabled'] = false;
       }
       if (plugin.contributions['source'] is Map &&
@@ -66,33 +93,90 @@ class PluginRegistry {
     } catch (_) {
       config = {};
     }
+    final resolved = plugin.resolve(config);
+    if (resolved['character'] is Map) {
+      final count = installed
+          .where(
+            (e) =>
+                (e['manifest']['contributes'] as Map).containsKey('character'),
+          )
+          .length;
+      if (count >= 10 &&
+          (old?['manifest']['contributes'] as Map?)?.containsKey('character') !=
+              true) {
+        throw const FormatException('最多安装 10 个角色包');
+      }
+      await assets.prepare(
+        CharacterDefinition(Map<String, dynamic>.from(resolved['character'])),
+        plugin.resources,
+      );
+    }
     list.add({'manifest': plugin.json, 'enabled': true, 'config': config});
     await save(list);
   }
 
-  Future<void> enable(String id, bool enabled) async {
+  Future<void> enable(String id, bool enabled) => _run(() async {
     final item = entry(id);
     if (item == null) return;
     if (enabled) {
-      await install(ManxiaPlugin(Map<String, dynamic>.from(item['manifest'])));
+      await _install(ManxiaPlugin(Map<String, dynamic>.from(item['manifest'])));
     } else {
       final list = installed;
       list.firstWhere((e) => e['manifest']['id'] == id)['enabled'] = false;
+      list.firstWhere((e) => e['manifest']['id'] == id).remove('disabledBy');
       await save(list);
     }
-  }
+  });
 
-  Future<void> uninstall(String id) async =>
-      save(installed..removeWhere((e) => e['manifest']['id'] == id));
-  Future<void> configure(String id, String key, dynamic value) async {
-    final list = installed;
-    final item = list.firstWhere((e) => e['manifest']['id'] == id);
-    final config = Map<String, dynamic>.from(item['config'] ?? {})
-      ..[key] = value;
-    ManxiaPlugin(Map<String, dynamic>.from(item['manifest'])).resolve(config);
-    item['config'] = config;
-    await save(list);
-  }
+  Future<void> uninstall(String id) => _run(() async {
+    final old = entry(id);
+    await save(installed..removeWhere((e) => e['manifest']['id'] == id));
+    if (old?['manifest']['contributes']['character'] is! Map) return;
+    final removed = CharacterDefinition(
+      Map<String, dynamic>.from(old!['manifest']['contributes']['character']),
+    );
+    final retained = <String>{};
+    for (final item in installed) {
+      final c = item['manifest']['contributes']['character'];
+      if (c is Map) {
+        retained.addAll(
+          CharacterDefinition(
+            Map<String, dynamic>.from(c),
+          ).frames.values.map((f) => f.sha256),
+        );
+      }
+    }
+    for (final hash
+        in removed.frames.values
+            .map((f) => f.sha256)
+            .toSet()
+            .difference(retained)) {
+      try {
+        await assets.remove(hash);
+      } catch (_) {
+        /* Preferences are already safely removed. */
+      }
+    }
+  });
+  Future<void> configure(String id, String key, dynamic value) => _run(
+    () async {
+      final list = installed;
+      final item = list.firstWhere((e) => e['manifest']['id'] == id);
+      final config = Map<String, dynamic>.from(item['config'] ?? {})
+        ..[key] = value;
+      final resolved = ManxiaPlugin(
+        Map<String, dynamic>.from(item['manifest']),
+      ).resolve(config);
+      if (resolved['character'] is Map) {
+        await assets.prepare(
+          CharacterDefinition(Map<String, dynamic>.from(resolved['character'])),
+          const {},
+        );
+      }
+      item['config'] = config;
+      await save(list);
+    },
+  );
 
   static int compareVersions(String a, String b) {
     final x = a.split('.').map(int.parse).toList(),
@@ -107,7 +191,7 @@ class PluginRegistry {
 
 class PluginCatalog {
   static const official =
-      'https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/index.json';
+      'https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/v1.1/index.json';
   static Uri address(String text) {
     final uri = Uri.parse(text);
     if (uri.scheme != 'https' ||
@@ -173,9 +257,7 @@ class PluginCatalog {
       if (e['sha256'] != sha256.convert(bytes).toString()) {
         throw const FormatException('插件内容与 SHA-256 不一致');
       }
-      final plugin = ManxiaPlugin(
-        Map<String, dynamic>.from(jsonDecode(utf8.decode(bytes))),
-      );
+      final plugin = PluginPackage.decode(Uint8List.fromList(bytes));
       if (plugin.id != e['id'] || plugin.version != e['version']) {
         throw const FormatException('插件 id 或版本与目录不一致');
       }

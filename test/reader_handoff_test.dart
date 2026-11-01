@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:manxia/data/comic.dart';
 import 'package:manxia/data/dm5_source.dart';
 import 'package:manxia/data/library.dart';
+import 'package:manxia/data/reading_profiles.dart';
 import 'package:manxia/data/offline_library.dart';
 import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/reader_page.dart';
@@ -639,6 +640,68 @@ void main() {
           );
         }
         await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'reading profile preview cancels and applies without losing position; reduced=$reduced',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 760);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = await _Fixture.start(
+          tester,
+          reduced: reduced,
+          initialPage: 1,
+          initialUrls: const ['offline:old', 'offline:old', 'offline:old'],
+        );
+        final profile = await f.library.saveReadingProfile('试读方案', {
+          'mode': 'strip',
+          'background': 'ink',
+          'doublePage': false,
+        });
+        final original = Map<String, dynamic>.from(
+          f.library.meta(comic)['reader'] as Map,
+        );
+        Future<void> preview() async {
+          await tester.tap(find.byTooltip('阅读设置'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('个人阅读方案'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(profile.name));
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('预览方案'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('预览方案'));
+          await _decode(tester);
+        }
+
+        await preview();
+        expect(
+          find.byKey(const ValueKey('reading-profile-apply')),
+          findsOneWidget,
+        );
+        expect(f.library.meta(comic)['reader'], original);
+        expect(f.library.record(comic)!.page, 1);
+        await tester.tap(find.byKey(const ValueKey('reading-profile-cancel')));
+        await _decode(tester);
+        expect(f.library.meta(comic)['reader'], original);
+        expect(f.library.record(comic)!.page, 1);
+        await preview();
+        await tester.tap(find.byKey(const ValueKey('reading-profile-apply')));
+        await _decode(tester);
+        expect(f.library.readerOptions(comic)['mode'], 'strip');
+        expect(f.library.readerOptions(comic)['background'], 'ink');
+        expect(f.library.record(comic)!.page, 1);
+        await tester.tap(find.text('撤销'));
+        await _decode(tester);
+        expect(f.library.meta(comic)['reader'], original);
+        expect(f.library.record(comic)!.page, 1);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        f.library.dispose();
       },
     );
   }

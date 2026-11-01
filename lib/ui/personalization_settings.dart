@@ -3,6 +3,7 @@ import '../data/library.dart';
 import '../data/plugin.dart';
 import 'glass_navigation.dart';
 import 'localized_text.dart';
+import 'preference_choice.dart';
 
 List<int> navigationIds(Library library) {
   final manual = library.options['navigation'];
@@ -214,37 +215,26 @@ class PersonalizationSettings extends StatelessWidget {
             value: defaults['doublePage'] != false,
             onChanged: (v) => reader('doublePage', v),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const LocalizedText('阅读默认背景'),
-            trailing: DropdownButton<String>(
-              value: defaults['background'] as String? ?? 'theme',
-              items: const [
-                DropdownMenuItem(value: 'theme', child: LocalizedText('跟随应用')),
-                DropdownMenuItem(value: 'ink', child: LocalizedText('夜墨')),
-                DropdownMenuItem(value: 'paper', child: LocalizedText('纸白')),
-                DropdownMenuItem(value: 'sepia', child: LocalizedText('旧纸')),
-              ],
-              onChanged: (v) {
-                if (v != null) reader('background', v);
-              },
-            ),
+          PreferenceChoice<String>(
+            title: '阅读默认背景',
+            value: defaults['background'] as String? ?? 'theme',
+            choices: const {
+              'theme': '跟随应用',
+              'ink': '夜墨',
+              'paper': '纸白',
+              'sepia': '旧纸',
+            },
+            onChanged: (v) {
+              if (v != null) reader('background', v);
+            },
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const LocalizedText('阅读工具栏自动收起'),
-            trailing: DropdownButton<int>(
-              value: library.option<int>('chromeTimeout', 0),
-              items: const [
-                DropdownMenuItem(value: 0, child: LocalizedText('手动控制')),
-                DropdownMenuItem(value: 3, child: LocalizedText('3 秒')),
-                DropdownMenuItem(value: 5, child: LocalizedText('5 秒')),
-                DropdownMenuItem(value: 8, child: LocalizedText('8 秒')),
-              ],
-              onChanged: (v) {
-                if (v != null) library.setOption('chromeTimeout', v);
-              },
-            ),
+          PreferenceChoice<int>(
+            title: '阅读工具栏自动收起',
+            value: library.option<int>('chromeTimeout', 0),
+            choices: const {0: '手动控制', 3: '3 秒', 5: '5 秒', 8: '8 秒'},
+            onChanged: (v) {
+              if (v != null) library.setOption('chromeTimeout', v);
+            },
           ),
         ],
       ],

@@ -1,6 +1,28 @@
 {
-  "apiVersion": 1, "id": "manxia.local-room", "name": "本地收藏室", "version": "1.0.0",
-  "author": "Manxia", "license": "MIT",
+  "apiVersion": 1,
+  "id": "manxia.local-room",
+  "name": "本地收藏室",
+  "version": "1.0.0",
+  "author": "Manxia",
+  "license": "MIT",
   "description": "把书架、下载、足迹、插件和设置留在手边，适合主要阅读本地漫画的人。手动定制的导航优先于插件布局。",
-  "contributes": {"navigation": [0, 4, 2, 5, 3]}
+  "contributes": {
+    "navigation": [
+      0,
+      4,
+      2,
+      5,
+      3
+    ]
+  },
+  "locales": {
+    "en": {
+      "name": "Local Library",
+      "description": "Keep your library, downloads, history, plugins and settings close. Your manual navigation layout takes priority."
+    },
+    "zh_TW": {
+      "name": "本機收藏室",
+      "description": "把書架、下載、足跡、外掛和設定留在手邊；手動設定的導覽優先。"
+    }
+  }
 }

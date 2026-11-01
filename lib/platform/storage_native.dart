@@ -45,6 +45,13 @@ Future<BlobStore> createWallpaperStore() async {
   );
 }
 
+Future<BlobStore> createCharacterStore() async {
+  final root = await getApplicationDocumentsDirectory();
+  return NativeBlobStore(
+    await Directory('${root.path}/manxia/characters').create(recursive: true),
+  );
+}
+
 Future<BlobStore> createBackupStore() async {
   final root = await getApplicationDocumentsDirectory();
   return NativeBlobStore(

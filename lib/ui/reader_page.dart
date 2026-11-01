@@ -20,6 +20,8 @@ import 'reader_preloader.dart';
 import 'chapter_catalog.dart';
 import 'content_handoff.dart';
 import 'materials.dart';
+import '../data/reading_profiles.dart';
+import 'reading_profiles_page.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -54,6 +56,10 @@ class _ReaderPageState extends State<ReaderPage>
     widget.comic,
   );
   final idleCommand = ReaderControl();
+  ReadingProfileSelection? profilePreview;
+  Map<String, dynamic>? profileBefore;
+  bool applyingProfile = false;
+  bool controlsBeforeProfile = true;
   ReaderControl get command => scene?.control ?? idleCommand;
   _ChapterScene? scene, incoming, outgoing;
   final ownedScenes = <_ChapterScene>{};
@@ -83,7 +89,9 @@ class _ReaderPageState extends State<ReaderPage>
   Timer? chromeTimer;
   void armChromeTimer() {
     chromeTimer?.cancel();
-    final seconds = widget.library.option<int>('chromeTimeout', 0);
+    final seconds =
+        (options['chromeTimeout'] as num?)?.toInt() ??
+        widget.library.option<int>('chromeTimeout', 0);
     if (seconds <= 0 || !controls) return;
     chromeTimer = Timer(Duration(seconds: seconds), () {
       if (!mounted) return;
@@ -98,6 +106,7 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void toggleChrome() {
+    if (profilePreview != null) return;
     setState(() => controls = !controls);
     armChromeTimer();
   }
@@ -431,6 +440,7 @@ class _ReaderPageState extends State<ReaderPage>
 
   bool forward = true;
   Future<void> prepareOffline() async {
+    if (profilePreview != null) return;
     final offline = OfflineLibrary.instance;
     if (offline == null || widget.comic.sourceId == 'local') return;
     final configured = options['smartOfflineChapters'];
@@ -812,6 +822,7 @@ class _ReaderPageState extends State<ReaderPage>
           child: Column(
             children: [
               EmptyState(
+                expression: 'puzzled',
                 icon: Icons.cloud_off_outlined,
                 title: '这一章暂时无法打开',
                 message: chapterError!,
@@ -1160,75 +1171,237 @@ class _ReaderPageState extends State<ReaderPage>
     ),
   );
 
+  void cancelProfilePreview() {
+    if (profileBefore == null || applyingProfile) return;
+    setState(() {
+      options = profileBefore!;
+      profileBefore = null;
+      profilePreview = null;
+      controls = controlsBeforeProfile;
+    });
+    armChromeTimer();
+  }
+
+  Future<void> chooseReadingProfile() async {
+    final selection = await showReaderSheet<ReadingProfileSelection>(
+      (c) => SizedBox(
+        height: MediaQuery.sizeOf(c).height * .72,
+        child: ReadingProfilesPanel(
+          library: widget.library,
+          comic: widget.comic,
+          current: Map.of(options),
+          onPreview: (value) => Navigator.pop(c, value),
+        ),
+      ),
+    );
+    if (!mounted || selection == null) return;
+    chromeTimer?.cancel();
+    setState(() {
+      profileBefore = Map.of(options);
+      controlsBeforeProfile = controls;
+      profilePreview = selection;
+      options = widget.library.previewReadingProfile(
+        widget.comic,
+        selection.profile,
+        asDefault: selection.asDefault,
+      );
+      controls = false;
+    });
+  }
+
+  Future<void> applyProfilePreview() async {
+    final selection = profilePreview;
+    if (selection == null || applyingProfile) return;
+    setState(() => applyingProfile = true);
+    try {
+      final change = await widget.library.applyReadingProfile(
+        widget.comic,
+        selection.profile,
+        asDefault: selection.asDefault,
+      );
+      if (!mounted) return;
+      setState(() {
+        options = widget.library.readerOptions(widget.comic);
+        profileBefore = null;
+        profilePreview = null;
+        applyingProfile = false;
+        controls = true;
+      });
+      preload();
+      armChromeTimer();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const LocalizedText('阅读方案已应用'),
+          action: SnackBarAction(
+            label: translate('撤销', Localizations.localeOf(context)),
+            onPressed: () async {
+              final undone = await change.undo();
+              if (mounted && undone) {
+                setState(
+                  () => options = widget.library.readerOptions(widget.comic),
+                );
+                preload();
+                armChromeTimer();
+              }
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => applyingProfile = false);
+      cancelProfilePreview();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Widget profilePreviewRail(ReadingProfileSelection selection) => MilkGlass(
+    key: ValueKey(selection.profile.id),
+    radius: 18,
+    high: widget.library.option<String>('quality', 'high') == 'high',
+    padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LocalizedText(
+          '预览：{name}',
+          arguments: {'name': readingProfileName(context, selection.profile)},
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              key: const ValueKey('reading-profile-cancel'),
+              onPressed: applyingProfile ? null : cancelProfilePreview,
+              child: const LocalizedText('取消预览'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              key: const ValueKey('reading-profile-apply'),
+              onPressed: applyingProfile ? null : applyProfilePreview,
+              child: const LocalizedText('应用方案'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: readerTheme,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        backgroundColor: switch (options['background']) {
-          'theme' => Colors.transparent,
-          'paper' => const Color(0xfff3f1e9),
-          'sepia' => const Color(0xffdaceb9),
-          _ => const Color(0xff111512),
-        },
-        body: SafeArea(
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-                  turn(rtl ? -1 : 1),
-              const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-                  turn(rtl ? 1 : -1),
-              const SingleActivator(LogicalKeyboardKey.escape): () =>
-                  Navigator.maybePop(context),
-              const SingleActivator(LogicalKeyboardKey.space): () =>
-                  toggleChrome(),
-            },
-            child: Focus(
-              autofocus: true,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(child: chapterSurfaces()),
-                  AnimatedPositioned(
-                    duration: RoomMotion.duration(context, RoomMotion.feedback),
-                    curve: RoomMotion.ease,
-                    top: controls ? 74 : 12,
-                    left: 12,
-                    right: 12,
-                    child: chapterStatus(),
-                  ),
-                  if (!bottomTools)
+    return PopScope(
+      canPop: profilePreview == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) cancelProfilePreview();
+      },
+      child: Theme(
+        data: readerTheme,
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          backgroundColor: switch (options['background']) {
+            'theme' => Colors.transparent,
+            'paper' => const Color(0xfff3f1e9),
+            'sepia' => const Color(0xffdaceb9),
+            _ => const Color(0xff111512),
+          },
+          body: SafeArea(
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                    turn(rtl ? -1 : 1),
+                const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                    turn(rtl ? 1 : -1),
+                const SingleActivator(LogicalKeyboardKey.escape): () =>
+                    Navigator.maybePop(context),
+                const SingleActivator(LogicalKeyboardKey.space): () =>
+                    toggleChrome(),
+              },
+              child: Focus(
+                autofocus: true,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(child: chapterSurfaces()),
+                    AnimatedPositioned(
+                      duration: RoomMotion.duration(
+                        context,
+                        RoomMotion.feedback,
+                      ),
+                      curve: RoomMotion.ease,
+                      top: controls ? 74 : 12,
+                      left: 12,
+                      right: 12,
+                      child: chapterStatus(),
+                    ),
+                    if (!bottomTools)
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: headerChrome(context),
+                      ),
                     Align(
-                      alignment: Alignment.topCenter,
-                      child: headerChrome(context),
+                      alignment: Alignment.bottomCenter,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (bottomTools) headerChrome(context),
+                          footerChrome(context),
+                        ],
+                      ),
                     ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (bottomTools) headerChrome(context),
-                        footerChrome(context),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    right: 10,
-                    bottom: 6,
-                    child: ReaderChrome(
-                      visible: !controls,
-                      top: false,
-                      child: LocalizedText(
-                        pageLabel,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: readerTheme.colorScheme.onSurfaceVariant,
+                    Positioned(
+                      right: 10,
+                      bottom: 6,
+                      child: ReaderChrome(
+                        visible: !controls && profilePreview == null,
+                        top: false,
+                        child: LocalizedText(
+                          pageLabel,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: readerTheme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom: 12,
+                      child: IgnorePointer(
+                        ignoring: profilePreview == null,
+                        child: AnimatedSwitcher(
+                          duration: RoomMotion.duration(
+                            context,
+                            RoomMotion.feedback,
+                          ),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                                opacity: animation.drive(
+                                  CurveTween(curve: const _ProfileFadeCurve()),
+                                ),
+                                child: SlideTransition(
+                                  position: animation.drive(
+                                    Tween(
+                                      begin: const Offset(0, .08),
+                                      end: Offset.zero,
+                                    ).chain(CurveTween(curve: RoomMotion.ease)),
+                                  ),
+                                  child: child,
+                                ),
+                              ),
+                          child: profilePreview == null
+                              ? const SizedBox.shrink()
+                              : profilePreviewRail(profilePreview!),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1472,6 +1645,20 @@ class _ReaderPageState extends State<ReaderPage>
                     style: TextStyle(fontSize: 21),
                   ),
                   const SizedBox(height: 22),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.bookmarks_outlined),
+                    title: const LocalizedText('个人阅读方案'),
+                    subtitle: const LocalizedText('保存自己的样式，预览后再应用'),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () async {
+                      final route = ModalRoute.of(c);
+                      Navigator.pop(c);
+                      await route?.completed;
+                      if (mounted) chooseReadingProfile();
+                    },
+                  ),
+                  const Divider(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: SegmentedButton<String>(
@@ -1767,4 +1954,10 @@ class _ChapterScene {
   bool ready = false, failed = false, presented = false;
   bool refreshed = false;
   ({Chapter chapter, int page, double position})? previous;
+}
+
+class _ProfileFadeCurve extends Curve {
+  const _ProfileFadeCurve();
+  @override
+  double transformInternal(double t) => RoomMotion.contentOpacity(t);
 }

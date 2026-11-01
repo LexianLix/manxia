@@ -1,3 +1,4 @@
+import 'companion.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'dart:convert';
@@ -29,11 +30,13 @@ class DiscoveryPage extends StatefulWidget {
     required this.source,
     required this.web,
     required this.onOpen,
+    this.navigationRequest,
   });
   final Library library;
   final Dm5Source source;
   final bool web;
   final ValueChanged<Comic> onOpen;
+  final ValueNotifier<String?>? navigationRequest;
   @override
   State<DiscoveryPage> createState() => _DiscoveryPageState();
 }
@@ -134,7 +137,26 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   @override
   void initState() {
     super.initState();
+    widget.navigationRequest?.addListener(receiveNavigation);
+    receiveNavigation();
     initialize();
+  }
+
+  void receiveNavigation() {
+    final request = widget.navigationRequest?.value;
+    if (request == null) return;
+    widget.navigationRequest!.value = null;
+    selectTab(request);
+  }
+
+  @override
+  void didUpdateWidget(covariant DiscoveryPage old) {
+    super.didUpdateWidget(old);
+    if (old.navigationRequest != widget.navigationRequest) {
+      old.navigationRequest?.removeListener(receiveNavigation);
+      widget.navigationRequest?.addListener(receiveNavigation);
+      receiveNavigation();
+    }
   }
 
   Future<void> initialize() async {
@@ -231,6 +253,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
 
   @override
   void dispose() {
+    widget.navigationRequest?.removeListener(receiveNavigation);
     reveal.dispose();
     super.dispose();
   }
@@ -270,6 +293,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
       if (error != null && !refreshing) {
         return EmptyState(
           key: const ValueKey('discovery-error'),
+          expression: 'puzzled',
           icon: Icons.cloud_off,
           title: '暂时无法打开漫画源',
           message: error!,
@@ -282,6 +306,8 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           heading('发现漫画', '正在打开下一段故事'),
+          if (CompanionScope.maybeOf(context)?.active == true)
+            const Center(child: CompanionPortrait(size: 72)),
           for (var i = 0; i < 3; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 20),

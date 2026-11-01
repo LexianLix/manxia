@@ -1,24 +1,50 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'source_profile.dart';
+import 'character_definition.dart';
 
 /// Public declarative extension contract. No downloaded Dart/JS is evaluated.
 class ManxiaPlugin {
-  factory ManxiaPlugin(Map<String, dynamic> input) {
+  factory ManxiaPlugin(
+    Map<String, dynamic> input, {
+    Map<String, Uint8List> resources = const {},
+  }) {
     final encoded = jsonEncode(input);
     if (utf8.encode(encoded).length > 128 * 1024) {
       throw const FormatException('插件 manifest 超过 128 KB');
     }
-    return ManxiaPlugin._(Map<String, dynamic>.from(jsonDecode(encoded)));
+    return ManxiaPlugin._(
+      Map<String, dynamic>.from(jsonDecode(encoded)),
+      Map.unmodifiable(
+        resources.map(
+          (k, v) => MapEntry(k, Uint8List.fromList(v).asUnmodifiableView()),
+        ),
+      ),
+    );
   }
-  ManxiaPlugin._(this.json) {
+  ManxiaPlugin._(this.json, this.resources) {
     validate();
   }
   final Map<String, dynamic> json;
+  final Map<String, Uint8List> resources;
   String get id => json['id'];
   String get name => json['name'];
   String get version => json['version'];
   String get author => json['author'];
   String get description => json['description'] ?? '';
+  String localized(String field, String locale) {
+    final tag = locale.replaceAll('-', '_');
+    final key = tag.startsWith('en')
+        ? 'en'
+        : tag == 'zh_TW'
+        ? 'zh_TW'
+        : null;
+    return key == null
+        ? (field == 'name' ? name : description)
+        : (json['locales'] as Map?)?[key]?[field] as String? ??
+              (field == 'name' ? name : description);
+  }
+
   Map<String, dynamic> get contributions =>
       Map<String, dynamic>.from(json['contributes']);
   List<Map<String, dynamic>> get settings => (json['settings'] as List? ?? [])
@@ -47,6 +73,23 @@ class ManxiaPlugin {
         throw FormatException('插件 $key 无效');
       }
     }
+    if (json['locales'] != null) {
+      final locales = Map<String, dynamic>.from(json['locales'] as Map);
+      for (final locale in locales.entries) {
+        final fields = Map<String, dynamic>.from(locale.value);
+        if (!['en', 'zh_TW'].contains(locale.key) ||
+            fields.keys.any((k) => !['name', 'description'].contains(k))) {
+          throw const FormatException('插件翻译字段无效');
+        }
+        for (final e in fields.entries) {
+          if (e.value is! String ||
+              (e.value as String).trim().isEmpty ||
+              (e.value as String).length > (e.key == 'name' ? 100 : 1200)) {
+            throw const FormatException('插件翻译内容无效');
+          }
+        }
+      }
+    }
     if (json['description'] != null &&
         (json['description'] is! String ||
             (json['description'] as String).length > 1200)) {
@@ -55,7 +98,13 @@ class ManxiaPlugin {
     if (json['contributes'] is! Map ||
         contributions.isEmpty ||
         contributions.keys.any(
-          (k) => !['theme', 'reader', 'source', 'navigation'].contains(k),
+          (k) => ![
+            'theme',
+            'reader',
+            'source',
+            'navigation',
+            'character',
+          ].contains(k),
         )) {
       throw const FormatException('插件贡献类型不受支持');
     }
@@ -170,6 +219,11 @@ class ManxiaPlugin {
         throw const FormatException('导航需含书架和设置，共 3–6 个不重复入口');
       }
     }
+    if (result.containsKey('character')) {
+      CharacterDefinition(
+        Map<String, dynamic>.from(result['character'] as Map),
+      );
+    }
     return result;
   }
 }
@@ -200,15 +254,30 @@ class PluginSnapshot {
         );
         if (resolved['theme'] is Map) {
           theme = Map<String, dynamic>.from(resolved['theme']);
+          origins.removeWhere((k, _) => k.startsWith('theme.'));
+          for (final key in theme.keys) {
+            origins['theme.$key'] = plugin;
+          }
         }
         if (resolved['reader'] is Map) {
           reader.addAll(Map<String, dynamic>.from(resolved['reader']));
+          for (final key in (resolved['reader'] as Map).keys) {
+            origins['reader.$key'] = plugin;
+          }
         }
         if (resolved['source'] is Map) {
           sources.add(Map<String, dynamic>.from(resolved['source']));
+          origins['source.${resolved['source']['id']}'] = plugin;
         }
         if (resolved['navigation'] is List) {
           navigation = List<int>.from(resolved['navigation']);
+          origins['navigation'] = plugin;
+        }
+        if (resolved['character'] is Map) {
+          character = CharacterDefinition(
+            Map<String, dynamic>.from(resolved['character']),
+          );
+          origins['character'] = plugin;
         }
       } catch (_) {
         // A malformed restored extension cannot prevent the host from starting.
@@ -218,4 +287,6 @@ class PluginSnapshot {
   Map<String, dynamic> theme = {}, reader = {};
   List<Map<String, dynamic>> sources = [];
   List<int>? navigation;
+  CharacterDefinition? character;
+  final Map<String, ManxiaPlugin> origins = {};
 }

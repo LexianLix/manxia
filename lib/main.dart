@@ -11,6 +11,7 @@ import 'ui/room_motion.dart';
 import 'ui/room_scroll.dart';
 import 'ui/startup.dart';
 import 'ui/room_backdrop.dart';
+import 'ui/companion.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,10 +38,11 @@ class _ManxiaAppState extends State<ManxiaApp> {
   Library get library => widget.library;
   String get signature =>
       jsonEncode([library.dark, library.motion, library.options]);
-  late String configuration = signature;
+  late String configuration;
   @override
   void initState() {
     super.initState();
+    configuration = signature;
     library.addListener(preferencesChanged);
   }
 
@@ -88,7 +90,10 @@ class _ManxiaAppState extends State<ManxiaApp> {
         disableAnimations:
             MediaQuery.disableAnimationsOf(context) || !library.motion,
       ),
-      child: RoomBackdrop(library: library, child: child!),
+      child: CompanionScope(
+        library: library,
+        child: RoomBackdrop(library: library, child: child!),
+      ),
     ),
     themeMode: library.dark ? ThemeMode.dark : ThemeMode.light,
     theme: _theme(false),

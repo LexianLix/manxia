@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:manxia/data/library.dart';
 import 'package:manxia/data/plugin_registry.dart';
+import 'package:manxia/data/plugin_package.dart';
 import 'package:manxia/data/source_hub.dart';
 
 void main() {
@@ -26,18 +27,17 @@ void main() {
     'bundled catalog and published index describe exactly the same bytes',
     () async {
       final index =
-          jsonDecode(await File('plugins/index.json').readAsString()) as Map;
-      expect(plugins, hasLength(5));
+          jsonDecode(await File('plugins/v1.1/index.json').readAsString())
+              as Map;
+      expect(
+        plugins.map((p) => p.id).toSet(),
+        (index['plugins'] as List).map((p) => p['id']).toSet(),
+      );
       for (final item in index['plugins']) {
         final name = Uri.parse(item['url']).pathSegments.last;
         final bytes = await File('plugins/packages/$name').readAsBytes();
         expect(sha256.convert(bytes).toString(), item['sha256']);
-        expect(
-          ManxiaPlugin(
-            Map<String, dynamic>.from(jsonDecode(utf8.decode(bytes))),
-          ).id,
-          item['id'],
-        );
+        expect(PluginPackage.decode(bytes).id, item['id']);
       }
     },
   );

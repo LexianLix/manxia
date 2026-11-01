@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'comic.dart';
 import 'library_features.dart';
 import 'metadata_backups.dart';
+import 'library_notice.dart';
 
 class Library extends ChangeNotifier with LibraryFeatures {
   Library(this.prefs);
@@ -14,6 +15,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
   @override
   void dispose() {
     backups?.dispose();
+    closeNotices();
     super.dispose();
   }
 
@@ -63,6 +65,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
   ReadingRecord? record(Comic c) =>
       history.where((h) => h.comic.path == c.path).firstOrNull;
   Future<void> toggle(Comic c) async {
+    final added = !contains(c);
     if (contains(c)) {
       tombstones['book:${c.path}'] = DateTime.now().millisecondsSinceEpoch;
       favorites.removeWhere((b) => b.path == c.path);
@@ -77,10 +80,13 @@ class Library extends ChangeNotifier with LibraryFeatures {
     notifyListeners();
     await prefs.setBool('demo', demo);
     await persistFeatures();
-    await prefs.setString(
+    final saved = await prefs.setString(
       'favorites',
       jsonEncode(favorites.map((b) => b.toJson()).toList()),
     );
+    if (saved && added && contains(c)) {
+      announce(LibraryNotice(LibraryNoticeKind.favoriteAdded, title: c.title));
+    }
   }
 
   Future<void> save(ReadingRecord record) async {

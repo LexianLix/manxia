@@ -1,3 +1,5 @@
+import 'companion.dart';
+import 'character_settings_page.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'room_motion.dart';
@@ -113,6 +115,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   (String, Rect)? openingOrigin;
+  final discoveryRequest = ValueNotifier<String?>(null);
   final atmosphere = ValueNotifier<Color>(const Color(0xff8baf99));
   late final source = SourceHub(
     widget.library,
@@ -123,6 +126,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     followTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     atmosphere.dispose();
+    discoveryRequest.dispose();
     source.close();
     super.dispose();
   }
@@ -132,6 +136,82 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       tab = i;
     });
+  }
+
+  void showUpdates() {
+    discoveryRequest.value = '更新';
+    navigate(1);
+  }
+
+  Future<void> companionActions() async {
+    ModalRoute<dynamic>? sheetRoute;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      sheetAnimationStyle: RoomMotion.sheet(context),
+      builder: (c) {
+        sheetRoute = ModalRoute.of(c);
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(c).height * .9,
+          ),
+          child: SingleChildScrollView(
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 16),
+                  const CompanionPortrait(size: 88, expression: 'happy'),
+                  for (final item in [
+                    if (continueRecord != null)
+                      ('continue', '继续阅读', Icons.menu_book_outlined),
+                    ('discover', '去发现漫画', Icons.explore_outlined),
+                    ('updates', '查看更新', Icons.notifications_none),
+                    ('settings', '小夏与阅读伙伴', Icons.tune),
+                  ])
+                    ListTile(
+                      leading: Icon(item.$3),
+                      title: LocalizedText(item.$2),
+                      onTap: () => Navigator.pop(c, item.$1),
+                    ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    // Wait for the sheet's reverse transition before opening another route.
+    await sheetRoute?.completed;
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'discover':
+        navigate(1);
+      case 'updates':
+        showUpdates();
+      case 'settings':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => CharacterSettingsPage(library: widget.library),
+          ),
+        );
+      case 'continue':
+        final record = continueRecord;
+        if (record != null) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ReaderPage(
+                comic: record.comic,
+                chapter: Chapter(record.chapterPath, record.chapterTitle),
+                library: widget.library,
+                source: source,
+                web: widget.web,
+              ),
+            ),
+          );
+        }
+    }
   }
 
   Future<void> open(Comic c) async {
@@ -171,7 +251,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           });
         }
         return Scaffold(
-          extendBody: true,
+          extendBody: false,
           body: Stack(
             children: [
               SafeArea(
@@ -209,15 +289,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                   builder: (page) => page == 5
                                       ? PluginsPage(library: widget.library)
                                       : page == 4
-                                      ? Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 98,
-                                          ),
-                                          child: OfflinePage(
-                                            library: widget.library,
-                                            source: source,
-                                            web: widget.web,
-                                          ),
+                                      ? OfflinePage(
+                                          library: widget.library,
+                                          source: source,
+                                          web: widget.web,
                                         )
                                       : page == 3
                                       ? SettingsPage(
@@ -233,7 +308,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                             compact ? 20 : 36,
                                             compact ? 12 : 24,
                                             compact ? 18 : 36,
-                                            140,
+                                            32,
                                           ),
                                           child: Center(
                                             child: ConstrainedBox(
@@ -253,6 +328,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                                   library: widget.library,
                                                   source: source,
                                                   web: widget.web,
+                                                  navigationRequest:
+                                                      discoveryRequest,
                                                   onOpen: open,
                                                 ),
                                                 2 => _history(),
@@ -267,6 +344,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Align(
+                  alignment: Alignment.bottomRight,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: CompanionFeedback(
+                      library: widget.library,
+                      onShelf: () => navigate(0),
+                      onUpdates: showUpdates,
                     ),
                   ),
                 ),
@@ -526,6 +619,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (CompanionScope.maybeOf(context)?.active == true)
+                CompanionAvatar(onPressed: companionActions),
               MilkGlass(
                 radius: 24,
                 padding: EdgeInsets.zero,
@@ -1005,9 +1100,10 @@ class EmptyState extends StatelessWidget {
     required this.message,
     this.action,
     this.actionLabel = '重试',
+    this.expression = 'idle',
   });
   final IconData icon;
-  final String title, message, actionLabel;
+  final String title, message, actionLabel, expression;
   final VoidCallback? action;
   @override
   Widget build(BuildContext context) => Center(
@@ -1015,7 +1111,13 @@ class EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       child: Column(
         children: [
-          Icon(icon, size: 30, color: quiet(context)),
+          if (CompanionScope.maybeOf(context)?.active == true)
+            CompanionPortrait(
+              expression: expression,
+              size: CompanionScope.maybeOf(context)!.preferences.portraitSize,
+            )
+          else
+            Icon(icon, size: 30, color: quiet(context)),
           const SizedBox(height: 16),
           LocalizedText(
             title,

@@ -5,8 +5,21 @@ import 'comic.dart';
 import 'source_profile.dart';
 import 'plugin.dart';
 import 'backup_preview.dart';
+import 'reading_profile.dart';
+import 'library_notice.dart';
 
 mixin LibraryFeatures on ChangeNotifier {
+  final notices = ValueNotifier<LibraryNotice?>(null);
+  bool _noticesClosed = false;
+  void announce(LibraryNotice notice) {
+    if (!_noticesClosed) notices.value = notice;
+  }
+
+  void closeNotices() {
+    _noticesClosed = true;
+    notices.dispose();
+  }
+
   SharedPreferences get prefs;
   List<Comic> get favorites;
   List<ReadingRecord> get history;
@@ -77,7 +90,9 @@ mixin LibraryFeatures on ChangeNotifier {
     '全部',
     ...metadata.values.map((m) => m['group'] as String? ?? '未分组'),
   }.toList();
-  Map<String, dynamic> readerOptions(Comic comic) => {
+  Map<String, dynamic> defaultReaderOptions({
+    Map<String, dynamic>? profileDefaults,
+  }) => {
     'mode': prefs.getString('readerMode') ?? 'page',
     'rtl': prefs.getBool('rtl') ?? false,
     'brightness': 1.0,
@@ -95,8 +110,16 @@ mixin LibraryFeatures on ChangeNotifier {
     'leftTapWidth': .24,
     'rightTapWidth': .24,
     'toolbarDock': 'top',
+    'chromeTimeout': option<int>('chromeTimeout', 0),
     ...option<Map<String, dynamic>>('readerDefaults', {}),
     ...PluginSnapshot(options).reader,
+    ...(profileDefaults ?? ReadingProfile.defaults(options)),
+  };
+  Map<String, dynamic> readerOptions(
+    Comic comic, {
+    Map<String, dynamic>? profileDefaults,
+  }) => {
+    ...defaultReaderOptions(profileDefaults: profileDefaults),
     ...Map<String, dynamic>.from(meta(comic)['reader'] as Map? ?? {}),
   };
   void loadFeatures() {

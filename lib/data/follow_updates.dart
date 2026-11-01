@@ -3,6 +3,7 @@ import 'dm5_source.dart';
 import 'library.dart';
 import 'library_features.dart';
 import 'reading_progress.dart';
+import 'library_notice.dart';
 
 extension FollowUpdates on LibraryFeatures {
   Future<void> recordFollow(ComicDetail detail, {DateTime? at}) async {
@@ -42,6 +43,9 @@ extension FollowUpdates on LibraryFeatures {
     };
     await rememberChapters(book, detail.chapters);
     await persistFeatures();
+    if ((changed || additions.isNotEmpty) && prior?['changed'] != true) {
+      announce(LibraryNotice(LibraryNoticeKind.updatesFound));
+    }
   }
 }
 

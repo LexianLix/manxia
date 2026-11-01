@@ -1,5 +1,6 @@
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
+import 'preference_choice.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -188,35 +189,17 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
     String title,
     Map<String, String> choices,
     String fallback,
-  ) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    title: LocalizedText(title),
-    trailing: SizedBox(
-      width: MediaQuery.sizeOf(context).width < 600 ? 160 : 240,
-      child: DropdownButton<String>(
-        isExpanded: true,
-        value: choices.containsKey(library.option<String>(key, fallback))
-            ? library.option<String>(key, fallback)
-            : fallback,
-        items: choices.entries
-            .map(
-              (e) => DropdownMenuItem(
-                value: e.key,
-                child: LocalizedText(
-                  e.value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            )
-            .toList(),
-        onChanged: key == 'source' && sourceCheck.running
-            ? null
-            : (v) {
-                if (v != null) library.setOption(key, v);
-              },
-      ),
-    ),
+  ) => PreferenceChoice<String>(
+    title: title,
+    value: choices.containsKey(library.option<String>(key, fallback))
+        ? library.option<String>(key, fallback)
+        : fallback,
+    choices: choices,
+    onChanged: key == 'source' && sourceCheck.running
+        ? null
+        : (value) {
+            if (value != null) library.setOption(key, value);
+          },
   );
   Future<void> configureSync() async {
     final sync = SyncService(library, gateway: widget.web ? Uri.base : null);

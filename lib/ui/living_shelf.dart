@@ -255,7 +255,9 @@ class _LivingShelfState extends State<LivingShelf>
 
   Widget orbit(BuildContext context) => SizedBox(
     key: const ValueKey('shelf-orbit'),
-    height: MediaQuery.sizeOf(context).width < 600 ? 270 : 310,
+    height: MediaQuery.sizeOf(context).width < 1000
+        ? (MediaQuery.sizeOf(context).height - 530).clamp(168.0, 270.0)
+        : 310,
     child: LayoutBuilder(
       builder: (context, box) {
         final count = widget.books.length;
@@ -270,7 +272,10 @@ class _LivingShelfState extends State<LivingShelf>
         };
         final radius =
             math.min(box.maxWidth * (count == 2 ? .25 : .48), 310.0) * density;
-        final bookWidth = (box.maxWidth * .40).clamp(140.0, 180.0);
+        final bookWidth = math.min(
+          (box.maxWidth * .40).clamp(140.0, 180.0),
+          (box.maxHeight - 24) / 1.5,
+        );
         final bookHeight = bookWidth * 1.5;
         dragExtent = (radius * 2 * math.pi / period).clamp(90.0, 200.0);
         return MouseRegion(
@@ -564,12 +569,14 @@ class _LivingShelfState extends State<LivingShelf>
         const SizedBox(height: 12),
         Row(
           children: [
-            FilledButton.icon(
-              onPressed: () => openBook(comic),
-              icon: const Icon(Icons.menu_book_outlined, size: 17),
-              label: const LocalizedText(
-                '翻开这本漫画',
-                style: TextStyle(fontSize: 12),
+            Flexible(
+              child: FilledButton.icon(
+                onPressed: () => openBook(comic),
+                icon: const Icon(Icons.menu_book_outlined, size: 17),
+                label: const LocalizedText(
+                  '翻开这本漫画',
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
             ),
             const SizedBox(width: 12),

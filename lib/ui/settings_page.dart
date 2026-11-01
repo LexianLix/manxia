@@ -1,3 +1,4 @@
+import 'character_settings_page.dart';
 import 'visible_listenable_builder.dart';
 import 'package:flutter/material.dart';
 import '../data/library.dart';
@@ -7,6 +8,7 @@ import 'localized_text.dart';
 import 'room_motion.dart';
 import 'appearance_settings.dart';
 import 'smoothness_page.dart';
+import 'reading_profiles_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -36,7 +38,7 @@ class SettingsPage extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 720),
       child: ListView(
         key: const PageStorageKey('settings-home-scroll'),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 120),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
         children: [
           const LocalizedText(
             '偏好设置',
@@ -116,6 +118,18 @@ class SettingsSection extends StatelessWidget {
               children: [
                 if (section == 'appearance') ...[
                   AppearanceSettings(library: library),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const LocalizedText('小夏与阅读伙伴'),
+                    subtitle: const LocalizedText('角色包、陪伴提醒与显示偏好'),
+                    leading: const Icon(Icons.face_outlined),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CharacterSettingsPage(library: library),
+                      ),
+                    ),
+                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const LocalizedText('夜间阅读室'),
@@ -164,6 +178,19 @@ class SettingsSection extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (section == 'reading')
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.bookmarks_outlined),
+                    title: const LocalizedText('个人阅读方案'),
+                    subtitle: const LocalizedText('保存自己的样式，预览后再应用'),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ReadingProfilesPage(library: library),
+                      ),
+                    ),
+                  ),
                 AdvancedSettings(
                   library: library,
                   source: source,

@@ -1,0 +1,41 @@
+{
+  "apiVersion": 1,
+  "id": "manxia.xiaxia",
+  "name": "小夏 · 阅读伙伴",
+  "version": "1.0.0",
+  "author": "Manxia",
+  "license": "MIT",
+  "description": "在书架、空状态和操作反馈中陪你阅读；支持静音、缩小或停用，阅读正文中自动隐藏。",
+  "contributes": {
+    "character": {
+      "states": {
+        "idle": {
+          "file": "idle.png",
+          "sha256": "352b7750d0bc5b55abd75f3f2d603d604c02b9b5a2026088644d4e707b67a527"
+        },
+        "blink": {
+          "file": "blink.png",
+          "sha256": "25d00c047923dccbbb496ae2ed5c8b7c4a1b5d459a3d06074869c180738ca7e8"
+        },
+        "happy": {
+          "file": "happy.png",
+          "sha256": "90f49573c6821efc62450cd38060f28b09e9eafa82175cbe067c10bc5d413220"
+        },
+        "puzzled": {
+          "file": "puzzled.png",
+          "sha256": "faad5d99403716b0d0212e5e5938ac30bb8722a4dbbbb43848b4538b4b1234c6"
+        }
+      }
+    }
+  },
+  "locales": {
+    "en": {
+      "name": "Xiaxia · Reading Companion",
+      "description": "Expressions for your shelf, empty states and action feedback. Adjustable, optional and hidden over comic pages."
+    },
+    "zh_TW": {
+      "name": "小夏 · 閱讀夥伴",
+      "description": "在書架、空狀態及操作回饋中陪你閱讀，可調整或停用，漫畫正文中自動隱藏。"
+    }
+  }
+}

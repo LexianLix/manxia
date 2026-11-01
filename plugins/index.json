@@ -5,31 +5,31 @@
       "id": "manxia.blue-hour",
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.blue-hour.json",
-      "sha256": "7cd14c9f8582dde9f51b6374d654bd5b83022b6c23d4ee338139b8b44206dcde"
+      "sha256": "1c9d8582e8634bae053de7d864a2e76f9cd53b0338df51c06b52bc2771947040"
     },
     {
       "id": "manxia.local-room",
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.local-room.json",
-      "sha256": "ed29952625bb60760cdf5adf8b728e1a7c19448a584aa6fab3f23fadc36b8da7"
+      "sha256": "b794a6e7039be570ee42d5afa26d95eae16e6c82aa0d2b73fa76d8006d9dff44"
     },
     {
       "id": "manxia.manga-reader",
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.manga-reader.json",
-      "sha256": "8d9134a4486bafb22b9c5d087817d42430e6625dd48a0c75d0625e3c2f59e482"
+      "sha256": "05e76848d88a547d43d68c0a4864d0c22de5c3677fbd8324985cc13e693f23f5"
     },
     {
       "id": "manxia.warm-paper",
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.warm-paper.json",
-      "sha256": "106065be5ec89db421b0b609be1869cfd407b5be7a7f5746863ad61863cd9382"
+      "sha256": "fa1256c21a2fa94ba1ed2357f0515ee89b1f6a54b8b7fb9e62107a08927e803a"
     },
     {
       "id": "manxia.webtoon-reader",
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.webtoon-reader.json",
-      "sha256": "b8dfcc3a4de336bf55976300da7136dc8992abb0db42355c8adfadc438aa9aeb"
+      "sha256": "baf32b7a72311fa9f380e15a66f3afab5eeab28a68247062adce0b28c3554e6f"
     }
   ]
 }

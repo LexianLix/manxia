@@ -129,12 +129,12 @@ class ReaderChrome extends StatelessWidget {
     builder: (_, t, child) => Offstage(
       offstage: t == 0,
       child: IgnorePointer(
-        ignoring: !visible,
+        ignoring: !visible || t <= .5,
         child: ExcludeSemantics(
-          excluding: !visible,
+          excluding: !visible || t <= .5,
           child: FractionalTranslation(
             translation: Offset(0, (1 - t) * (top ? -1 : 1)),
-            child: Opacity(opacity: t, child: child),
+            child: Opacity(opacity: RoomMotion.contentOpacity(t), child: child),
           ),
         ),
       ),

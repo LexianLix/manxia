@@ -35,6 +35,8 @@ class WebBlobStore implements BlobStore {
 Future<BlobStore> createBlobStore() async => WebBlobStore();
 Future<BlobStore> createWallpaperStore() async =>
     WebBlobStore(namespace: 'appearance');
+Future<BlobStore> createCharacterStore() async =>
+    WebBlobStore(namespace: 'characters');
 Future<BlobStore> createBackupStore() async =>
     WebBlobStore(namespace: 'backups');
 Future<List<({String name, Uint8List bytes})>> readImageFolder(String path) =>

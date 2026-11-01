@@ -489,6 +489,7 @@ class _StripSurfaceState extends State<StripSurface> {
   final offset = ScrollOffsetController();
   Timer? timer;
   bool restored = false;
+  bool restoring = false;
   late final initialPage = widget.startPage;
   late final initialFraction = widget.position;
   double height = 600;
@@ -506,7 +507,7 @@ class _StripSurfaceState extends State<StripSurface> {
   }
 
   void report() {
-    if (!restored && initialFraction > 0) return;
+    if (!restored || restoring) return;
     final visible =
         positions.itemPositions.value
             .where((p) => p.itemTrailingEdge > 0 && p.itemLeadingEdge < 1)
@@ -544,29 +545,25 @@ class _StripSurfaceState extends State<StripSurface> {
   }
 
   void restore(double contentHeight) {
-    if (restored || !mounted) return;
-    restored = true;
+    if (restored || restoring || !mounted) return;
+    restoring = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       if (scroll.isAttached) {
-        // Earlier images can grow from placeholders during decode. The target
-        // page may no longer start at the viewport edge, so include its actual
-        // leading position instead of treating a relative delta as absolute.
-        final leading =
-            positions.itemPositions.value
-                .where((p) => p.index == initialPage)
-                .firstOrNull
-                ?.itemLeadingEdge ??
-            0;
-        final delta = leading * height + initialFraction * contentHeight;
-        if (delta.abs() > .5) {
-          await offset.animateScroll(
-            offset: delta,
-            duration: const Duration(milliseconds: 1),
-          );
-        }
+        // Match continuous strips: anchor absolutely after decode rather than
+        // adding a relative offset while adjacent placeholders are growing.
+        scroll.jumpTo(
+          index: initialPage,
+          alignment: -initialFraction * contentHeight / height,
+        );
+        await WidgetsBinding.instance.endOfFrame;
       }
-      if (mounted) widget.onReady?.call();
+      if (mounted) {
+        restored = true;
+        restoring = false;
+        widget.onReady?.call();
+        report();
+      }
     });
     WidgetsBinding.instance.scheduleFrame();
   }

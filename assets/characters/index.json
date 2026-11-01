@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "images": {
+    "352b7750d0bc5b55abd75f3f2d603d604c02b9b5a2026088644d4e707b67a527": "assets/characters/xiaxia/idle.png",
+    "25d00c047923dccbbb496ae2ed5c8b7c4a1b5d459a3d06074869c180738ca7e8": "assets/characters/xiaxia/blink.png",
+    "90f49573c6821efc62450cd38060f28b09e9eafa82175cbe067c10bc5d413220": "assets/characters/xiaxia/happy.png",
+    "faad5d99403716b0d0212e5e5938ac30bb8722a4dbbbb43848b4538b4b1234c6": "assets/characters/xiaxia/puzzled.png"
+  }
+}

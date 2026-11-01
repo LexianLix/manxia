@@ -1,3 +1,4 @@
+import 'feature_strings.dart';
 import 'package:flutter/material.dart';
 
 /// Translates interface copy; source titles and chapter names fall through.
@@ -73,6 +74,7 @@ String translate(
 }
 
 const english = <String, String>{
+  ...featureEnglish,
   '有更新 {count}': 'Updates {count}',
   '有更新 · {chapter}': 'New · {chapter}',
   '条漫连续跨章': 'Continuous chapters in strip mode',
@@ -689,6 +691,7 @@ const english = <String, String>{
   '8 秒': '8 seconds',
 };
 const traditional = <String, String>{
+  ...featureTraditional,
   '有更新 {count}': '有更新 {count}',
   '有更新 · {chapter}': '有更新 · {chapter}',
   '条漫连续跨章': '條漫連續跨章',

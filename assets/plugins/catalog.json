@@ -15,6 +15,16 @@
           "lightSurface": "#F0F4F7",
           "darkSurface": "#141E27"
         }
+      },
+      "locales": {
+        "en": {
+          "name": "Blue Hour",
+          "description": "A fresh blue reading room, with matching light and dark surfaces."
+        },
+        "zh_TW": {
+          "name": "藍調時刻",
+          "description": "帶一點霧藍的清爽閱讀室，淺色與深色模式都有配套表面色。"
+        }
       }
     },
     {
@@ -33,6 +43,16 @@
           5,
           3
         ]
+      },
+      "locales": {
+        "en": {
+          "name": "Local Library",
+          "description": "Keep your library, downloads, history, plugins and settings close. Your manual navigation layout takes priority."
+        },
+        "zh_TW": {
+          "name": "本機收藏室",
+          "description": "把書架、下載、足跡、外掛和設定留在手邊；手動設定的導覽優先。"
+        }
       }
     },
     {
@@ -64,6 +84,16 @@
             "setting": "warmth"
           }
         }
+      },
+      "locales": {
+        "en": {
+          "name": "Manga Reading",
+          "description": "Right-to-left pages, wide-screen spreads, paper turns and a warm reading surface. Individual book settings take priority."
+        },
+        "zh_TW": {
+          "name": "日漫閱讀習慣",
+          "description": "向左翻頁、寬螢幕雙頁、紙張翻頁及暖色底，單本設定優先。"
+        }
       }
     },
     {
@@ -89,6 +119,16 @@
           },
           "lightSurface": "#F7F1E5",
           "darkSurface": "#211C17"
+        }
+      },
+      "locales": {
+        "en": {
+          "name": "Warm Paper Room",
+          "description": "Warm paper colors with restrained accents. Configure the accent in the plugin settings."
+        },
+        "zh_TW": {
+          "name": "暖紙書房",
+          "description": "溫暖紙色與克制點綴，可在外掛設定調整強調色。"
         }
       }
     },
@@ -121,6 +161,57 @@
           "background": {
             "setting": "background"
           }
+        }
+      },
+      "locales": {
+        "en": {
+          "name": "Long Scroll",
+          "description": "Vertical scrolling, left-to-right order and a dark surface for long comics. Disable the plugin to restore your base preferences."
+        },
+        "zh_TW": {
+          "name": "條漫長卷",
+          "description": "縱向捲動閱讀、向右順序與深色背景；停用後恢復原有基礎偏好。"
+        }
+      }
+    },
+    {
+      "apiVersion": 1,
+      "id": "manxia.xiaxia",
+      "name": "小夏 · 阅读伙伴",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "description": "在书架、空状态和操作反馈中陪你阅读；支持静音、缩小或停用，阅读正文中自动隐藏。",
+      "contributes": {
+        "character": {
+          "states": {
+            "idle": {
+              "file": "idle.png",
+              "sha256": "352b7750d0bc5b55abd75f3f2d603d604c02b9b5a2026088644d4e707b67a527"
+            },
+            "blink": {
+              "file": "blink.png",
+              "sha256": "25d00c047923dccbbb496ae2ed5c8b7c4a1b5d459a3d06074869c180738ca7e8"
+            },
+            "happy": {
+              "file": "happy.png",
+              "sha256": "90f49573c6821efc62450cd38060f28b09e9eafa82175cbe067c10bc5d413220"
+            },
+            "puzzled": {
+              "file": "puzzled.png",
+              "sha256": "faad5d99403716b0d0212e5e5938ac30bb8722a4dbbbb43848b4538b4b1234c6"
+            }
+          }
+        }
+      },
+      "locales": {
+        "en": {
+          "name": "Xiaxia · Reading Companion",
+          "description": "Expressions for your shelf, empty states and action feedback. Adjustable, optional and hidden over comic pages."
+        },
+        "zh_TW": {
+          "name": "小夏 · 閱讀夥伴",
+          "description": "在書架、空狀態及操作回饋中陪你閱讀，可調整或停用，漫畫正文中自動隱藏。"
         }
       }
     }

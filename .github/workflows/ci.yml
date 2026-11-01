@@ -35,10 +35,10 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node tools/prepare-web.mjs
       - run: node tools/plugin-sdk.mjs build
-      - run: git diff --exit-code -- plugins/index.json assets/plugins/catalog.json
+      - run: git diff --exit-code -- plugins/index.json plugins/v1.1/index.json plugins/packages/xiaxia.zip assets/plugins/catalog.json
       - run: flutter analyze --no-pub
       - run: flutter test --timeout 30s
-      - run: node --test tools/preview.test.mjs tools/plugin-sdk.test.mjs
+      - run: node --test tools/preview.test.mjs tools/plugin-sdk.test.mjs tools/character-package.test.mjs
       - run: flutter build web --wasm --no-web-resources-cdn
       - run: node tools/offline-shell.mjs
       - run: flutter build apk --profile

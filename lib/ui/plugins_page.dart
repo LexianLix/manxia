@@ -1,3 +1,11 @@
+import 'localized_text.dart';
+import 'plugin_labels.dart';
+import 'plugin_effects_page.dart';
+import 'character_settings_page.dart';
+import 'companion.dart';
+import 'preference_choice.dart';
+import '../data/plugin_package.dart';
+import '../data/character_definition.dart';
 import 'visible_listenable_builder.dart';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
@@ -5,13 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/library.dart';
 import '../data/plugin_registry.dart';
-
-const capabilityLabels = {
-  'theme': '主题材质',
-  'reader': '阅读预设',
-  'source': '漫画源',
-  'navigation': '导航布局',
-};
 
 class PluginsPage extends StatefulWidget {
   const PluginsPage({super.key, required this.library});
@@ -51,7 +52,7 @@ class _PluginsPageState extends State<PluginsPage> {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        title: LocalizedText(title),
         content: SizedBox(
           width: 520,
           child: TextFormField(
@@ -60,20 +61,21 @@ class _PluginsPageState extends State<PluginsPage> {
             maxLines: multiline ? 16 : 3,
             onChanged: (v) => text = v,
             decoration: InputDecoration(
-              labelText: multiline
-                  ? '插件 manifest JSON'
-                  : 'HTTPS 仓库 index.json 地址',
+              labelText: translate(
+                multiline ? '插件 manifest JSON' : 'HTTPS 仓库 index.json 地址',
+                Localizations.localeOf(context),
+              ),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const LocalizedText('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, text),
-            child: const Text('继续'),
+            child: const LocalizedText('继续'),
           ),
         ],
       ),
@@ -85,7 +87,9 @@ class _PluginsPageState extends State<PluginsPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(plugin.name),
+        title: Text(
+          plugin.localized('name', Localizations.localeOf(context).toString()),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -95,10 +99,41 @@ class _PluginsPageState extends State<PluginsPage> {
                 '${plugin.author} · v${plugin.version} · ${plugin.json['license']}',
               ),
               const SizedBox(height: 16),
-              Text(plugin.description),
+              Text(
+                plugin.localized(
+                  'description',
+                  Localizations.localeOf(context).toString(),
+                ),
+              ),
+              if (plugin.contributions['character'] is Map)
+                Center(
+                  child: CompanionPortrait(
+                    size: 96,
+                    expression: 'happy',
+                    definition: CharacterDefinition(
+                      Map<String, dynamic>.from(
+                        plugin.contributions['character'],
+                      ),
+                    ),
+                    resources: plugin.resources,
+                  ),
+                ),
               const SizedBox(height: 20),
               Text(
-                '扩展范围：${plugin.capabilities.map((c) => capabilityLabels[c]).join('、')}',
+                translate(
+                  '扩展范围：{capabilities}',
+                  Localizations.localeOf(context),
+                  arguments: {
+                    'capabilities': plugin.capabilities
+                        .map(
+                          (c) => translate(
+                            capabilityLabels[c]!,
+                            Localizations.localeOf(context),
+                          ),
+                        )
+                        .join(' · '),
+                  },
+                ),
               ),
               if (source is Map) ...[
                 const SizedBox(height: 12),
@@ -107,18 +142,18 @@ class _PluginsPageState extends State<PluginsPage> {
                 ),
               ],
               const SizedBox(height: 12),
-              const Text('启用后立即应用；可在“已安装”停用或卸载。个人书籍与逐本阅读设置保留。'),
+              const LocalizedText('启用后立即应用；可在“已安装”停用或卸载。个人书籍与逐本阅读设置保留。'),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: const LocalizedText('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('安装并启用'),
+            child: const LocalizedText('安装并启用'),
           ),
         ],
       ),
@@ -129,20 +164,14 @@ class _PluginsPageState extends State<PluginsPage> {
   Future<void> importFile() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['json', 'zip'],
     );
     if (file == null || !mounted) return;
     try {
-      if ((await file.length() ?? 0) > 128 * 1024) {
-        throw const FormatException('请选择小于 128 KB 的 JSON 插件');
+      if ((await file.length() ?? 0) > 2 * 1024 * 1024) {
+        throw const FormatException('请选择小于 2 MB 的 JSON 或角色 ZIP 插件');
       }
-      await install(
-        ManxiaPlugin(
-          Map<String, dynamic>.from(
-            jsonDecode(utf8.decode(await file.readAsBytes())),
-          ),
-        ),
-      );
+      await install(PluginPackage.decode(await file.readAsBytes()));
     } catch (e) {
       if (mounted) setState(() => status = '$e');
     }
@@ -163,7 +192,11 @@ class _PluginsPageState extends State<PluginsPage> {
       if (mounted) {
         setState(() {
           catalog = Future.value(plugins);
-          status = '在线仓库 · ${plugins.length} 个插件';
+          status = translate(
+            '在线仓库 · {count} 个插件',
+            Localizations.localeOf(context),
+            arguments: {'count': plugins.length},
+          );
         });
       }
     });
@@ -177,7 +210,7 @@ class _PluginsPageState extends State<PluginsPage> {
     final key = definition['key'] as String;
     final value = (item['config'] as Map? ?? {})[key] ?? definition['default'];
     void save(dynamic v) => run(() => registry.configure(plugin.id, key, v));
-    final title = Text(definition['label']);
+    final title = LocalizedText(definition['label']);
     return switch (definition['type']) {
       'boolean' => SwitchListTile(
         title: title,
@@ -195,15 +228,14 @@ class _PluginsPageState extends State<PluginsPage> {
           onChanged: busy ? null : save,
         ),
       ),
-      'choice' => ListTile(
-        title: title,
-        trailing: DropdownButton<String>(
-          value: value,
-          items: (definition['choices'] as List)
-              .map((v) => DropdownMenuItem<String>(value: v, child: Text(v)))
-              .toList(),
-          onChanged: busy ? null : save,
-        ),
+      'choice' => PreferenceChoice<String>(
+        title: definition['label'],
+        value: value,
+        choices: {
+          for (final v in definition['choices'] as List)
+            v.toString(): v.toString(),
+        },
+        onChanged: busy ? null : save,
       ),
       _ => Padding(
         key: PageStorageKey('plugin-setting-field-${plugin.id}-$key'),
@@ -212,8 +244,14 @@ class _PluginsPageState extends State<PluginsPage> {
           key: ValueKey('${plugin.id}-$key-$value'),
           initialValue: value,
           decoration: InputDecoration(
-            labelText: definition['label'],
-            helperText: '#RRGGBB · 回车应用',
+            labelText: translate(
+              definition['label'],
+              Localizations.localeOf(context),
+            ),
+            helperText: translate(
+              '#RRGGBB · 回车应用',
+              Localizations.localeOf(context),
+            ),
           ),
           onFieldSubmitted: busy ? null : save,
         ),
@@ -254,7 +292,9 @@ class _PluginsPageState extends State<PluginsPage> {
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
-                  plugin.capabilities.contains('theme')
+                  plugin.capabilities.contains('character')
+                      ? Icons.face_outlined
+                      : plugin.capabilities.contains('theme')
                       ? Icons.palette_outlined
                       : plugin.capabilities.contains('reader')
                       ? Icons.menu_book_outlined
@@ -269,7 +309,13 @@ class _PluginsPageState extends State<PluginsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(plugin.name, style: const TextStyle(fontSize: 18)),
+                    Text(
+                      plugin.localized(
+                        'name',
+                        Localizations.localeOf(context).toString(),
+                      ),
+                      style: const TextStyle(fontSize: 16),
+                    ),
                     const SizedBox(height: 5),
                     Text(
                       '${plugin.author} · v${plugin.version}',
@@ -288,13 +334,16 @@ class _PluginsPageState extends State<PluginsPage> {
               else
                 FilledButton(
                   onPressed: busy ? null : () => install(plugin),
-                  child: const Text('安装'),
+                  child: const LocalizedText('安装'),
                 ),
             ],
           ),
           const SizedBox(height: 14),
           Text(
-            plugin.description,
+            plugin.localized(
+              'description',
+              Localizations.localeOf(context).toString(),
+            ),
             style: const TextStyle(fontSize: 12, height: 1.7),
           ),
           const SizedBox(height: 12),
@@ -303,7 +352,7 @@ class _PluginsPageState extends State<PluginsPage> {
             runSpacing: 6,
             children: plugin.capabilities
                 .map(
-                  (c) => Text(
+                  (c) => LocalizedText(
                     capabilityLabels[c]!,
                     style: TextStyle(fontSize: 11, color: color),
                   ),
@@ -314,7 +363,7 @@ class _PluginsPageState extends State<PluginsPage> {
             const SizedBox(height: 8),
             Row(
               children: [
-                Text(
+                LocalizedText(
                   active ? '已启用' : '已停用',
                   style: TextStyle(fontSize: 11, color: color),
                 ),
@@ -322,13 +371,13 @@ class _PluginsPageState extends State<PluginsPage> {
                 if (update)
                   TextButton(
                     onPressed: busy ? null : () => install(plugin),
-                    child: const Text('更新'),
+                    child: const LocalizedText('更新'),
                   ),
                 TextButton(
                   onPressed: busy
                       ? null
                       : () => run(() => registry.uninstall(plugin.id)),
-                  child: const Text('卸载'),
+                  child: const LocalizedText('卸载'),
                 ),
               ],
             ),
@@ -336,7 +385,10 @@ class _PluginsPageState extends State<PluginsPage> {
               ExpansionTile(
                 key: PageStorageKey('plugin-settings-expanded-${plugin.id}'),
                 tilePadding: EdgeInsets.zero,
-                title: const Text('插件设置', style: TextStyle(fontSize: 13)),
+                title: const LocalizedText(
+                  '插件设置',
+                  style: TextStyle(fontSize: 13),
+                ),
                 children: plugin.settings
                     .map((s) => setting(plugin, item, s))
                     .toList(),
@@ -352,12 +404,27 @@ class _PluginsPageState extends State<PluginsPage> {
     listenable: widget.library,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const Text('插件商城'),
+        title: const LocalizedText('插件商城'),
         actions: [
           PopupMenuButton<String>(
-            tooltip: '插件管理',
+            tooltip: translate('插件管理', Localizations.localeOf(context)),
             enabled: !busy,
             onSelected: (value) async {
+              if (value == 'effects') {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PluginEffectsPage(library: widget.library),
+                  ),
+                );
+              }
+              if (value == 'characters' && context.mounted) {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        CharacterSettingsPage(library: widget.library),
+                  ),
+                );
+              }
               if (value == 'docs') {
                 await launchUrl(
                   Uri.parse(
@@ -390,11 +457,16 @@ class _PluginsPageState extends State<PluginsPage> {
               }
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'file', child: Text('导入插件文件')),
-              PopupMenuItem(value: 'json', child: Text('从 JSON 安装')),
-              PopupMenuItem(value: 'repo', child: Text('添加 / 刷新在线仓库')),
-              PopupMenuItem(value: 'bundled', child: Text('使用内置目录')),
-              PopupMenuItem(value: 'docs', child: Text('插件开发文档')),
+              PopupMenuItem(value: 'effects', child: LocalizedText('生效与覆盖关系')),
+              PopupMenuItem(
+                value: 'characters',
+                child: LocalizedText('小夏与阅读伙伴'),
+              ),
+              PopupMenuItem(value: 'file', child: LocalizedText('导入插件文件')),
+              PopupMenuItem(value: 'json', child: LocalizedText('从 JSON 安装')),
+              PopupMenuItem(value: 'repo', child: LocalizedText('添加 / 刷新在线仓库')),
+              PopupMenuItem(value: 'bundled', child: LocalizedText('使用内置目录')),
+              PopupMenuItem(value: 'docs', child: LocalizedText('插件开发文档')),
             ],
           ),
         ],
@@ -413,30 +485,37 @@ class _PluginsPageState extends State<PluginsPage> {
               : state.data ?? [];
           final shown = plugins
               .where(
-                (p) => '${p.name} ${p.author} ${p.description}'
-                    .toLowerCase()
-                    .contains(search.toLowerCase()),
+                (p) =>
+                    '${p.name} ${p.author} ${p.description} ${p.localized('name', Localizations.localeOf(context).toString())} ${p.localized('description', Localizations.localeOf(context).toString())}'
+                        .toLowerCase()
+                        .contains(search.toLowerCase()),
               )
               .toList();
           return ListView(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 140),
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 32),
             children: [
-              const Text(
+              const LocalizedText(
                 '你的漫匣，\n由你定义。',
-                style: TextStyle(fontSize: 24, height: 1.3),
+                style: TextStyle(fontSize: 22, height: 1.3),
               ),
               const SizedBox(height: 12),
-              const Text(
+              const LocalizedText(
                 '主题、阅读习惯与常用入口，组合成自己的阅读室。',
                 style: TextStyle(fontSize: 12, height: 1.7),
               ),
               const SizedBox(height: 24),
               SegmentedButton<bool>(
                 segments: [
-                  const ButtonSegment(value: false, label: Text('发现插件')),
+                  const ButtonSegment(
+                    value: false,
+                    label: LocalizedText('发现插件'),
+                  ),
                   ButtonSegment(
                     value: true,
-                    label: Text('已安装 ${registry.installed.length}'),
+                    label: LocalizedText(
+                      '已安装 {count}',
+                      arguments: {'count': registry.installed.length},
+                    ),
                   ),
                 ],
                 selected: {installedOnly},
@@ -446,28 +525,34 @@ class _PluginsPageState extends State<PluginsPage> {
               const SizedBox(height: 18),
               TextField(
                 onChanged: (v) => setState(() => search = v),
-                decoration: const InputDecoration(
-                  hintText: '搜索插件、作者或用途',
-                  prefixIcon: Icon(Icons.search),
+                decoration: InputDecoration(
+                  hintText: translate(
+                    '搜索插件、作者或用途',
+                    Localizations.localeOf(context),
+                  ),
+                  prefixIcon: const Icon(Icons.search),
                 ),
               ),
               const SizedBox(height: 12),
-              Text(status, style: const TextStyle(fontSize: 11)),
+              LocalizedText(status, style: const TextStyle(fontSize: 11)),
               if (busy || state.connectionState == ConnectionState.waiting)
                 const LinearProgressIndicator(),
               if (state.hasError && !installedOnly)
-                Text('目录读取失败：${state.error}'),
+                LocalizedText(
+                  '目录读取失败：{message}',
+                  arguments: {'message': '${state.error}'},
+                ),
               const SizedBox(height: 18),
               if (shown.isEmpty &&
                   state.connectionState != ConnectionState.waiting)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 36),
-                  child: Text('这里还没有插件。可以浏览内置目录，或导入自己制作的 JSON 插件。'),
+                  child: LocalizedText('这里还没有插件。可以浏览内置目录，或导入 JSON、角色 ZIP 插件。'),
                 ),
               ...shown.map(tile),
               const SizedBox(height: 16),
-              const Text(
-                '声明式插件 API 1 · 支持主题、阅读预设、静态 HTML 漫画源和导航布局。',
+              const LocalizedText(
+                '声明式插件 API 1 · 主题、阅读预设、漫画源、导航与角色包。',
                 style: TextStyle(fontSize: 11, height: 1.8),
               ),
             ],
