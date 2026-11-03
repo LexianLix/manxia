@@ -1,6 +1,8 @@
 # 更新日志
 
-## v0.4.8
+版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
+
+## [0.4.8] - 2026-11-03
 
 ### 修复
 
@@ -18,7 +20,6 @@
 - 补齐插件和新功能的英文、繁体界面文案，调整设置层级和控件排版。
 
 
-版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
 ## [0.4.7] - 2026-11-01
 
