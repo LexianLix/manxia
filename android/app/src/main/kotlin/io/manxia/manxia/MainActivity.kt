@@ -28,8 +28,12 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var updates: AppUpdateInstaller? = null
     private var networkMonitor: NetworkMonitor? = null
+    private var scriptSourceHost: ScriptSourceHost? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            scriptSourceHost = ScriptSourceHost(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
+        }
         networkMonitor = NetworkMonitor(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/network").setMethodCallHandler { call, result ->
             if (call.method == "state") result.success(networkMonitor?.state()) else result.notImplemented()
@@ -78,6 +82,7 @@ class MainActivity : FlutterActivity() {
         return super.onKeyDown(keyCode, event)
     }
     override fun onDestroy() {
+        scriptSourceHost?.close()
         networkMonitor?.close()
         updates?.close()
         super.onDestroy()

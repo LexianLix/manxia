@@ -944,7 +944,9 @@ class ComicGrid extends StatelessWidget {
     this.arrivingFrom = 0,
     this.library,
     this.discoveryActions = false,
+    this.sourceLabels = const {},
   });
+  final Map<String, String> sourceLabels;
   final bool discoveryActions;
   final List<Comic> books;
   final Library? library;
@@ -1024,23 +1026,24 @@ class ComicGrid extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             LocalizedText(
-              library?.sourceStatus(comic)?['kind'] == 'copyright'
-                  ? '当前源无版权'
-                  : library?.sourceStatus(comic)?['kind'] == 'missing'
-                  ? '入口已失效'
-                  : library?.updates[comic.path]?['changed'] == true
-                  ? '有更新 · {chapter}'
-                  : library?.chapterCount(comic) != null
-                  ? '{read} / {count} 章已读'
-                  : comic.latest.isEmpty && comic.author.isNotEmpty
-                  ? comic.author
-                  : comic.latest.isEmpty
-                  ? comic.sourceId == 'dm5'
-                        ? '动漫屋'
-                        : comic.sourceId == 'local'
-                        ? '本地漫画'
-                        : '漫画'
-                  : comic.latest,
+              sourceLabels[comic.sourceId] ??
+                  (library?.sourceStatus(comic)?['kind'] == 'copyright'
+                      ? '当前源无版权'
+                      : library?.sourceStatus(comic)?['kind'] == 'missing'
+                      ? '入口已失效'
+                      : library?.updates[comic.path]?['changed'] == true
+                      ? '有更新 · {chapter}'
+                      : library?.chapterCount(comic) != null
+                      ? '{read} / {count} 章已读'
+                      : comic.latest.isEmpty && comic.author.isNotEmpty
+                      ? comic.author
+                      : comic.latest.isEmpty
+                      ? comic.sourceId == 'dm5'
+                            ? '动漫屋'
+                            : comic.sourceId == 'local'
+                            ? '本地漫画'
+                            : '漫画'
+                      : comic.latest),
               arguments: {
                 'read': library?.readChapterCount(comic) ?? 0,
                 'count': library?.chapterCount(comic) ?? 0,

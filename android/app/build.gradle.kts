@@ -69,3 +69,7 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("androidx.javascriptengine:javascriptengine:1.0.0")
+}

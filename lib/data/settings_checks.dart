@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html;
 import 'comic.dart';
 import 'dm5_source.dart';
+import 'script_source_policy.dart';
 
 class CheckCancelled implements Exception {}
 
@@ -101,7 +102,11 @@ Future<SourceCheckReport> inspectSource(
           () => probe.networkPages(detail.chapters.first.path),
         );
         final count = pages
-            .where((p) => ['http', 'https'].contains(Uri.tryParse(p)?.scheme))
+            .where(
+              (p) =>
+                  p.startsWith(scriptImagePrefix) ||
+                  ['http', 'https'].contains(Uri.tryParse(p)?.scheme),
+            )
             .length;
         samples.add(
           SourceSample(

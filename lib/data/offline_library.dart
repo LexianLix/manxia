@@ -11,6 +11,8 @@ import 'dm5_source.dart';
 import 'library.dart';
 import 'chapter_links.dart';
 import '../platform/network_monitor.dart';
+import '../platform/script_source_http.dart';
+import 'script_source_policy.dart';
 
 class OfflineCapacityException implements Exception {
   const OfflineCapacityException();
@@ -95,6 +97,23 @@ class OfflineLibrary extends ChangeNotifier {
     );
     if (!kIsWeb) request.headers.addAll(Dm5Source.headersForImage(image));
     try {
+      if (image.startsWith(scriptImagePrefix)) {
+        try {
+          final bytes = await fetchScriptResource(
+            decodeScriptImage(image),
+            maxBytes: 20 * 1024 * 1024,
+            image: true,
+            abort: abort.future,
+          ).timeout(Duration(seconds: timeout));
+          return http.Response.bytes(
+            bytes,
+            200,
+            headers: {'content-type': 'image/*'},
+          );
+        } on ScriptHttpError catch (error) {
+          return http.Response('', error.status);
+        }
+      }
       return await (() async => http.Response.fromStream(
         await _client.send(request),
       ))().timeout(Duration(seconds: timeout));

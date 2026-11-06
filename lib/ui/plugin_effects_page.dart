@@ -136,7 +136,8 @@ class _PluginEffectsPageState extends State<PluginEffectsPage> {
                                             ),
                                           )
                                           .join(' · ');
-                                      if (library.options['navigation'] is List) {
+                                      if (library.options['navigation']
+                                          is List) {
                                         state = '由个人导航设置覆盖';
                                       }
                                     } else if (capability == 'character') {
@@ -248,33 +249,39 @@ class _PluginEffectsPageState extends State<PluginEffectsPage> {
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             title: Text(name(p)),
-                            subtitle: by == null
+                            subtitle: p.apiVersion == 2
+                                ? const LocalizedText('在插件商城确认域名权限后启用')
+                                : by == null
                                 ? const LocalizedText('手动停用')
                                 : LocalizedText(
                                     '被 {name} 停用',
                                     arguments: {'name': name(by)},
                                   ),
-                            trailing: TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () async {
-                                      setState(() => busy = true);
-                                      try {
-                                        await registry.enable(p.id, true);
-                                      } catch (e) {
-                                        if (c.mounted) {
-                                          ScaffoldMessenger.of(c).showSnackBar(
-                                            SnackBar(content: Text('$e')),
-                                          );
-                                        }
-                                      } finally {
-                                        if (mounted) {
-                                          setState(() => busy = false);
-                                        }
-                                      }
-                                    },
-                              child: const LocalizedText('启用'),
-                            ),
+                            trailing: p.apiVersion == 2
+                                ? null
+                                : TextButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () async {
+                                            setState(() => busy = true);
+                                            try {
+                                              await registry.enable(p.id, true);
+                                            } catch (e) {
+                                              if (c.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  c,
+                                                ).showSnackBar(
+                                                  SnackBar(content: Text('$e')),
+                                                );
+                                              }
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() => busy = false);
+                                              }
+                                            }
+                                          },
+                                    child: const LocalizedText('启用'),
+                                  ),
                           );
                         },
                       ),

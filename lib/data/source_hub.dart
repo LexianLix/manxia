@@ -6,11 +6,17 @@ import 'dm5_source.dart';
 import 'library.dart';
 import 'source_profile.dart';
 import 'plugin.dart';
+import 'script_source.dart';
 export 'source_profile.dart';
 
 class SourceHub extends Dm5Source {
-  SourceHub(this.library, {super.gateway, http.Client? transport})
-    : transport = transport ?? http.Client() {
+  SourceHub(
+    this.library, {
+    super.gateway,
+    http.Client? transport,
+    ScriptSourceRuntime? scripts,
+  }) : transport = transport ?? http.Client(),
+       scripts = scripts ?? ScriptSourceRuntime() {
     refreshImageOrigins();
     onDetailStatus = (comic, error) async {
       if (error == null ||
@@ -30,6 +36,7 @@ class SourceHub extends Dm5Source {
   }
   final Library library;
   final http.Client transport;
+  final ScriptSourceRuntime scripts;
   List<Map<String, dynamic>>? _fixedProfiles;
   String? _fixedSource;
   @override
@@ -45,6 +52,7 @@ class SourceHub extends Dm5Source {
     required List<Map<String, dynamic>> profiles,
     required String sourceId,
   }) : transport = http.Client(),
+       scripts = ScriptSourceRuntime(),
        super(allowOffline: false) {
     _fixedProfiles = profiles;
     _fixedSource = sourceId;
@@ -52,10 +60,14 @@ class SourceHub extends Dm5Source {
   }
   List<Map<String, dynamic>> get profiles =>
       _fixedProfiles ??
-      [...library.sourceProfiles, ...PluginSnapshot(library.options).sources];
+      [
+        ...library.sourceProfiles,
+        ...PluginSnapshot(library.options).sources,
+      ].where((p) => gateway == null || !p.containsKey('script')).toList();
   void refreshImageOrigins() {
     for (final json in profiles) {
-      final p = SourceProfile(json);
+      final p = SourceProfile.enabled(json);
+      if (p.script != null) continue;
       for (final host in p.imageHosts) {
         Dm5Source.imageOrigins[host] = p.base.toString();
       }
@@ -68,13 +80,13 @@ class SourceHub extends Dm5Source {
             s['id'] ==
             (_fixedSource ?? library.option<String>('source', 'dm5')),
       )
-      .map(SourceProfile.new)
+      .map(SourceProfile.enabled)
       .firstOrNull;
   SourceProfile profile(String path) {
     final id = path.split(':')[1];
     return profiles
             .where((p) => p['id'] == id)
-            .map(SourceProfile.new)
+            .map(SourceProfile.enabled)
             .firstOrNull ??
         (throw SourceException('请先恢复漫画源 $id 的配置。'));
   }
@@ -107,26 +119,15 @@ class SourceHub extends Dm5Source {
   @override
   Future<List<Comic>> home() async {
     final p = selected;
-    return p == null
-        ? super.home()
-        : p.catalog(await customPage(p, p.url(p.value('home', '/'))));
+    if (p == null) return super.home();
+    if (p.script != null) return scripts.catalog(p);
+    return p.catalog(await customPage(p, p.url(p.value('home', '/'))));
   }
 
   @override
   Future<List<Comic>> search(String query) async {
     final p = selected;
-    return p == null
-        ? super.search(query)
-        : p.catalog(
-            await customPage(
-              p,
-              p.url(
-                p
-                    .value('search', '/search?q={query}')
-                    .replaceAll('{query}', Uri.encodeComponent(query)),
-              ),
-            ),
-          );
+    return p == null ? super.search(query) : _searchProfile(p, query);
   }
 
   /// A one-off lookup must not change discovery's default source or rewrite
@@ -137,7 +138,11 @@ class SourceHub extends Dm5Source {
     if (sourceId == 'dm5') return super.search(value);
     final json = profiles.where((p) => p['id'] == sourceId).firstOrNull;
     if (json == null) throw SourceException('这个漫画源已停用或被移除，请重新选择。');
-    final p = SourceProfile(Map<String, dynamic>.from(json));
+    return _searchProfile(SourceProfile.enabled(json), value);
+  }
+
+  Future<List<Comic>> _searchProfile(SourceProfile p, String value) async {
+    if (p.script != null) return scripts.catalog(p, query: value);
     final url = p.url(
       p
           .value('search', '/search?q={query}')
@@ -160,9 +165,11 @@ class SourceHub extends Dm5Source {
   @override
   Future<ComicDetail> detail(Comic comic) async {
     if (!comic.path.startsWith('custom:')) return super.detail(comic);
-    final p = profile(comic.path);
     try {
-      final result = p.detail(await customPage(p, p.decode(comic.path)), comic);
+      final p = profile(comic.path);
+      final result = p.script == null
+          ? p.detail(await customPage(p, p.decode(comic.path)), comic)
+          : await scripts.detail(p, comic);
       Dm5Source.chapterCatalogs[comic.path] = result.chapters;
       await reportDetailStatus(comic, null);
       return result;
@@ -182,11 +189,14 @@ class SourceHub extends Dm5Source {
   Future<List<String>> networkPages(String path) async {
     if (!path.startsWith('custom:')) return super.networkPages(path);
     final p = profile(path);
-    return p.pages(await customPage(p, p.decode(path)));
+    return p.script == null
+        ? p.pages(await customPage(p, p.decode(path)))
+        : scripts.pages(p, path);
   }
 
   @override
   void close() {
+    scripts.close();
     transport.close();
     super.close();
   }

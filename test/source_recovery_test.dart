@@ -70,6 +70,50 @@ void main() {
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
   testWidgets(
+    'all-source lookup ranks matches and keeps successful results after a source fails',
+    (tester) async {
+      late Library library;
+      await tester.runAsync(() async {
+        library = await state();
+      });
+      library.sourceProfiles.addAll([
+        profile('match'),
+        profile('other'),
+        profile('broken'),
+      ]);
+      final hub = SourceHub(
+        library,
+        transport: MockClient((request) async {
+          return switch (request.url.host) {
+            'match.example' => catalog(original.title),
+            'other.example' => catalog('另一部漫画'),
+            _ => http.Response('offline', 503),
+          };
+        }),
+      );
+      addTearDown(hub.close);
+      await tester.pumpWidget(
+        _app(
+          SourceSearchPage(
+            comic: original,
+            library: library,
+            source: hub,
+            web: false,
+            onOpen: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('搜索全部书源'));
+      await tester.pumpAndSettle();
+      final grid = tester.widget<ComicGrid>(find.byType(ComicGrid));
+      expect(grid.books.map((book) => book.sourceId), ['match', 'other']);
+      expect(find.text('部分书源失败：broken 书源'), findsOneWidget);
+      expect(library.record(original)?.page, 4);
+      await _capture(tester, 'all-sources');
+    },
+  );
+  testWidgets(
     'one-off source lookup rejects stale replies and preserves the original library',
     (tester) async {
       late Library library;

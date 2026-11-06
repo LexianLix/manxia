@@ -1,7 +1,10 @@
-import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../data/offline_library.dart';
 import '../data/dm5_source.dart';
+import '../data/script_source_policy.dart';
+import '../platform/script_source_http.dart';
 import 'cover_arrival.dart';
 
 String imageAddress(String original, bool web) =>
@@ -27,6 +30,7 @@ ImageProvider? immediateComicImageProvider(String url, bool web) {
     final bytes = offline!.peek(entry['coverKey']);
     return bytes == null ? null : MemoryImage(bytes);
   }
+  if (url.startsWith(scriptImagePrefix)) return _ScriptImage(url);
   return NetworkImage(
     imageAddress(url, web),
     headers: web ? null : Dm5Source.headersForImage(url),
@@ -43,10 +47,52 @@ Future<ImageProvider> comicImageProvider(String url, bool web) async {
   }
   final cover = await OfflineLibrary.instance?.cachedCover(url);
   if (cover != null) return MemoryImage(cover);
+  if (url.startsWith(scriptImagePrefix)) return _ScriptImage(url);
   return NetworkImage(
     imageAddress(url, web),
     headers: web ? null : Dm5Source.headersForImage(url),
   );
+}
+
+class _ScriptImage extends ImageProvider<_ScriptImage> {
+  const _ScriptImage(this.address);
+  final String address;
+
+  @override
+  Future<_ScriptImage> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture(this);
+
+  @override
+  ImageStreamCompleter loadImage(
+    _ScriptImage key,
+    ImageDecoderCallback decode,
+  ) => MultiFrameImageStreamCompleter(
+    codec: _load(key.address, decode),
+    scale: 1,
+  );
+
+  static Future<ui.Codec> _load(
+    String address,
+    ImageDecoderCallback decode,
+  ) async {
+    final uri = decodeScriptImage(address);
+    try {
+      final bytes = await fetchScriptResource(
+        uri,
+        maxBytes: 20 * 1024 * 1024,
+        image: true,
+      );
+      return await decode(await ui.ImmutableBuffer.fromUint8List(bytes));
+    } on ScriptHttpError catch (error) {
+      throw NetworkImageLoadException(statusCode: error.status, uri: uri);
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ScriptImage && address == other.address;
+  @override
+  int get hashCode => address.hashCode;
 }
 
 class ComicImage extends StatefulWidget {

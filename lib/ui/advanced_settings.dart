@@ -787,7 +787,8 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
         ...library.sourceProfiles,
         ...PluginSnapshot(library.options).sources,
       ])
-        p['id'] as String: p['name'] as String,
+        if (!widget.web || !p.containsKey('script'))
+          p['id'] as String: p['name'] as String,
     }, 'dm5'),
     for (final p in library.sourceProfiles)
       ListTile(

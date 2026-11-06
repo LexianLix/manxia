@@ -1,0 +1,33 @@
+{
+  "apiVersion": 2,
+  "id": "manxia.script-demo",
+  "name": "小夏试读源",
+  "version": "1.0.0",
+  "author": "Manxia",
+  "license": "MIT",
+  "description": "用小夏的原创示例图试跑脚本源。搜索「漫匣试读」即可打开目录和正文。",
+  "locales": {
+    "en": {
+      "name": "Xiaxia Demo Source",
+      "description": "Search for Manxia Demo to try the complete script source workflow."
+    },
+    "zh_TW": {
+      "name": "小夏試讀源",
+      "description": "搜尋「漫匣試讀」即可試跑目錄及正文。"
+    }
+  },
+  "contributes": {
+    "source": {
+      "id": "xiaxia-demo",
+      "name": "小夏试读源",
+      "baseUrl": "https://raw.githubusercontent.com/LexianLix/manxia/v0.4.8/",
+      "requestHosts": [
+        "raw.githubusercontent.com"
+      ],
+      "imageHosts": [
+        "raw.githubusercontent.com"
+      ],
+      "script": "(() => {\n  const index = 'assets/characters/index.json';\n  const folder = 'assets/characters/xiaxia/';\n  const book = {\n    path: `${index}?book=xiaxia`, title: '漫匣试读', author: 'Manxia',\n    cover: `${folder}idle.png`,\n  };\n  const chapter = {path: `${index}?chapter=1`, title: '第1话 小夏的阅读室'};\n\n  function read(ctx, select) {\n    if (ctx.responses.length === 0) return {request: index};\n    const images = Object.values(JSON.parse(ctx.responses[0]).images);\n    return {result: select(images)};\n  }\n\n  return {\n    search(ctx) {\n      const query = ctx.query.trim().toLowerCase();\n      const matches = [book.title, '漫匣試讀', '小夏', 'Manxia Demo']\n        .some(title => title.toLowerCase().includes(query));\n      return read(ctx, images => matches && images.includes(book.cover) ? [book] : []);\n    },\n    detail(ctx) {\n      return read(ctx, images => ({\n        description: '小夏的三张表情卡，供测试搜索、目录和阅读。',\n        chapters: ctx.url === ctx.baseUrl + book.path && images.includes(book.cover) ? [chapter] : [],\n      }));\n    },\n    pages(ctx) {\n      return read(ctx, images => ctx.url === ctx.baseUrl + chapter.path\n        ? ['idle', 'happy', 'blink'].map(name => `${folder}${name}.png`).filter(path => images.includes(path))\n        : []);\n    },\n  };\n})()\n"
+    }
+  }
+}

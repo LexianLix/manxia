@@ -1,0 +1,22 @@
+{
+  "apiVersion": 2,
+  "id": "manxia.script-demo",
+  "name": "小夏试读源",
+  "version": "1.0.0",
+  "author": "Manxia",
+  "license": "MIT",
+  "description": "用小夏的原创示例图试跑脚本源。搜索「漫匣试读」即可打开目录和正文。",
+  "locales": {
+    "en": {"name": "Xiaxia Demo Source", "description": "Search for Manxia Demo to try the complete script source workflow."},
+    "zh_TW": {"name": "小夏試讀源", "description": "搜尋「漫匣試讀」即可試跑目錄及正文。"}
+  },
+  "contributes": {
+    "source": {
+      "id": "xiaxia-demo",
+      "name": "小夏试读源",
+      "baseUrl": "https://raw.githubusercontent.com/LexianLix/manxia/v0.4.8/",
+      "requestHosts": ["raw.githubusercontent.com"],
+      "imageHosts": ["raw.githubusercontent.com"]
+    }
+  }
+}

@@ -7,6 +7,7 @@ import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, small;
 import 'content_handoff.dart';
 import 'localized_text.dart';
 import 'chapter_match_page.dart';
+import '../data/chapter_matching.dart';
 
 /// User-selected lookups preserve source identities. No automatic replacement
 /// of a favorite or its reading record, and no unconfigured remote sources.
@@ -33,6 +34,8 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
   String? selected, error;
   String resultSource = '';
   String? resultId;
+  bool allSources = false;
+  List<String> failedSources = [];
   List<Comic>? results;
   bool busy = false, opening = false, configuring = false;
   int request = 0, revision = 0;
@@ -52,23 +55,73 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
     });
   }
 
-  Future<void> search() async {
+  Future<void> search({bool? acrossSources}) async {
     if (opening) return;
     final id = active, query = input.text.trim();
     if (id == null || query.isEmpty) return;
-    final name = sources[id]!;
+    final available = sources;
+    final all = acrossSources ?? allSources;
+    final ids = all ? available.keys.toList() : [id];
     final generation = ++request;
     setState(() {
       busy = true;
       error = null;
+      failedSources = [];
+      allSources = all;
     });
     try {
-      final matches = await widget.source.searchIn(id, query);
-      if (!mounted || generation != request || !sources.containsKey(id)) return;
+      final failures = <String, String>{};
+      final matches = <Comic>[];
+      for (var offset = 0; offset < ids.length; offset += 3) {
+        final group = await Future.wait(
+          ids.skip(offset).take(3).map((key) async {
+            try {
+              return await widget.source
+                  .searchIn(key, query)
+                  .timeout(const Duration(seconds: 16));
+            } catch (e) {
+              failures[key] = friendlyError(e);
+              return <Comic>[];
+            }
+          }),
+        );
+        if (!mounted || generation != request) return;
+        matches.addAll(group.expand((books) => books.take(40)));
+      }
+      final stillEnabled = sources;
+      final unique = <String, Comic>{
+        for (final book in matches)
+          if (stillEnabled.containsKey(book.sourceId))
+            '${book.sourceId}/${book.path}': book,
+      }.values.toList();
+      if (all) {
+        final title = chapterName(query),
+            author = chapterName(widget.comic.author);
+        int score(Comic book) {
+          final name = chapterName(book.title);
+          return (name == title
+                  ? 100
+                  : name.contains(title)
+                  ? 60
+                  : 0) +
+              (author.isNotEmpty && chapterName(book.author) == author
+                  ? 15
+                  : 0);
+        }
+
+        unique.sort((a, b) {
+          final byMatch = score(b).compareTo(score(a));
+          if (byMatch != 0) return byMatch;
+          final byTitle = a.title.compareTo(b.title);
+          return byTitle == 0 ? a.sourceId.compareTo(b.sourceId) : byTitle;
+        });
+      }
       setState(() {
-        results = matches;
-        resultSource = name;
-        resultId = id;
+        results = unique.take(80).toList();
+        resultSource = all ? '所有已启用书源' : available[id]!;
+        resultId = all ? null : id;
+        failedSources = failures.keys.map((key) => available[key]!).toList();
+        if (failures.length == ids.length) error = failures.values.first;
         revision++;
       });
     } catch (e) {
@@ -219,13 +272,24 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                           for (final choice in choices.entries)
                             ChoiceChip(
                               label: Text(choice.value),
-                              selected: active == choice.key,
+                              selected: !allSources && active == choice.key,
                               onSelected: opening
                                   ? null
                                   : (_) {
                                       setState(() => selected = choice.key);
-                                      search();
+                                      search(acrossSources: false);
                                     },
+                            ),
+                          if (choices.length > 1)
+                            ActionChip(
+                              avatar: const Icon(
+                                Icons.travel_explore,
+                                size: 17,
+                              ),
+                              label: const LocalizedText('搜索全部书源'),
+                              onPressed: opening || busy
+                                  ? null
+                                  : () => search(acrossSources: true),
                             ),
                         ],
                       ),
@@ -261,10 +325,28 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                               ),
                             ),
                     ),
-                    if (results != null && choices.containsKey(resultId)) ...[
+                    if (failedSources.isNotEmpty && error == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: LocalizedText(
+                          '部分书源失败：{sources}',
+                          arguments: {'sources': failedSources.join('、')},
+                          style: small(context),
+                        ),
+                      ),
+                    if (results != null &&
+                        (resultId == null ||
+                            choices.containsKey(resultId))) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        '$resultSource · ${results!.length} 部',
+                      LocalizedText(
+                        '{source} · {count} 部',
+                        arguments: {
+                          'source': translate(
+                            resultSource,
+                            Localizations.localeOf(context),
+                          ),
+                          'count': results!.length,
+                        },
                         style: small(context),
                       ),
                       const SizedBox(height: 16),
@@ -285,9 +367,16 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                                   )
                                 : ComicGrid(
                                     key: ValueKey(revision),
-                                    books: results!,
+                                    books: results!
+                                        .where(
+                                          (comic) => choices.containsKey(
+                                            comic.sourceId,
+                                          ),
+                                        )
+                                        .toList(),
                                     web: widget.web,
                                     onOpen: open,
+                                    sourceLabels: choices,
                                   ),
                           ),
                         ),

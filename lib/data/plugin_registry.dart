@@ -7,21 +7,25 @@ import 'plugin.dart';
 import 'plugin_package.dart';
 import 'character_assets.dart';
 import 'character_definition.dart';
+import 'script_source.dart';
+import 'source_profile.dart';
 export 'plugin.dart';
 
 class PluginRegistry {
-  PluginRegistry(this.library, {CharacterAssets? characterAssets})
-    : assets = characterAssets ?? CharacterAssets.shared;
+  PluginRegistry(
+    this.library, {
+    CharacterAssets? characterAssets,
+    ScriptSourceRuntime? scripts,
+  }) : assets = characterAssets ?? CharacterAssets.shared,
+       scripts = scripts ?? ScriptSourceRuntime();
   final Library library;
   final CharacterAssets assets;
+  final ScriptSourceRuntime scripts;
   static final _operations = Expando<Future<void>>();
   Future<void> _run(Future<void> Function() action) {
     final prior = _operations[library] ?? Future<void>.value();
     final next = prior.then((_) => action());
-    final quiet = next.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
+    final quiet = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     _operations[library] = quiet;
     return next.whenComplete(() {
       if (identical(_operations[library], quiet)) _operations[library] = null;
@@ -52,12 +56,23 @@ class PluginRegistry {
       library.setOption('plugins.installed', list);
 
   Future<void> install(ManxiaPlugin plugin) => _run(() => _install(plugin));
-  Future<void> _install(ManxiaPlugin plugin) async {
+  Future<void> _install(
+    ManxiaPlugin plugin, {
+    Map<String, dynamic>? restoredConfig,
+    bool enabled = true,
+  }) async {
     final list = installed;
     final old = entry(plugin.id);
-    if (old != null &&
+    if (restoredConfig == null &&
+        old != null &&
         compareVersions(plugin.version, old['manifest']['version']) < 0) {
       throw const FormatException('不支持降级安装，请先卸载旧版');
+    }
+    if (old != null &&
+        (old['manifest']['apiVersion'] == 2 || plugin.apiVersion == 2) &&
+        old['manifest']['contributes']['source']?['id'] !=
+            plugin.contributions['source']?['id']) {
+      throw const FormatException('更新脚本源时必须保留漫画源 id');
     }
     for (final item in list) {
       if ((plugin.contributions.containsKey('theme') &&
@@ -87,13 +102,23 @@ class PluginRegistry {
       throw const FormatException('漫画源 id 与手动配置冲突');
     }
     list.removeWhere((e) => e['manifest']['id'] == plugin.id);
-    var config = Map<String, dynamic>.from(old?['config'] ?? {});
+    var config =
+        restoredConfig ?? Map<String, dynamic>.from(old?['config'] ?? {});
     try {
       plugin.resolve(config);
     } catch (_) {
       config = {};
     }
     final resolved = plugin.resolve(config);
+    if (plugin.apiVersion == 2) {
+      if (list.where((item) => item['manifest']['apiVersion'] == 2).length >=
+          12) {
+        throw const FormatException('最多可安装 12 个脚本漫画源');
+      }
+      await scripts.validate(
+        SourceProfile.scripted(Map<String, dynamic>.from(resolved['source'])),
+      );
+    }
     if (resolved['character'] is Map) {
       final count = installed
           .where(
@@ -111,14 +136,48 @@ class PluginRegistry {
         plugin.resources,
       );
     }
-    list.add({'manifest': plugin.json, 'enabled': true, 'config': config});
+    final previous =
+        restoredConfig != null || plugin.apiVersion != 2 || old == null
+        ? null
+        : old['manifest']['apiVersion'] == 2 &&
+              old['manifest']['version'] != plugin.version
+        ? {'manifest': old['manifest'], 'config': old['config']}
+        : old['previous'];
+    list.add({
+      'manifest': plugin.json,
+      'enabled': enabled,
+      'config': config,
+      'previous': ?previous,
+    });
     await save(list);
   }
+
+  Future<void> rollback(String id) => _run(() async {
+    final current = entry(id);
+    final previous = current?['previous'];
+    if (previous is! Map || previous['manifest'] is! Map) {
+      throw const FormatException('没有可回退的脚本源版本');
+    }
+    final plugin = ManxiaPlugin(
+      Map<String, dynamic>.from(previous['manifest']),
+    );
+    if (plugin.id != id || plugin.apiVersion != 2) {
+      throw const FormatException('上一个脚本源版本无效');
+    }
+    await _install(
+      plugin,
+      restoredConfig: Map<String, dynamic>.from(previous['config'] ?? {}),
+      enabled: current?['enabled'] == true,
+    );
+  });
 
   Future<void> enable(String id, bool enabled) => _run(() async {
     final item = entry(id);
     if (item == null) return;
     if (enabled) {
+      if (item['manifest']['apiVersion'] == 2) {
+        throw const FormatException('请在插件商城确认脚本域名权限后启用');
+      }
       await _install(ManxiaPlugin(Map<String, dynamic>.from(item['manifest'])));
     } else {
       final list = installed;
@@ -191,7 +250,7 @@ class PluginRegistry {
 
 class PluginCatalog {
   static const official =
-      'https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/v1.1/index.json';
+      'https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/v2/index.json';
   static Uri address(String text) {
     final uri = Uri.parse(text);
     if (uri.scheme != 'https' ||

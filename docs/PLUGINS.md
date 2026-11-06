@@ -8,6 +8,34 @@
 
 内置目录可离线使用；「添加 / 刷新在线仓库」会读取指定目录并逐包核对 SHA-256。刷新失败会保留当前目录。作者字段由插件提供；哈希用于校验内容一致性，不表示作者身份认证。
 
+## API 2 脚本漫画源
+
+API 2 可以用 JavaScript 编写漫画源。安装包是单个 JSON 文件，包含清单和脚本。复制 [示例目录](../plugins/examples/script-source/)，修改 `manifest.json` 和 `source.js` 后打包：
+
+```sh
+node tools/plugin-sdk.mjs pack-source ./my-source ./my-source.json
+node tools/plugin-sdk.mjs validate ./my-source.json
+```
+
+清单使用 `apiVersion: 2`，只包含 `contributes.source`，其中 `id` 用于保存作品身份，更新时保持不变。`name` 是显示名称，`baseUrl` 是 HTTPS 基址。`requestHosts` 和 `imageHosts` 分别声明文本请求和图片域名，省略时使用基址域名。每类最多八个精确域名，`requestHosts` 包含基址域名。
+
+`source.js` 是返回接口对象的 JavaScript 表达式。它提供以下同步函数，每次调用收到 `baseUrl` 和 `responses`，以及当前操作的字段：
+
+| 函数 | 参数 | `result` 结构 |
+| --- | --- | --- |
+| `search` | `query` 搜索词 | 作品数组，每项含 `path`、`title`，可选 `cover`、`author`、`latest` |
+| `discover` | 空字符串 `query` | 同搜索，可省略，此时调用 `search` |
+| `detail` | `url` 作品地址 | 含 `chapters` 的对象，可选 `description`。章节含 `path`、`title`，可选 `group` |
+| `pages` | `url` 章节地址 | 图片地址数组 |
+
+首次调用时 `responses` 为空。需要请求时返回 `{request: '路径或 HTTPS 地址'}`，宿主将响应正文追加到 `responses`，在新的隔离环境中再次调用该函数。完成时返回 `{result: 数据}`。用 `responses.length` 区分步骤。作品与章节路径解析到基址同一来源，图片地址使用 `imageHosts`。
+
+每项操作最多三次 GET。脚本上限 24 KiB，每次文本响应上限 48 KiB，整项操作最多 15 秒。宿主拒绝重定向和指向局域网、回环或保留网络地址的请求，执行使用支持终止与内存上限的 Android WebView 隔离环境。应用保留 Android 7 安装支持，脚本源要求 Android 8 及以上且 WebView 提供相应能力。Web 版可继续使用 API 1。
+
+导入插件时先核对域名，再启用。在插件卡片点「试跑脚本源」，以一个关键词检查搜索结果、第一章目录与实际解码的首图。内置「小夏试读源」可用「漫匣试读」验证完整流程。点「设为默认发现源」即可从发现页浏览。更新后可回退上一个已安装版本。恢复备份的脚本源需在插件商城重新确认权限。
+
+API 2 的官方仓库为 `plugins/v2/index.json`。旧版仍使用各自的 API 1 目录。
+
 ## 最小主题插件
 
 保存为 `yourname.my-room.json`，在插件页导入：

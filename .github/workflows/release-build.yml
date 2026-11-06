@@ -37,7 +37,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node tools/prepare-web.mjs
       - run: node tools/plugin-sdk.mjs build
-      - run: git diff --exit-code -- plugins/index.json plugins/v1.1/index.json plugins/packages/xiaxia.zip assets/plugins/catalog.json
+      - run: git diff --exit-code -- plugins/index.json plugins/v1.1/index.json plugins/v2/index.json plugins/packages/manxia.script-demo.json plugins/packages/xiaxia.zip assets/plugins/catalog.json
       - run: flutter analyze --no-pub
       - run: flutter test --timeout 30s
       - run: node --test tools/preview.test.mjs tools/plugin-sdk.test.mjs tools/character-package.test.mjs
@@ -120,6 +120,7 @@ jobs:
             python3 tools/android-startup-smoke.py startup.apk
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third
+            if [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

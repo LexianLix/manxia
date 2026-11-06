@@ -386,7 +386,20 @@ mixin LibraryFeatures on ChangeNotifier {
     await prefs.setBool('demo', false);
     if (restoreOptions) {
       for (final e in Map<String, dynamic>.from(j['options'] ?? {}).entries) {
-        if (!e.key.startsWith('webdav.')) options[e.key] = e.value;
+        if (e.key.startsWith('webdav.')) continue;
+        if (e.key == 'plugins.installed' && e.value is List) {
+          options[e.key] = [
+            for (final item in e.value as List)
+              if (item is Map &&
+                  item['manifest'] is Map &&
+                  item['manifest']['apiVersion'] == 2)
+                {...item, 'enabled': false}..remove('previous')
+              else
+                item,
+          ];
+        } else {
+          options[e.key] = e.value;
+        }
       }
     }
     // Device addresses, passwords and appearance remain local. Reader preferences

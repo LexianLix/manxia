@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'source_profile.dart';
 import 'character_definition.dart';
 
-/// Public declarative extension contract. No downloaded Dart/JS is evaluated.
+/// Manifest validation for declarative extensions and script sources.
 class ManxiaPlugin {
   factory ManxiaPlugin(
     Map<String, dynamic> input, {
@@ -30,6 +30,7 @@ class ManxiaPlugin {
   String get id => json['id'];
   String get name => json['name'];
   String get version => json['version'];
+  int get apiVersion => json['apiVersion'];
   String get author => json['author'];
   String get description => json['description'] ?? '';
   String localized(String field, String locale) {
@@ -53,8 +54,8 @@ class ManxiaPlugin {
   List<String> get capabilities => contributions.keys.toList();
 
   void validate() {
-    if (json['apiVersion'] != 1) {
-      throw const FormatException('插件接口版本不兼容，需要 API 1');
+    if (json['apiVersion'] is! int || ![1, 2].contains(json['apiVersion'])) {
+      throw const FormatException('插件接口版本不兼容，需要 API 1 或 API 2');
     }
     if (!RegExp(
       r'^[a-z][a-z0-9_-]{0,31}\.[a-z0-9][a-z0-9_.-]{0,63}$',
@@ -107,6 +108,12 @@ class ManxiaPlugin {
           ].contains(k),
         )) {
       throw const FormatException('插件贡献类型不受支持');
+    }
+    if (apiVersion == 2 &&
+        (contributions.length != 1 ||
+            contributions['source'] is! Map ||
+            settings.isNotEmpty)) {
+      throw const FormatException('API 2 插件目前只开放脚本漫画源');
     }
     final keys = <String>{};
     for (final setting in settings) {
@@ -205,7 +212,12 @@ class ManxiaPlugin {
       throw const FormatException('阅读预设无效');
     }
     if (result.containsKey('source')) {
-      SourceProfile(Map<String, dynamic>.from(result['source']));
+      final source = Map<String, dynamic>.from(result['source']);
+      if (apiVersion == 2) {
+        SourceProfile.scripted(source);
+      } else {
+        SourceProfile(source);
+      }
     }
     if (result.containsKey('navigation')) {
       final ids = result['navigation'];

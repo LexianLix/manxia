@@ -7,8 +7,11 @@ import 'preference_choice.dart';
 import '../data/plugin_package.dart';
 import '../data/character_definition.dart';
 import 'visible_listenable_builder.dart';
+import 'script_source_check_page.dart';
+import '../data/source_profile.dart';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/library.dart';
@@ -83,6 +86,10 @@ class _PluginsPageState extends State<PluginsPage> {
   }
 
   Future<void> install(ManxiaPlugin plugin) async {
+    if (kIsWeb && plugin.apiVersion == 2) {
+      setState(() => status = '脚本漫画源需要 Android');
+      return;
+    }
     final source = plugin.contributions['source'];
     final ok = await showDialog<bool>(
       context: context,
@@ -140,6 +147,17 @@ class _PluginsPageState extends State<PluginsPage> {
                 Text(
                   '漫画站点：${source['baseUrl']}\n图片域名：${source['imageHosts'] ?? '与站点相同'}',
                 ),
+              ],
+              if (plugin.apiVersion == 2) ...[
+                const SizedBox(height: 12),
+                const LocalizedText('脚本请求域名'),
+                Text(
+                  SourceProfile.scripted(
+                    Map<String, dynamic>.from(source as Map),
+                  ).requestHosts.join('\n'),
+                ),
+                const SizedBox(height: 8),
+                const LocalizedText('脚本由 Android 隔离执行，只能向获准域名请求数据。'),
               ],
               const SizedBox(height: 12),
               const LocalizedText('启用后立即应用；可在“已安装”停用或卸载。个人书籍与逐本阅读设置保留。'),
@@ -329,12 +347,26 @@ class _PluginsPageState extends State<PluginsPage> {
                   value: active,
                   onChanged: busy
                       ? null
-                      : (v) => run(() => registry.enable(plugin.id, v)),
+                      : (v) {
+                          if (v && item['manifest']['apiVersion'] == 2) {
+                            install(
+                              ManxiaPlugin(
+                                Map<String, dynamic>.from(item['manifest']),
+                              ),
+                            );
+                          } else {
+                            run(() => registry.enable(plugin.id, v));
+                          }
+                        },
                 )
               else
                 FilledButton(
-                  onPressed: busy ? null : () => install(plugin),
-                  child: const LocalizedText('安装'),
+                  onPressed: busy || kIsWeb && plugin.apiVersion == 2
+                      ? null
+                      : () => install(plugin),
+                  child: LocalizedText(
+                    kIsWeb && plugin.apiVersion == 2 ? '仅 Android' : '安装',
+                  ),
                 ),
             ],
           ),
@@ -381,6 +413,56 @@ class _PluginsPageState extends State<PluginsPage> {
                 ),
               ],
             ),
+            if (item['manifest']['apiVersion'] == 2)
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton.icon(
+                    onPressed: busy || !active
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ScriptSourceCheckPage(
+                                source: SourceProfile.scripted(
+                                  Map<String, dynamic>.from(
+                                    item['manifest']['contributes']['source'],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                    icon: const Icon(Icons.play_arrow, size: 18),
+                    label: const LocalizedText('试跑脚本源'),
+                  ),
+                  if (item['previous'] != null)
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => run(() => registry.rollback(plugin.id)),
+                      child: const LocalizedText('回退上一版'),
+                    ),
+                  TextButton(
+                    onPressed:
+                        busy ||
+                            !active ||
+                            widget.library.options['source'] ==
+                                item['manifest']['contributes']['source']['id']
+                        ? null
+                        : () => run(
+                            () => widget.library.setOption(
+                              'source',
+                              item['manifest']['contributes']['source']['id'],
+                            ),
+                          ),
+                    child: LocalizedText(
+                      widget.library.options['source'] ==
+                              item['manifest']['contributes']['source']['id']
+                          ? '当前默认发现源'
+                          : '设为默认发现源',
+                    ),
+                  ),
+                ],
+              ),
             if (plugin.settings.isNotEmpty)
               ExpansionTile(
                 key: PageStorageKey('plugin-settings-expanded-${plugin.id}'),
@@ -552,7 +634,7 @@ class _PluginsPageState extends State<PluginsPage> {
               ...shown.map(tile),
               const SizedBox(height: 16),
               const LocalizedText(
-                '声明式插件 API 1 · 主题、阅读预设、漫画源、导航与角色包。',
+                'API 1 支持声明式扩展。API 2 支持 Android 脚本漫画源。',
                 style: TextStyle(fontSize: 11, height: 1.8),
               ),
             ],

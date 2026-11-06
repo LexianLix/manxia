@@ -2,30 +2,43 @@ import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
 import 'comic.dart';
 import 'dm5_source.dart';
+import 'script_source_policy.dart';
 
 /// A deliberately declarative adapter: selectors and URLs, never downloaded code.
 class SourceProfile {
   SourceProfile(this.json) {
     validate();
   }
+  SourceProfile.scripted(this.json) {
+    _validateIdentity();
+    checkedScriptUrl(base);
+    if (!validSourceScript(json['script']) ||
+        !requestHosts.contains(base.host) ||
+        value('name').trim().isEmpty) {
+      throw const FormatException('脚本源需提供名称、脚本和站点域名权限');
+    }
+    scriptDomains(json['imageHosts'], base.host);
+  }
+  factory SourceProfile.enabled(Map<String, dynamic> json) =>
+      json.containsKey('script')
+      ? SourceProfile.scripted(json)
+      : SourceProfile(json);
+
   final Map<String, dynamic> json;
   String get id => json['id'] as String;
   String get name => json['name'] as String;
   Uri get base => Uri.parse(json['baseUrl'] as String);
+  String? get script => json['script'] as String?;
+  List<String> get requestHosts =>
+      scriptDomains(json['requestHosts'], base.host);
   String value(String key, [String fallback = '']) =>
       json[key] as String? ?? fallback;
   List<String> get imageHosts =>
       List<String>.from(json['imageHosts'] ?? [base.host]);
   void validate() {
-    if (!RegExp(r'^[a-z0-9_-]{1,40}$').hasMatch(json['id'] as String? ?? '') ||
-        json['id'] == 'dm5' ||
-        json['id'] == 'local') {
-      throw const FormatException('源 id 需为 1–40 位小写字母、数字、下划线或短横线。');
-    }
-    if (base.scheme != 'https' ||
-        base.userInfo.isNotEmpty ||
-        base.host.isEmpty) {
-      throw const FormatException('漫画源需填写不带账号密码的 HTTPS 地址。');
+    _validateIdentity();
+    if (json.containsKey('script') || json.containsKey('requestHosts')) {
+      throw const FormatException('脚本漫画源请使用 API 2 插件安装');
     }
     for (final key in [
       'name',
@@ -41,7 +54,6 @@ class SourceProfile {
     if (imageHosts.any((h) => !RegExp(r'^[a-zA-Z0-9.-]+$').hasMatch(h))) {
       throw const FormatException('imageHosts 只能填写域名。');
     }
-    // Parse selectors now so malformed profiles fail before they are saved.
     for (final key in [
       'cards',
       'title',
@@ -51,6 +63,19 @@ class SourceProfile {
       'pages',
     ]) {
       html.parse('').querySelectorAll(value(key));
+    }
+  }
+
+  void _validateIdentity() {
+    if (!RegExp(r'^[a-z0-9_-]{1,40}$').hasMatch(json['id'] as String? ?? '') ||
+        json['id'] == 'dm5' ||
+        json['id'] == 'local') {
+      throw const FormatException('源 id 需为 1–40 位小写字母、数字、下划线或短横线。');
+    }
+    if (base.scheme != 'https' ||
+        base.userInfo.isNotEmpty ||
+        base.host.isEmpty) {
+      throw const FormatException('漫画源需填写不带账号密码的 HTTPS 地址。');
     }
   }
 

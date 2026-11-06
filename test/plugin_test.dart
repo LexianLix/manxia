@@ -27,8 +27,7 @@ void main() {
     'bundled catalog and published index describe exactly the same bytes',
     () async {
       final index =
-          jsonDecode(await File('plugins/v1.1/index.json').readAsString())
-              as Map;
+          jsonDecode(await File('plugins/v2/index.json').readAsString()) as Map;
       expect(
         plugins.map((p) => p.id).toSet(),
         (index['plugins'] as List).map((p) => p['id']).toSet(),
