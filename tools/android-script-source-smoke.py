@@ -47,6 +47,12 @@ def tap_node(node):
     nav.adb('shell', 'input', 'tap', str((left + right) // 2), str((top + bottom) // 2))
 
 
+def hide_keyboard():
+    ime = nav.adb('shell', 'dumpsys', 'input_method')
+    if re.search(r'\bm(?:InputShown|IsInputViewShown)=true\b', ime):
+        nav.adb('shell', 'input', 'keyevent', '4')
+
+
 def type_query(text):
     fields = [node for node in ET.fromstring(nav.read_ui()).iter('node')
               if node.get('class') == 'android.widget.EditText']
@@ -55,7 +61,19 @@ def type_query(text):
     tap_node(fields[0])
     time.sleep(.5)
     nav.adb('shell', 'input', 'text', text.replace(' ', '%s'))
-    nav.adb('shell', 'input', 'keyevent', '4')
+    hide_keyboard()
+
+
+def open_reader():
+    until = time.monotonic() + 35
+    while time.monotonic() < until:
+        for node in ET.fromstring(nav.read_ui()).iter('node'):
+            if ('Read' in (node.get('text'), node.get('content-desc'))
+                    and node.get('enabled') == 'true'):
+                tap_node(node)
+                return
+        time.sleep(.5)
+    raise RuntimeError('Missing enabled Read button')
 
 
 def main():
@@ -69,8 +87,11 @@ def main():
         nav.wait_ui('Script request domains')
         nav.capture('install-permissions')
         nav.tap('Install & enable')
-        nav.wait_ui('Test script source')
+        nav.wait_ui('Installed 1')
         result['installed'] = True
+        nav.tap('Installed 1')
+        hide_keyboard()
+        nav.scroll_to('Test script source')
         nav.tap('Test script source')
         nav.wait_ui('Run source test')
         type_query('Manxia Demo')
@@ -80,18 +101,14 @@ def main():
         result['search_detail_image'] = True
         nav.adb('shell', 'input', 'keyevent', '4')
         nav.wait_ui('Plugin store')
+        hide_keyboard()
+        nav.scroll_to('Set as discovery source')
         nav.tap('Set as discovery source')
         nav.wait_ui('Current discovery source')
         nav.tap('Explore')
         nav.wait_ui('漫匣试读', timeout=50)
         nav.tap('漫匣试读')
-        nav.wait_ui('小夏的阅读室')
-        read_button = next((node for node in ET.fromstring(nav.read_ui()).iter('node')
-                            if 'Read' in (node.get('text'), node.get('content-desc'))
-                            and node.get('enabled') == 'true'), None)
-        if read_button is None:
-            raise RuntimeError('Missing enabled Read button')
-        tap_node(read_button)
+        open_reader()
         until = time.monotonic() + 40
         while time.monotonic() < until:
             png = nav.adb('exec-out', 'screencap', '-p', binary=True)
