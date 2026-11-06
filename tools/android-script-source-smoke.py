@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import time
 import xml.etree.ElementTree as ET
 
@@ -41,8 +42,18 @@ def open_plugins():
     nav.wait_ui('Plugin store')
 
 
-def type_query(label, text):
-    nav.tap(label)
+def tap_node(node):
+    left, top, right, bottom = map(int, re.findall(r'\d+', node.get('bounds')))
+    nav.adb('shell', 'input', 'tap', str((left + right) // 2), str((top + bottom) // 2))
+
+
+def type_query(text):
+    fields = [node for node in ET.fromstring(nav.read_ui()).iter('node')
+              if node.get('class') == 'android.widget.EditText']
+    if len(fields) != 1:
+        raise RuntimeError(f'Expected one search field, found {len(fields)}')
+    tap_node(fields[0])
+    time.sleep(.5)
     nav.adb('shell', 'input', 'text', text.replace(' ', '%s'))
     nav.adb('shell', 'input', 'keyevent', '4')
 
@@ -52,7 +63,7 @@ def main():
     try:
         (nav.OUT / 'webview.txt').write_text(nav.adb('shell', 'dumpsys', 'webviewupdate'), encoding='utf-8')
         open_plugins()
-        type_query('Search plugins, authors or purpose', 'Xiaxia Demo')
+        type_query('Xiaxia Demo')
         nav.wait_ui('Xiaxia Demo Source')
         nav.tap('Install')
         nav.wait_ui('Script request domains')
@@ -61,8 +72,8 @@ def main():
         nav.wait_ui('Test script source')
         result['installed'] = True
         nav.tap('Test script source')
-        nav.wait_ui('Test keyword')
-        type_query('Test keyword', 'Manxia Demo')
+        nav.wait_ui('Run source test')
+        type_query('Manxia Demo')
         nav.tap('Run source test')
         nav.wait_ui('First image decoded', timeout=50)
         nav.capture('source-test')
@@ -75,7 +86,12 @@ def main():
         nav.wait_ui('漫匣试读', timeout=50)
         nav.tap('漫匣试读')
         nav.wait_ui('小夏的阅读室')
-        nav.tap('Read')
+        read_button = next((node for node in ET.fromstring(nav.read_ui()).iter('node')
+                            if 'Read' in (node.get('text'), node.get('content-desc'))
+                            and node.get('enabled') == 'true'), None)
+        if read_button is None:
+            raise RuntimeError('Missing enabled Read button')
+        tap_node(read_button)
         nav.wait_ui('Next page')
         time.sleep(4)
         _, png = nav.capture('reader')
