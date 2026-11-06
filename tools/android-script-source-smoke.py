@@ -92,15 +92,19 @@ def main():
         if read_button is None:
             raise RuntimeError('Missing enabled Read button')
         tap_node(read_button)
-        nav.wait_ui('Next page')
-        time.sleep(4)
-        _, png = nav.capture('reader')
-        image = Image.open(io.BytesIO(png)).convert('RGB')
-        w, h = image.size
-        center = image.crop((w // 6, h // 5, w * 5 // 6, h * 4 // 5))
-        colors = center.getcolors(w * h)
-        purple = sum(n for n, (r, g, b) in colors if r > g + 7 and b > g + 18)
-        if purple < 300:
+        until = time.monotonic() + 40
+        while time.monotonic() < until:
+            png = nav.adb('exec-out', 'screencap', '-p', binary=True)
+            image = Image.open(io.BytesIO(png)).convert('RGB')
+            w, h = image.size
+            center = image.crop((w // 6, h // 5, w * 5 // 6, h * 4 // 5))
+            colors = center.getcolors(w * h)
+            purple = sum(n for n, (r, g, b) in colors if r > g + 7 and b > g + 18)
+            if purple >= 300 and nav.has_label(nav.read_ui(), 'Next page'):
+                nav.capture('reader')
+                break
+            time.sleep(1)
+        else:
             raise RuntimeError('Reader did not render the example image')
         result['reader_rendered'] = True
         result['passed'] = True
