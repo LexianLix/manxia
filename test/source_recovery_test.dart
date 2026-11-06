@@ -12,9 +12,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:manxia/data/comic.dart';
 import 'package:manxia/data/dm5_source.dart';
 import 'package:manxia/data/library.dart';
+import 'package:manxia/data/offline_library.dart';
+import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/data/source_hub.dart';
 import 'package:manxia/ui/app_shell.dart';
+import 'package:manxia/ui/book_link.dart';
+import 'package:manxia/ui/book_navigation.dart';
 import 'package:manxia/ui/detail_page.dart';
+import 'package:manxia/ui/reader_page.dart';
+import 'package:manxia/ui/room_motion.dart';
+import 'package:manxia/ui/search_page.dart';
 import 'package:manxia/ui/source_search_page.dart';
 
 const original = Comic(
@@ -69,6 +76,86 @@ void main() {
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
+  testWidgets(
+    'discovery search groups matching authors and preserves expanded results on a quick return',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      late Library library;
+      await tester.runAsync(() async => library = await state());
+      library.sourceProfiles.addAll([profile('second'), profile('broken')]);
+      final hub = _GroupedHub(library);
+      addTearDown(hub.close);
+      await tester.runAsync(() async {
+        final store = MemoryBlobStore();
+        final art = await rootBundle.load('assets/characters/xiaxia/idle.png');
+        await store.write('fixture', art.buffer.asUint8List());
+        OfflineLibrary(library, hub, store: store);
+      });
+      addTearDown(() => OfflineLibrary.instance = null);
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) => ComicSearchPage(
+              library: library,
+              source: hub,
+              web: false,
+              onOpen: (comic) => Navigator.of(context).push(
+                comicDetailRoute(
+                  context,
+                  comic: comic,
+                  library: library,
+                  source: hub,
+                  web: false,
+                  flightTag: BookLink.takeTag(context, comic),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextField), '星光');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(find.text('作者甲 · 2 个来源'), findsOneWidget);
+      expect(find.text('作者乙 · second 书源'), findsOneWidget);
+      expect(find.text('部分书源失败：broken 书源'), findsOneWidget);
+      await tester.tap(find.text('作者甲 · 2 个来源'));
+      await tester.pumpAndSettle();
+      expect(find.text('第12话'), findsOneWidget);
+      if (Platform.environment['MANXIA_CAPTURE_DIR'] != null) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 180)),
+        );
+        await tester.pumpAndSettle();
+      }
+      await _capture(tester, 'grouped-search');
+      final scroll = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(CustomScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      scroll.position.jumpTo(60);
+      await tester.pump();
+      final offset = scroll.position.pixels;
+      expect(offset, greaterThan(0));
+      await tester.tap(find.widgetWithText(ListTile, '第12话').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      final detail = find.byType(DetailPage, skipOffstage: false);
+      expect(tester.widget<DetailPage>(detail).comic.sourceId, 'second');
+      Navigator.of(tester.element(detail)).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('第12话'), findsOneWidget);
+      expect(scroll.position.pixels, offset);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'all-source lookup ranks matches and keeps successful results after a source fails',
     (tester) async {
@@ -211,6 +298,13 @@ void main() {
         ),
       );
       addTearDown(hub.close);
+      await tester.runAsync(() async {
+        final store = MemoryBlobStore();
+        final art = await rootBundle.load('assets/characters/xiaxia/idle.png');
+        await store.write('alternative-page', art.buffer.asUint8List());
+        OfflineLibrary(library, hub, store: store);
+      });
+      addTearDown(() => OfflineLibrary.instance = null);
       await tester.pumpWidget(
         _app(
           DetailPage(
@@ -237,12 +331,20 @@ void main() {
       await tester.tap(find.text('第2话'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('从此章节开头继续'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 180)),
+      );
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 180)),
+      );
       await tester.pumpAndSettle();
-      final current = tester.widget<DetailPage>(find.byType(DetailPage).last);
-      await _capture(tester, 'alternative-detail');
+      final current = tester.widget<ReaderPage>(find.byType(ReaderPage));
+      await _capture(tester, 'alternative-reader');
       expect(current.comic.sourceId, 'alternative');
-      expect(find.text('MANGA / alternative 书源'), findsOneWidget);
-      expect(find.text('继续阅读').last, findsOneWidget);
+      expect(current.chapter.title, '第2话');
+      expect(current.initialPage, 0);
       expect(library.option<String>('source', 'dm5'), 'dm5');
       expect(library.favorites.single.path, original.path);
       expect(library.record(original)!.page, 4);
@@ -285,6 +387,48 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets(
+    'reader failure matches the failed chapter and preserves the old record',
+    (tester) async {
+      late Library library;
+      await tester.runAsync(() async => library = await state());
+      library.sourceProfiles.add(profile('alternative'));
+      final hub = _UnavailableHub(
+        library,
+        transport: MockClient(
+          (request) async => request.url.path == '/search'
+              ? catalog('可读版本')
+              : http.Response(
+                  '<div class="chapters"><a href="/new/">第2话</a></div>',
+                  200,
+                  headers: {'content-type': 'text/html; charset=utf-8'},
+                ),
+        ),
+      );
+      addTearDown(hub.close);
+      await tester.pumpWidget(
+        _app(
+          ReaderPage(
+            comic: original,
+            chapter: const Chapter('/m-new/', '第2话'),
+            library: library,
+            source: hub,
+            web: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('当前书源没有版权'), findsOneWidget);
+      await tester.tap(find.text('换源查找'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('可读版本').last);
+      await tester.tap(find.text('可读版本').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('原进度：第2话'), findsOneWidget);
+      expect(library.record(original)!.page, 4);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 final _boundary = GlobalKey();
@@ -293,6 +437,9 @@ Widget _app(Widget child) => RepaintBoundary(
   child: MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {TargetPlatform.android: RoomPageTransitions()},
+      ),
       fontFamily: 'ArchiveSerif',
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xff47775e),
@@ -326,4 +473,47 @@ class _UnavailableHub extends SourceHub {
     if (c.sourceId == 'dm5') throw SourceException('应版权方要求，原站已移除本作品章节链接。');
     return super.detail(c);
   }
+
+  @override
+  Future<List<String>> pages(String path) async {
+    if (!path.startsWith('custom:')) throw SourceCopyrightException('版权方移除');
+    return const ['offline:alternative-page'];
+  }
+}
+
+class _GroupedHub extends SourceHub {
+  _GroupedHub(super.library);
+
+  @override
+  Future<List<Comic>> searchIn(String sourceId, String query) async {
+    if (sourceId == 'broken') throw SourceException('fixture unavailable');
+    return [
+      Comic(
+        path: '/$sourceId-1/',
+        title: '星光',
+        author: '作者甲',
+        cover: 'offline:fixture',
+        sourceId: sourceId,
+        latest: sourceId == 'dm5' ? '第10话' : '第12话',
+      ),
+      if (sourceId == 'second')
+        const Comic(
+          path: '/second-2/',
+          title: '星光',
+          author: '作者乙',
+          cover: 'offline:fixture',
+          sourceId: 'second',
+        ),
+      if (sourceId == 'dm5')
+        for (var index = 0; index < 12; index++)
+          Comic(
+            path: '/other-$index/',
+            title: '相关漫画 ${index + 1}',
+            cover: 'offline:fixture',
+          ),
+    ];
+  }
+
+  @override
+  Future<ComicDetail> detail(Comic comic) async => ComicDetail(comic, const []);
 }

@@ -5,9 +5,60 @@ import '../data/source_hub.dart';
 import 'advanced_settings.dart';
 import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError, small;
 import 'content_handoff.dart';
+import 'book_navigation.dart';
+import 'book_link.dart';
 import 'localized_text.dart';
+import 'reader_page.dart';
 import 'chapter_match_page.dart';
 import '../data/chapter_matching.dart';
+
+Future<void> showSourceRecovery(
+  BuildContext context, {
+  required Comic comic,
+  required Library library,
+  required SourceHub source,
+  required bool web,
+  ReadingRecord? resumeFrom,
+}) => Navigator.of(context).push<void>(
+  MaterialPageRoute(
+    builder: (searchContext) => SourceSearchPage(
+      comic: comic,
+      library: library,
+      source: source,
+      web: web,
+      resumeFrom: resumeFrom,
+      searchAllOnEntry: true,
+      onOpen: (book) async {
+        await Navigator.of(searchContext).push(
+          comicDetailRoute(
+            searchContext,
+            comic: book,
+            library: library,
+            source: source,
+            web: web,
+            flightTag: BookLink.takeTag(searchContext, book),
+          ),
+        );
+      },
+      onResume: (detail, chapter) async {
+        BookLink.takeTag(searchContext, detail.comic);
+        await Navigator.of(searchContext).push<void>(
+          MaterialPageRoute(
+            builder: (_) => ReaderPage(
+              comic: detail.comic,
+              chapter: chapter,
+              chapters: detail.chapters,
+              library: library,
+              source: source,
+              web: web,
+              initialPage: 0,
+            ),
+          ),
+        );
+      },
+    ),
+  ),
+);
 
 /// User-selected lookups preserve source identities. No automatic replacement
 /// of a favorite or its reading record, and no unconfigured remote sources.
@@ -19,12 +70,18 @@ class SourceSearchPage extends StatefulWidget {
     required this.source,
     required this.web,
     required this.onOpen,
+    this.resumeFrom,
+    this.onResume,
+    this.searchAllOnEntry = false,
   });
   final Comic comic;
   final Library library;
   final SourceHub source;
   final bool web;
   final Future<void> Function(Comic) onOpen;
+  final ReadingRecord? resumeFrom;
+  final Future<void> Function(ComicDetail, Chapter)? onResume;
+  final bool searchAllOnEntry;
   @override
   State<SourceSearchPage> createState() => _SourceSearchPageState();
 }
@@ -40,10 +97,8 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
   bool busy = false, opening = false, configuring = false;
   int request = 0, revision = 0;
   Map<String, String> get sources => {
-    if (widget.comic.sourceId != 'dm5') 'dm5': '动漫屋',
-    for (final p in widget.source.profiles)
-      if (p['id'] != widget.comic.sourceId)
-        p['id'] as String: p['name'] as String,
+    for (final source in widget.source.sourceNames.entries)
+      if (source.key != widget.comic.sourceId) source.key: source.value,
   };
   String? get active =>
       sources.containsKey(selected) ? selected : sources.keys.firstOrNull;
@@ -51,7 +106,9 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && active != null) search();
+      if (mounted && active != null) {
+        search(acrossSources: widget.searchAllOnEntry && sources.length > 1);
+      }
     });
   }
 
@@ -70,27 +127,16 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
       allSources = all;
     });
     try {
-      final failures = <String, String>{};
-      final matches = <Comic>[];
-      for (var offset = 0; offset < ids.length; offset += 3) {
-        final group = await Future.wait(
-          ids.skip(offset).take(3).map((key) async {
-            try {
-              return await widget.source
-                  .searchIn(key, query)
-                  .timeout(const Duration(seconds: 16));
-            } catch (e) {
-              failures[key] = friendlyError(e);
-              return <Comic>[];
-            }
-          }),
-        );
-        if (!mounted || generation != request) return;
-        matches.addAll(group.expand((books) => books.take(40)));
-      }
+      final batch = await widget.source.searchAcross(
+        ids,
+        query,
+        isCurrent: () => mounted && generation == request,
+      );
+      if (!mounted || generation != request) return;
+      final failures = batch.failures;
       final stillEnabled = sources;
       final unique = <String, Comic>{
-        for (final book in matches)
+        for (final book in batch.books)
           if (stillEnabled.containsKey(book.sourceId))
             '${book.sourceId}/${book.path}': book,
       }.values.toList();
@@ -121,7 +167,9 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
         resultSource = all ? '所有已启用书源' : available[id]!;
         resultId = all ? null : id;
         failedSources = failures.keys.map((key) => available[key]!).toList();
-        if (failures.length == ids.length) error = failures.values.first;
+        if (failures.length == ids.length) {
+          error = friendlyError(failures.values.first);
+        }
         revision++;
       });
     } catch (e) {
@@ -167,7 +215,7 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
       error = null;
     });
     try {
-      final prior = widget.library.record(widget.comic);
+      final prior = widget.resumeFrom ?? widget.library.record(widget.comic);
       if (prior != null) {
         final detail = await widget.source.detail(comic);
         if (!mounted) return;
@@ -179,6 +227,11 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
         );
         if (choice == null || !mounted) return;
         if (choice is Chapter) {
+          final resume = widget.onResume;
+          if (resume != null) {
+            await resume(detail, choice);
+            return;
+          }
           await widget.library.save(
             ReadingRecord(
               comic: comic,

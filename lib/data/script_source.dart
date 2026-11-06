@@ -7,6 +7,13 @@ import 'dm5_source.dart';
 import 'script_source_policy.dart';
 import 'source_profile.dart';
 
+enum ScriptFailureKind { permission, request, parse, execution, empty }
+
+class ScriptSourceFailure extends SourceException {
+  ScriptSourceFailure(this.kind, super.message);
+  final ScriptFailureKind kind;
+}
+
 class ScriptSourceRuntime {
   ScriptSourceRuntime({
     this.evaluate = evaluateOnAndroid,
@@ -70,6 +77,7 @@ class ScriptSourceRuntime {
     final responses = <String>[];
     final watch = Stopwatch()..start();
     const budget = Duration(seconds: 15);
+    var phase = ScriptFailureKind.execution;
     try {
       for (var step = 0; step <= 3; step++) {
         if (_closed.isCompleted) throw SourceException('书源请求已取消');
@@ -82,11 +90,13 @@ class ScriptSourceRuntime {
             ? '(api.discover ?? api.search).call(api, $input)'
             : 'api.$hook($input)';
         final remaining = budget - watch.elapsed;
+        phase = ScriptFailureKind.execution;
         if (remaining <= Duration.zero) throw TimeoutException('script source');
         final raw = await evaluate(
           _program(source, expression),
         ).timeout(remaining);
         if (_closed.isCompleted) throw SourceException('书源请求已取消');
+        phase = ScriptFailureKind.parse;
         final value = jsonDecode(raw);
         if (value is Map && value.length == 1 && value.containsKey('result')) {
           return value['result'];
@@ -95,12 +105,14 @@ class ScriptSourceRuntime {
           throw const FormatException('脚本需返回 {request: 地址} 或 {result: 数据}');
         }
         if (step == 3) throw const FormatException('每项操作最多请求 3 次');
+        phase = ScriptFailureKind.permission;
         final url = checkedScriptUrl(
           source.base.resolve(value['request'] as String),
         );
         if (!source.requestHosts.contains(url.host)) {
           throw FormatException('脚本请求的域名未获许可：${url.host}');
         }
+        phase = ScriptFailureKind.request;
         final requestTime = budget - watch.elapsed;
         if (requestTime <= Duration.zero) {
           throw TimeoutException('script source');
@@ -118,13 +130,17 @@ class ScriptSourceRuntime {
         }
       }
     } on TimeoutException {
-      throw SourceException('${source.name} 的 $hook 超时');
+      throw ScriptSourceFailure(phase, '${source.name} 的 $hook 超时');
     } on FormatException catch (error) {
-      throw SourceException('${source.name} 的 $hook：${error.message}');
-    } on SourceException {
-      rethrow;
+      throw ScriptSourceFailure(
+        phase,
+        '${source.name} 的 $hook：${error.message}',
+      );
+    } on SourceException catch (error) {
+      throw ScriptSourceFailure(phase, error.message);
     } catch (_) {
-      throw SourceException('${source.name} 的 $hook 请求失败');
+      final message = phase == ScriptFailureKind.request ? '请求失败' : '执行失败';
+      throw ScriptSourceFailure(phase, '${source.name} 的 $hook $message');
     }
     throw SourceException('${source.name} 的 $hook 没有结果');
   }
@@ -137,11 +153,18 @@ class ScriptSourceRuntime {
   }
 
   String _image(SourceProfile source, Object? raw) {
-    final url = checkedScriptUrl(
-      source.base.resolve(_text(raw, required: true, limit: 2048)),
-    );
+    final address = _text(raw, required: true, limit: 2048);
+    final url = source.base.resolve(address);
+    try {
+      checkedScriptUrl(url);
+    } on FormatException catch (error) {
+      throw ScriptSourceFailure(ScriptFailureKind.permission, error.message);
+    }
     if (!source.imageHosts.contains(url.host)) {
-      throw SourceException('图片域名未获许可：${url.host}');
+      throw ScriptSourceFailure(
+        ScriptFailureKind.permission,
+        '图片域名未获许可：${url.host}',
+      );
     }
     return '$scriptImagePrefix${Uri.encodeComponent(url.toString())}';
   }
@@ -198,7 +221,9 @@ class ScriptSourceRuntime {
         group: _text(row['group'] ?? '连载'),
       );
     }
-    if (chapters.isEmpty) throw SourceException('脚本未返回可阅读的章节');
+    if (chapters.isEmpty) {
+      throw ScriptSourceFailure(ScriptFailureKind.empty, '脚本未返回可阅读的章节');
+    }
     return ComicDetail(
       Comic(
         path: comic.path,
@@ -222,7 +247,9 @@ class ScriptSourceRuntime {
       'url': source.decode(path).toString(),
     });
     final pages = _items(raw, 500).map((row) => _image(source, row)).toList();
-    if (pages.isEmpty) throw SourceException('脚本未返回章节图片');
+    if (pages.isEmpty) {
+      throw ScriptSourceFailure(ScriptFailureKind.empty, '脚本未返回章节图片');
+    }
     return pages;
   }
 }

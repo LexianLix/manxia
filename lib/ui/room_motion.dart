@@ -122,7 +122,10 @@ class ReaderChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-    tween: Tween(begin: visible ? 1.0 : 0.0, end: visible ? 1.0 : 0.0),
+    tween: Tween(
+      begin: MediaQuery.disableAnimationsOf(context) && visible ? 1.0 : 0.0,
+      end: visible ? 1.0 : 0.0,
+    ),
     duration: RoomMotion.duration(context, RoomMotion.feedback),
     curve: RoomMotion.ease,
     child: child,

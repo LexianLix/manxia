@@ -11,8 +11,8 @@ export function validatePlugin(p) {
   if (Buffer.byteLength(JSON.stringify(p)) > 128*1024) fail('Manifest exceeds 128 KB');
   if (p.description !== undefined && (typeof p.description !== 'string' || p.description.length > 1200)) fail('Invalid description');
   if (![1, 2].includes(p.apiVersion)) fail('Expected apiVersion: 1 or 2');
-  if (!/^[a-z][a-z0-9_-]{0,31}\.[a-z0-9][a-z0-9_.-]{0,63}$/.test(p.id)) fail('Invalid author.name id');
-  if (!/^\d+\.\d+\.\d+$/.test(p.version)) fail('Expected x.y.z version');
+  if (typeof p.id !== 'string' || !/^[a-z][a-z0-9_-]{0,31}\.[a-z0-9][a-z0-9_.-]{0,63}$/.test(p.id)) fail('Invalid author.name id');
+  if (typeof p.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(p.version)) fail('Expected x.y.z version');
   for (const key of ['name', 'author', 'license']) if (typeof p[key] !== 'string' || !p[key].trim() || p[key].length > 100) fail(`Invalid ${key}`);
   if(p.locales!=null) {
     if(typeof p.locales!=='object'||Array.isArray(p.locales))fail('Invalid plugin locales');
@@ -137,6 +137,25 @@ async function main() {
   } else if (command === 'pack-source') {
     const folder = resolve(path);
     await writeFile(resolve(output ?? `${basename(folder)}.json`), await packSource(folder), {flag: 'wx'});
+  } else if (command === 'publish-source') {
+    const [baseUrl, destination = '_site'] = process.argv.slice(4);
+    const base = new URL(baseUrl);
+    if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash) {
+      throw new Error('Use a public HTTPS directory for the plugin repository');
+    }
+    if (!base.pathname.endsWith('/')) base.pathname += '/';
+    const packed = await packSource(resolve(path));
+    const {id, version} = JSON.parse(packed);
+    const filename = `${id}-${version}.json`;
+    const entry = {
+      id, version,
+      url: new URL(encodeURIComponent(filename), base).href,
+      sha256: createHash('sha256').update(packed).digest('hex'),
+    };
+    const target = resolve(destination);
+    await mkdir(target);
+    await writeFile(resolve(target, filename), packed, {flag: 'wx'});
+    await writeFile(resolve(target, 'index.json'), JSON.stringify({schemaVersion: 1, plugins: [entry]}, null, 2) + '\n', {flag: 'wx'});
   } else if(command==='pack-character') {
     const folder=resolve(path),p=JSON.parse(await readFile(resolve(folder,'manifest.json'),'utf8')),images=new Map();
     for(const f of Object.values(p.contributes?.character?.states??{})) {
@@ -147,6 +166,6 @@ async function main() {
     const target=resolve(output??`${basename(folder)}.zip`);
     await writeFile(target,characterZip(p,images),{flag:'wx'});
     console.log(`Created ${target}`);
-  } else throw new Error('Usage: node tools/plugin-sdk.mjs validate <manifest.json> | build | pack-source <folder> [output.json] | pack-character <folder> [output.zip]');
+  } else throw new Error('Usage: node tools/plugin-sdk.mjs validate <manifest.json> | build | pack-source <folder> [output.json] | publish-source <folder> <base-url> [output-dir] | pack-character <folder> [output.zip]');
 }
 if (process.argv[1] && basename(process.argv[1]) === 'plugin-sdk.mjs') main().catch(e => {console.error(e.message);process.exitCode=1;});

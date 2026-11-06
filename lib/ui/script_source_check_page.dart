@@ -20,6 +20,7 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
   ScriptSourceRuntime? runtime;
   int passed = 0;
   String? error, book, chapter;
+  String? errorCategory;
   Uint8List? preview;
 
   Future<void> run() async {
@@ -30,14 +31,18 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
       runtime = probe;
       passed = 0;
       error = book = chapter = null;
+      errorCategory = null;
       preview = null;
     });
     final source = widget.source;
     bool current() => mounted && identical(runtime, probe);
+    var loadingImage = false;
     try {
       final books = await probe.catalog(source, query: query.text.trim());
       if (!current()) return;
-      if (books.isEmpty) throw const FormatException('搜索未找到作品');
+      if (books.isEmpty) {
+        throw ScriptSourceFailure(ScriptFailureKind.empty, '搜索未找到作品');
+      }
       setState(() {
         passed = 1;
         book = books.first.title;
@@ -51,6 +56,7 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
       });
       final pages = await probe.pages(source, first.path);
       if (!current()) return;
+      loadingImage = true;
       final bytes = await fetchScriptResource(
         decodeScriptImage(pages.first),
         maxBytes: 20 * 1024 * 1024,
@@ -70,7 +76,18 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
         });
       }
     } catch (failure) {
-      if (current()) setState(() => error = failure.toString());
+      if (current()) {
+        setState(() {
+          error = failure.toString();
+          errorCategory = switch (failure) {
+            ScriptSourceFailure(kind: ScriptFailureKind.permission) => '域名权限失败',
+            ScriptSourceFailure(kind: ScriptFailureKind.request) => '网络请求失败',
+            ScriptSourceFailure(kind: ScriptFailureKind.execution) => '脚本执行失败',
+            ScriptSourceFailure(kind: ScriptFailureKind.empty) => '未找到内容',
+            _ => loadingImage ? '图片加载失败' : '结果解析失败',
+          };
+        });
+      }
     } finally {
       probe.close();
       if (current()) setState(() => runtime = null);
@@ -141,7 +158,16 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
                         : Icons.circle_outlined,
                   ),
                   subtitle: passed == index && error != null
-                      ? Text(error!)
+                      ? LocalizedText(
+                          '{category} · {message}',
+                          arguments: {
+                            'category': translate(
+                              errorCategory!,
+                              Localizations.localeOf(context),
+                            ),
+                            'message': error!,
+                          },
+                        )
                       : info == null
                       ? null
                       : Text(info),

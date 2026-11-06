@@ -32,3 +32,34 @@ List<Comic> relevantComics(List<Comic> books, String query) {
   });
   return indexed.map((e) => e.$2).toList();
 }
+
+/// Leave ambiguous editions and works with missing author metadata separate.
+List<List<Comic>> groupSearchComics(List<Comic> books) {
+  (String, String) identity(Comic book) =>
+      (normalizedTitle(book.title), normalizedTitle(book.author));
+
+  final matches = <(String, String), List<Comic>>{};
+  for (final book in books) {
+    final key = identity(book);
+    if (key.$1.isNotEmpty && key.$2.isNotEmpty) {
+      (matches[key] ??= []).add(book);
+    }
+  }
+  matches.removeWhere(
+    (_, variants) =>
+        variants.map((variant) => variant.sourceId).toSet().length !=
+        variants.length,
+  );
+  final emitted = <(String, String)>{};
+  final groups = <List<Comic>>[];
+  for (final book in books) {
+    final key = identity(book);
+    final variants = matches[key];
+    if (variants == null) {
+      groups.add([book]);
+    } else if (emitted.add(key)) {
+      groups.add(variants);
+    }
+  }
+  return groups;
+}

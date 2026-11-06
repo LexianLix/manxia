@@ -36,6 +36,8 @@ node tools/plugin-sdk.mjs validate ./my-source.json
 
 API 2 的官方仓库为 `plugins/v2/index.json`。旧版仍使用各自的 API 1 目录。
 
+想独立维护插件时，可以复制 [书源仓库模板](../plugins/examples/source-repository/)。工作流使用 `publish-source` 校验清单、打包插件、生成带 SHA-256 的索引，并在主分支部署到 GitHub Pages。
+
 ## 最小主题插件
 
 保存为 `yourname.my-room.json`，在插件页导入：

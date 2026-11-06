@@ -121,7 +121,15 @@ void main() {
       );
       await expectLater(
         runtime.catalog(source, query: 'trial'),
-        throwsA(predicate((Object e) => e.toString().contains('域名未获许可'))),
+        throwsA(
+          isA<ScriptSourceFailure>()
+              .having(
+                (error) => error.kind,
+                'kind',
+                ScriptFailureKind.permission,
+              )
+              .having((error) => error.message, 'message', contains('域名未获许可')),
+        ),
       );
       final pictures = ScriptSourceRuntime(
         evaluate: (_) async =>
@@ -129,7 +137,13 @@ void main() {
       );
       await expectLater(
         pictures.pages(source, source.encode(source.base)),
-        throwsException,
+        throwsA(
+          isA<ScriptSourceFailure>().having(
+            (error) => error.kind,
+            'kind',
+            ScriptFailureKind.permission,
+          ),
+        ),
       );
       expect(
         () => checkedScriptUrl(Uri.parse('https://127.0.0.1/')),

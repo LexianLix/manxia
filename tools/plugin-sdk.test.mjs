@@ -1,6 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {mkdtemp, readFile, rm, rmdir} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {validatePlugin} from './plugin-sdk.mjs';
 import {Script} from 'node:vm';
 
@@ -11,6 +16,32 @@ test('a real package resolves defaults and validates its contributions', async (
   assert.throws(() => validatePlugin({...plugin, contributes:{theme:{seed:'javascript:code'}}}));
   assert.throws(() => validatePlugin({...plugin, contributes:{reader:{warmth:20}}}));
   assert.throws(() => validatePlugin({...plugin, contributes:{navigation:[0,0,3]}}));
+});
+
+test('a standalone source catalog points at the packaged bytes', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'manxia-source-'));
+  const target = join(workspace, 'site');
+  try {
+    execFileSync(process.execPath, [
+      fileURLToPath(new URL('./plugin-sdk.mjs', import.meta.url)),
+      'publish-source',
+      fileURLToPath(new URL('../plugins/examples/script-source/', import.meta.url)),
+      'https://example.com/comics', target,
+    ]);
+    const catalog = JSON.parse(await readFile(join(target, 'index.json')));
+    assert.equal(catalog.schemaVersion, 1);
+    assert.equal(catalog.plugins.length, 1);
+    const [entry] = catalog.plugins;
+    assert.equal(entry.url, 'https://example.com/comics/manxia.script-demo-1.0.0.json');
+    const bytes = await readFile(join(target, 'manxia.script-demo-1.0.0.json'));
+    assert.equal(entry.sha256, createHash('sha256').update(bytes).digest('hex'));
+    assert.equal(validatePlugin(JSON.parse(bytes)).id, entry.id);
+  } finally {
+    await rm(join(target, 'index.json'), {force: true});
+    await rm(join(target, 'manxia.script-demo-1.0.0.json'), {force: true});
+    await rmdir(target).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    await rmdir(workspace);
+  }
 });
 
 test('author script is packaged reproducibly and provides search, detail and pages', async () => {

@@ -22,6 +22,8 @@ import 'content_handoff.dart';
 import 'materials.dart';
 import '../data/reading_profiles.dart';
 import 'reading_profiles_page.dart';
+import 'source_search_page.dart';
+import '../data/script_source.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -258,7 +260,13 @@ class _ReaderPageState extends State<ReaderPage>
                 ? warmPages!
                 : widget.source.pages(target.path));
       if (!mounted || generation != request) return;
-      if (list.isEmpty) throw SourceException('这一章没有返回可读取的图片，请重新加载。');
+      if (list.isEmpty) {
+        setState(() {
+          chapterFailureTitle = '这一章暂无可读图片';
+          chapterError = '这一章没有返回可读取的图片，请重新加载。';
+        });
+        return;
+      }
       final prepared = _ChapterScene(
         target,
         List.unmodifiable(list),
@@ -272,6 +280,11 @@ class _ReaderPageState extends State<ReaderPage>
     } catch (e) {
       if (mounted && generation == request) {
         setState(() {
+          chapterFailureTitle = e is SourceCopyrightException
+              ? '当前书源没有版权'
+              : e is ScriptSourceFailure && e.kind == ScriptFailureKind.empty
+              ? '这一章暂无可读图片'
+              : '这一章暂时无法打开';
           chapterError = friendlyError(e);
           chapterImagesChanged = e is ChapterImagesChanged;
         });
@@ -318,7 +331,10 @@ class _ReaderPageState extends State<ReaderPage>
       return;
     }
     value.failed = true;
-    setState(() => chapterError = '这一章的首屏图片加载失败，可以重试。');
+    setState(() {
+      chapterFailureTitle = '这一章暂时无法打开';
+      chapterError = '这一章的首屏图片加载失败，可以重试。';
+    });
   }
 
   void commit(_ChapterScene value) {
@@ -734,6 +750,9 @@ class _ReaderPageState extends State<ReaderPage>
         onStreamError: (error) {
           if (!identical(incoming, value)) return;
           setState(() {
+            chapterFailureTitle = error is SourceCopyrightException
+                ? '当前书源没有版权'
+                : '这一章暂时无法打开';
             chapterError = friendlyError(error);
             chapterImagesChanged = error is ChapterImagesChanged;
           });
@@ -824,11 +843,17 @@ class _ReaderPageState extends State<ReaderPage>
               EmptyState(
                 expression: 'puzzled',
                 icon: Icons.cloud_off_outlined,
-                title: '这一章暂时无法打开',
+                title: chapterFailureTitle,
                 message: chapterError!,
                 action: load,
                 actionLabel: '重新加载',
               ),
+              if (canRecoverSource)
+                OutlinedButton.icon(
+                  onPressed: recoverSource,
+                  icon: const Icon(Icons.travel_explore, size: 17),
+                  label: const LocalizedText('换源查找'),
+                ),
               TextButton(
                 onPressed: openChapterOriginal,
                 child: const LocalizedText('在原站打开'),
@@ -902,6 +927,38 @@ class _ReaderPageState extends State<ReaderPage>
     }
   }
 
+  String chapterFailureTitle = '这一章暂时无法打开';
+  bool get canRecoverSource =>
+      widget.comic.sourceId != 'local' && widget.source is SourceHub;
+
+  bool recoveringSource = false;
+  Future<void> recoverSource() async {
+    if (recoveringSource || !canRecoverSource) return;
+    final target = pendingChapter ?? chapter;
+    recoveringSource = true;
+    try {
+      await showSourceRecovery(
+        context,
+        comic: widget.comic,
+        library: widget.library,
+        source: widget.source as SourceHub,
+        web: widget.web,
+        resumeFrom: target.path == chapter.path
+            ? record()
+            : ReadingRecord(
+                comic: widget.comic,
+                chapterPath: target.path,
+                chapterTitle: target.title,
+                page: 0,
+                total: 0,
+                updatedAt: DateTime.now().millisecondsSinceEpoch,
+              ),
+      );
+    } finally {
+      recoveringSource = false;
+    }
+  }
+
   Widget chapterStatus() => ContentHandoff(
     child: pendingChapter == null || scene == null
         ? const SizedBox.shrink(key: ValueKey('chapter-idle'))
@@ -950,6 +1007,11 @@ class _ReaderPageState extends State<ReaderPage>
                       TextButton(
                         onPressed: openChapterOriginal,
                         child: const LocalizedText('在原站打开'),
+                      ),
+                    if (chapterError != null && canRecoverSource)
+                      TextButton(
+                        onPressed: recoverSource,
+                        child: const LocalizedText('换源查找'),
                       ),
                     TextButton(
                       onPressed: cancelLoad,

@@ -64,6 +64,45 @@ class SourceHub extends Dm5Source {
         ...library.sourceProfiles,
         ...PluginSnapshot(library.options).sources,
       ].where((p) => gateway == null || !p.containsKey('script')).toList();
+
+  Map<String, String> get sourceNames => {
+    'dm5': '动漫屋',
+    for (final profile in profiles)
+      profile['id'] as String: profile['name'] as String,
+  };
+
+  Future<({List<Comic> books, Map<String, Object> failures})> searchAcross(
+    Iterable<String> sourceIds,
+    String query, {
+    required bool Function() isCurrent,
+  }) async {
+    final ids = sourceIds.toList();
+    final books = <Comic>[];
+    final failures = <String, Object>{};
+    for (var offset = 0; offset < ids.length; offset += 3) {
+      if (!isCurrent()) break;
+      final batch = await Future.wait(
+        ids.skip(offset).take(3).map((id) async {
+          try {
+            return await searchIn(
+              id,
+              query,
+            ).timeout(const Duration(seconds: 16));
+          } catch (error) {
+            failures[id] = error;
+            return <Comic>[];
+          }
+        }),
+      );
+      books.addAll(batch.expand((results) => results.take(40)));
+    }
+    final enabled = sourceNames;
+    return (
+      books: books.where((book) => enabled.containsKey(book.sourceId)).toList(),
+      failures: failures,
+    );
+  }
+
   void refreshImageOrigins() {
     for (final json in profiles) {
       final p = SourceProfile.enabled(json);

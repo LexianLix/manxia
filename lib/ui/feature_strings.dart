@@ -1,4 +1,14 @@
 const featureEnglish = <String, String>{
+  '{author} · {count} 个来源': '{author} · {count} sources',
+  '暂无章节': 'No chapters available',
+  '这一章暂无可读图片': 'No pages available for this chapter',
+  '域名权限失败': 'Domain permission denied',
+  '网络请求失败': 'Network request failed',
+  '脚本执行失败': 'Script execution failed',
+  '未找到内容': 'No content returned',
+  '图片加载失败': 'Image load failed',
+  '结果解析失败': 'Result parsing failed',
+  '{category} · {message}': '{category} · {message}',
   "在插件商城确认域名权限后启用": "Confirm domain access in the plugin store",
   "脚本漫画源需要 Android": "Script sources require Android",
   "仅 Android": "Android only",
@@ -167,6 +177,15 @@ const featureEnglish = <String, String>{
 };
 
 const featureTraditional = <String, String>{
+  '{author} · {count} 个来源': '{author} · {count} 個來源',
+  '暂无章节': '暫無章節',
+  '这一章暂无可读图片': '這一章暫無可讀圖片',
+  '域名权限失败': '網域權限失敗',
+  '网络请求失败': '網路請求失敗',
+  '脚本执行失败': '指令碼執行失敗',
+  '未找到内容': '未找到內容',
+  '图片加载失败': '圖片載入失敗',
+  '结果解析失败': '結果解析失敗',
   "在插件商城确认域名权限后启用": "到外掛市集確認網域權限後啟用",
   "脚本漫画源需要 Android": "腳本漫畫源需要 Android",
   "仅 Android": "僅 Android",

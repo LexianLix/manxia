@@ -9,6 +9,7 @@ import '../data/dm5_source.dart';
 import '../data/library.dart';
 import '../data/reading_progress.dart';
 import '../data/source_hub.dart';
+import '../data/script_source.dart';
 import 'app_shell.dart';
 import 'book_object.dart';
 import 'collection_motion.dart';
@@ -16,8 +17,6 @@ import 'reader_page.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
 import 'content_handoff.dart';
-import 'book_link.dart';
-import 'book_navigation.dart';
 import 'source_search_page.dart';
 import 'sliver_handoff.dart';
 import 'room_motion.dart';
@@ -62,27 +61,12 @@ class _DetailPageState extends State<DetailPage> {
     if (findingSource || widget.source is! SourceHub) return;
     findingSource = true;
     try {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => SourceSearchPage(
-            comic: widget.comic,
-            library: widget.library,
-            source: widget.source as SourceHub,
-            web: widget.web,
-            onOpen: (comic) async {
-              await Navigator.of(context).push(
-                comicDetailRoute(
-                  context,
-                  comic: comic,
-                  library: widget.library,
-                  source: widget.source,
-                  web: widget.web,
-                  flightTag: BookLink.takeTag(context, comic),
-                ),
-              );
-            },
-          ),
-        ),
+      await showSourceRecovery(
+        context,
+        comic: widget.comic,
+        library: widget.library,
+        source: widget.source as SourceHub,
+        web: widget.web,
       );
     } finally {
       findingSource = false;
@@ -177,6 +161,10 @@ class _DetailPageState extends State<DetailPage> {
             }
           }
           final noCopyright = copyrightFailure != null;
+          final emptyCatalog =
+              snapshot.error is ScriptSourceFailure &&
+              (snapshot.error as ScriptSourceFailure).kind ==
+                  ScriptFailureKind.empty;
           final sourceName = comic.sourceId == 'local'
               ? '本地书库'
               : comic.sourceId == 'dm5'
@@ -296,6 +284,8 @@ class _DetailPageState extends State<DetailPage> {
                           ? '正在读取目录'
                           : noCopyright
                           ? '书源没有版权'
+                          : emptyCatalog || !snapshot.hasError
+                          ? '暂无章节'
                           : '章节暂不可用',
                       style: const TextStyle(fontSize: 13),
                     ),
@@ -637,6 +627,8 @@ class _DetailPageState extends State<DetailPage> {
                                         : Icons.cloud_off_outlined,
                                     title: noCopyright
                                         ? '当前书源没有版权'
+                                        : emptyCatalog
+                                        ? '暂无章节'
                                         : '目录暂时无法读取',
                                     message: friendlyError(snapshot.error),
                                     action: retry,
