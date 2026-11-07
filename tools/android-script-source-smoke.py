@@ -105,6 +105,9 @@ def main():
         nav.scroll_to('Set as discovery source')
         nav.tap('Set as discovery source')
         nav.wait_ui('Current discovery source')
+        if nav.has_label(nav.read_ui(), 'Expand navigation'):
+            nav.tap('Expand navigation')
+            nav.wait_ui('Explore')
         nav.tap('Explore')
         nav.wait_ui('漫匣试读', timeout=50)
         nav.tap('漫匣试读')
