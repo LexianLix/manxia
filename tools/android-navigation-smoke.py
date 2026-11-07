@@ -122,6 +122,11 @@ def main():
             adb('shell','svc','wifi','disable');wait_ui('Download network: Offline');capture('network-offline')
             adb('shell','svc','wifi','enable');wait_ui('Download network: Wi-Fi');capture('network-restored')
             assert adb('shell','pidof',PACKAGE).strip()==process
+        except Exception:
+            capture('network-failure')
+            (OUT/'network-failure-connectivity.txt').write_text(adb('shell','dumpsys','connectivity'),encoding='utf-8')
+            (OUT/'network-failure-wifi.txt').write_text(adb('shell','cmd','wifi','status'),encoding='utf-8')
+            raise
         finally:
             adb('shell','svc','wifi','enable');adb('shell','svc','data','enable')
         result['network_callbacks_without_restart']=True
