@@ -599,14 +599,39 @@ class OfflineLibrary extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Repair exactly one downloaded page. Old indexes need no schema migration.
+  final _repairs = <String, Future<void>>{};
+
+  /// Serialize a chapter's repairs so its byte count and refreshed URLs agree.
   Future<void> repairPage(String address) async {
     if (!address.startsWith('offline:') || !ready) throw StateError('离线书库尚未就绪');
     final imageKey = address.substring(8);
     final entry = entries
         .where((e) => (e['keys'] as List).contains(imageKey))
         .firstOrNull;
-    if (entry == null || entry['local'] == true) {
+    if (entry == null) throw StateError('离线章节已移除。');
+    final id = entry['id'] as String;
+    final previous = _repairs[id];
+    final work = () async {
+      try {
+        await previous;
+      } catch (_) {
+        /* A failed page must not block the next repair. */
+      }
+      if (_closed || !entries.contains(entry)) throw StateError('章节已移除，修复已取消。');
+      await _repairPage(address, entry);
+    }();
+    _repairs[id] = work;
+    try {
+      await work;
+    } finally {
+      if (identical(_repairs[id], work)) _repairs.remove(id);
+    }
+  }
+
+  /// Repair one page; legacy indexes need no schema migration.
+  Future<void> _repairPage(String address, Map<String, dynamic> entry) async {
+    final imageKey = address.substring(8);
+    if (entry['local'] == true) {
       throw StateError('本地漫画图片缺失，请重新导入原文件。');
     }
     if (entry['status'] != 'complete') throw StateError('这一章仍在下载，请到下载页面继续任务。');
@@ -659,10 +684,10 @@ class OfflineLibrary extends ChangeNotifier {
       _memoryBytes -= cached?.length ?? 0;
       entry['bytes'] = remaining + size;
       entry['urls'] = urls;
-      await persist();
     } finally {
       _reservedBytes -= size;
     }
+    await persist();
   }
 
   Future<Comic> importImages(

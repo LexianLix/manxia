@@ -154,12 +154,23 @@ void main() {
       expect(entry['bytes'], 7);
       expect(entry['done'], 2);
       expect(entry['status'], 'complete');
+      await store.delete(keys[0]);
+      await store.delete(keys[1]);
+      await Future.wait([
+        offline.repairPage('offline:${keys[0]}'),
+        offline.repairPage('offline:${keys[1]}'),
+      ]);
+      expect(
+        entry['bytes'],
+        8,
+        reason: 'Concurrent repairs must account for both repaired pages',
+      );
       network.value = const NetworkInfo('none');
       await expectLater(
         offline.repairPage('offline:${keys[0]}'),
         throwsStateError,
       );
-      expect(requests, 3);
+      expect(requests, 5);
       entry['local'] = true;
       await expectLater(
         offline.repairPage('offline:${keys[0]}'),
