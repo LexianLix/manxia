@@ -85,7 +85,7 @@ def main():
         remote=DATA+'/shared_prefs/FlutterSharedPreferences.xml'
         adb('push',str(prefs),remote);adb('shell','chown',f'{owner}:{owner}',remote);adb('shell','restorecon',remote)
         adb('shell','am','start','-W','-n',PACKAGE+'/.MainActivity');wait_ui('Preferences')
-        for tab,title in [('Downloads','Downloads & local library'),('Plugins','插件商城')]:
+        for tab,title in [('Downloads','Downloads & local library'),('Plugins','Plugin store')]:
             tap(tab);xml=wait_ui(title);_,png=capture(tab.lower())
             node=next(n for n in ET.fromstring(xml).iter('node') if title in n.get('text','')+' '+n.get('content-desc',''))
             _,top,_,bottom=map(int,re.findall(r'\d+',node.get('bounds')))
