@@ -76,6 +76,7 @@ mixin LibraryFeatures on ChangeNotifier {
       final item = updates[path];
       if (item == null) continue;
       item['changed'] = false;
+      item['updateChapterPaths'] = <String>[];
       item['seenFingerprint'] = item['fingerprint'] ?? item['latest'];
       item['readAt'] = DateTime.now().millisecondsSinceEpoch;
     }

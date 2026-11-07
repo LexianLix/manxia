@@ -31,11 +31,13 @@ class DiscoveryPage extends StatefulWidget {
     required this.web,
     required this.onOpen,
     this.navigationRequest,
+    this.onReadUpdate,
   });
   final Library library;
   final Dm5Source source;
   final bool web;
   final ValueChanged<Comic> onOpen;
+  final Future<void> Function(Comic)? onReadUpdate;
   final ValueNotifier<String?>? navigationRequest;
   @override
   State<DiscoveryPage> createState() => _DiscoveryPageState();
@@ -70,6 +72,27 @@ class _DiscoveryPageState extends State<DiscoveryPage>
 
   String? error;
   bool checking = false;
+  String? openingUpdate;
+  int openingRequest = 0;
+  Future<void> readUpdate(Comic comic) async {
+    final action = widget.onReadUpdate;
+    if (action == null ||
+        widget.library.updates[comic.path]?['changed'] != true) {
+      widget.onOpen(comic);
+      return;
+    }
+    if (openingUpdate != null) return;
+    final request = ++openingRequest;
+    setState(() => openingUpdate = comic.path);
+    try {
+      await action(comic);
+    } finally {
+      if (mounted && request == openingRequest) {
+        setState(() => openingUpdate = null);
+      }
+    }
+  }
+
   String updateFilter = '未读更新';
   Iterable<Comic> get followBooks => widget.library.favorites.where((book) {
     if (book.sourceId == 'local') return false;
@@ -246,6 +269,10 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!TickerMode.valuesOf(context).enabled) {
+      openingRequest++;
+      openingUpdate = null;
+    }
     if (MediaQuery.disableAnimationsOf(context)) {
       reveal.value = applying ? 0 : 1;
     }
@@ -718,7 +745,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                     BookLink(
                       comic: book,
                       web: widget.web,
-                      onOpen: widget.onOpen,
+                      onOpen: readUpdate,
                       builder: (cover, open) => ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: SizedBox(
@@ -737,20 +764,28 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                                   as String? ??
                               '尚未检查更新',
                         ),
-                        trailing: IconButton(
-                          tooltip: translate(
-                            '标为已读',
-                            Localizations.localeOf(context),
-                          ),
-                          onPressed: () =>
-                              widget.library.markUpdatesRead([book.path]),
-                          icon: Icon(
-                            widget.library.updates[book.path]?['changed'] ==
-                                    true
-                                ? Icons.bookmark_added_outlined
-                                : Icons.done,
-                          ),
-                        ),
+                        trailing: openingUpdate == book.path
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : IconButton(
+                                tooltip: translate(
+                                  '标为已读',
+                                  Localizations.localeOf(context),
+                                ),
+                                onPressed: () =>
+                                    widget.library.markUpdatesRead([book.path]),
+                                icon: Icon(
+                                  widget.library.updates[book
+                                              .path]?['changed'] ==
+                                          true
+                                      ? Icons.bookmark_added_outlined
+                                      : Icons.done,
+                                ),
+                              ),
                         onTap: open,
                         onLongPress: () => showDiscoveryInterest(
                           context,

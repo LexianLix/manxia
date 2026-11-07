@@ -8,9 +8,9 @@ import 'app_shell.dart' show ComicGrid, EmptyState, friendlyError;
 import 'book_link.dart';
 import 'room_motion.dart';
 import 'localized_text.dart';
-import 'content_handoff.dart';
 import 'sliver_handoff.dart';
 import 'visible_listenable_builder.dart';
+import 'scroll_arrival.dart';
 
 class ComicSearchPage extends StatefulWidget {
   const ComicSearchPage({
@@ -33,14 +33,14 @@ class _ComicSearchState extends State<ComicSearchPage> {
   List<Comic>? results;
   String query = '', resultQuery = '';
   String? error;
-  List<String> failedSources = [];
+  Map<String, Object> failedSources = {};
   bool busy = false, authors = false;
   bool allSources = true, groupedResults = false;
   int generation = 0, revision = 0;
   SourceHub? get hub =>
       widget.source is SourceHub ? widget.source as SourceHub : null;
 
-  Future<void> search([String? value]) async {
+  Future<void> search([String? value, Set<String>? retrySources]) async {
     final requested = (value ?? input.text).trim();
     if (requested.isEmpty) return;
     input.text = requested;
@@ -48,20 +48,49 @@ class _ComicSearchState extends State<ComicSearchPage> {
     final current = ++generation, byAuthor = authors;
     final names = hub?.sourceNames ?? const <String, String>{};
     final across = !byAuthor && allSources && names.length > 1;
+    final retained = retrySources == null
+        ? <Comic>[]
+        : List<Comic>.from(results ?? []);
+    var received = retrySources != null;
+    void accept(SourceSearchResult batch) {
+      if (!mounted || current != generation) return;
+      final incoming = relevantComics([...retained, ...batch.books], requested);
+      final byId = {
+        for (final book in incoming) '${book.sourceId}/${book.path}': book,
+      };
+      final stable = received
+          ? [
+              for (final book in results ?? <Comic>[])
+                if (byId.containsKey('${book.sourceId}/${book.path}'))
+                  byId.remove('${book.sourceId}/${book.path}')!,
+              ...byId.values,
+            ]
+          : incoming;
+      setState(() {
+        if (!received) revision++;
+        received = true;
+        results = stable;
+        resultQuery = requested;
+        groupedResults = true;
+        failedSources = Map.from(batch.failures);
+      });
+    }
+
     setState(() {
       query = requested;
       busy = true;
       error = null;
-      failedSources = [];
+      failedSources = {};
     });
     try {
       await widget.library.rememberSearch(requested);
       if (!mounted || current != generation) return;
       final batch = across
           ? await hub!.searchAcross(
-              names.keys,
+              retrySources ?? names.keys,
               requested,
               isCurrent: () => mounted && current == generation,
+              onProgress: accept,
             )
           : null;
       final books =
@@ -74,20 +103,20 @@ class _ComicSearchState extends State<ComicSearchPage> {
                 )
               : await widget.source.search(requested));
       if (mounted && current == generation) {
+        if (batch != null) accept(batch);
         setState(() {
-          results = byAuthor ? books : relevantComics(books, requested);
-          groupedResults = across;
-          if (batch != null) {
-            failedSources = names.keys
-                .where(batch.failures.containsKey)
-                .map((id) => names[id]!)
-                .toList();
-            if (failedSources.length == names.length) {
+          if (batch == null) {
+            results = byAuthor ? books : relevantComics(books, requested);
+            groupedResults = false;
+            revision++;
+          } else {
+            if (batch.failures.length ==
+                    (retrySources?.length ?? names.length) &&
+                (results?.isEmpty ?? true)) {
               error = friendlyError(batch.failures.values.first);
             }
           }
           resultQuery = requested;
-          revision++;
         });
       }
     } catch (e) {
@@ -106,7 +135,7 @@ class _ComicSearchState extends State<ComicSearchPage> {
       query = '';
       results = null;
       error = null;
-      failedSources = [];
+      failedSources = {};
       busy = false;
     });
     focus.requestFocus();
@@ -119,7 +148,7 @@ class _ComicSearchState extends State<ComicSearchPage> {
       authors = value;
       busy = false;
       error = null;
-      failedSources = [];
+      failedSources = {};
     });
     if (query.isNotEmpty) search(query);
   }
@@ -301,14 +330,14 @@ class _ComicSearchState extends State<ComicSearchPage> {
                             ],
                           ),
                         ),
-                        ContentHandoff(
+                        SizedBox(
+                          height: 18,
                           child: busy
-                              ? const Padding(
-                                  key: ValueKey('search-busy'),
-                                  padding: EdgeInsets.only(top: 14),
+                              ? const Align(
+                                  alignment: Alignment.bottomCenter,
                                   child: LinearProgressIndicator(minHeight: 2),
                                 )
-                              : const SizedBox(key: ValueKey('search-idle')),
+                              : const SizedBox.shrink(),
                         ),
                         if (query.isNotEmpty)
                           Padding(
@@ -345,13 +374,50 @@ class _ComicSearchState extends State<ComicSearchPage> {
                               ],
                             ),
                           ),
-                        if (error == null && failedSources.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: LocalizedText(
-                              '部分书源失败：{sources}',
-                              arguments: {'sources': failedSources.join('、')},
-                            ),
+                        if (query.isNotEmpty && error == null)
+                          SizedBox(
+                            height: 48,
+                            child: failedSources.isEmpty
+                                ? Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: LocalizedText(
+                                      busy ? '正在查询书源…' : '书源查询完成',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: LocalizedText(
+                                          '部分书源失败：{sources}',
+                                          arguments: {
+                                            'sources': failedSources.keys
+                                                .map((id) => names[id] ?? id)
+                                                .join('、'),
+                                          },
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: translate(
+                                          '重试失败的书源',
+                                          Localizations.localeOf(context),
+                                        ),
+                                        onPressed: busy
+                                            ? null
+                                            : () => search(
+                                                query,
+                                                failedSources.keys.toSet(),
+                                              ),
+                                        icon: const Icon(
+                                          Icons.refresh,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                           ),
                       ],
                     ),
@@ -361,8 +427,8 @@ class _ComicSearchState extends State<ComicSearchPage> {
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 36),
                   sliver: SliverHandoff(
                     identity: revision,
-                    animate: widget.library.motion,
-                    sliver: books == null
+                    animate: widget.library.motion && !groupedResults,
+                    sliver: books == null || busy && books.isEmpty
                         ? const SliverToBoxAdapter(child: SizedBox())
                         : books.isEmpty
                         ? SliverToBoxAdapter(
@@ -375,9 +441,9 @@ class _ComicSearchState extends State<ComicSearchPage> {
                             ),
                           )
                         : SliverIgnorePointer(
-                            ignoring: busy,
+                            ignoring: busy && resultQuery != query,
                             sliver: SliverOpacity(
-                              opacity: busy ? .55 : 1,
+                              opacity: busy && resultQuery != query ? .55 : 1,
                               sliver: groups == null
                                   ? ComicGrid(
                                       books: books,
@@ -452,51 +518,58 @@ class _SourceResult extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final comic = variants.first;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: Theme.of(context).dividerColor),
-      ),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: variants.length == 1
-          ? sourceRow(comic, showTitle: true)
-          : BookLink(
-              comic: comic,
-              web: web,
-              onOpen: onOpen,
-              builder: (cover, open) => ExpansionTile(
-                shape: const Border(),
-                collapsedShape: const Border(),
-                key: PageStorageKey((
-                  'search-variants',
-                  comic.sourceId,
-                  comic.path,
-                )),
-                leading: InkWell(
-                  onTap: open,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(width: 38, height: 52, child: cover),
+    return ScrollArrival(
+      identity: '${comic.sourceId}/${comic.path}',
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+        margin: const EdgeInsets.only(bottom: 8),
+        child: variants.length == 1
+            ? sourceRow(comic, showTitle: true)
+            : BookLink(
+                comic: comic,
+                web: web,
+                onOpen: onOpen,
+                builder: (cover, open) => ExpansionTile(
+                  shape: const Border(),
+                  collapsedShape: const Border(),
+                  key: PageStorageKey((
+                    'search-variants',
+                    comic.sourceId,
+                    comic.path,
+                  )),
+                  leading: InkWell(
+                    onTap: open,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(width: 38, height: 52, child: cover),
+                    ),
                   ),
+                  title: Text(comic.title),
+                  subtitle: LocalizedText(
+                    '{author} · {count} 个来源',
+                    arguments: {
+                      'author': comic.author,
+                      'count': variants.length,
+                    },
+                  ),
+                  expansionAnimationStyle:
+                      MediaQuery.disableAnimationsOf(context)
+                      ? AnimationStyle.noAnimation
+                      : const AnimationStyle(
+                          duration: RoomMotion.feedback,
+                          curve: RoomMotion.ease,
+                        ),
+                  children: [
+                    for (final variant in variants)
+                      sourceRow(variant, showTitle: false),
+                  ],
                 ),
-                title: Text(comic.title),
-                subtitle: LocalizedText(
-                  '{author} · {count} 个来源',
-                  arguments: {'author': comic.author, 'count': variants.length},
-                ),
-                expansionAnimationStyle: MediaQuery.disableAnimationsOf(context)
-                    ? AnimationStyle.noAnimation
-                    : const AnimationStyle(
-                        duration: RoomMotion.feedback,
-                        curve: RoomMotion.ease,
-                      ),
-                children: [
-                  for (final variant in variants)
-                    sourceRow(variant, showTitle: false),
-                ],
               ),
-            ),
+      ),
     );
   }
 }

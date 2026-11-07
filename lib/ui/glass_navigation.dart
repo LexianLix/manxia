@@ -70,8 +70,8 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   final starts = <int, _Slot>{}, ends = <int, _Slot>{};
   final items = <int, RoomDestination>{};
   double widthFrom = 0, widthTo = 0, innerWidth = 1;
-  double barHeight = 54;
-  static const iconY = 20.0;
+  double barHeight = 52;
+  static const iconY = 18.0;
   int? preview;
   bool cancelled = false, reduced = false;
   double get lensWidth =>
@@ -255,8 +255,8 @@ class _FrostedNavigationState extends State<FrostedNavigation>
               builder: (context, box) {
                 innerWidth = box.maxWidth - 14;
                 barHeight = math.max(
-                  54,
-                  38 + MediaQuery.textScalerOf(context).scale(11) * 1.35,
+                  52,
+                  36 + MediaQuery.textScalerOf(context).scale(11) * 1.35,
                 );
                 final labels = widget.destinations
                     .map(
@@ -480,7 +480,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                         ),
                         if (!compactLabels)
                           Positioned(
-                            top: 36,
+                            top: 34,
                             left: 0,
                             right: 0,
                             child: Text(

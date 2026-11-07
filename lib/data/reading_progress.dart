@@ -46,6 +46,19 @@ extension ReadingProgress on LibraryFeatures {
       meta(comic)['readChapters'] as Map? ?? {},
     );
     marks[path] = read;
+    final update = updates[comic.path];
+    if (update != null) {
+      final pending = Set<String>.from(
+        update['updateChapterPaths'] as List? ??
+            [
+              if (update['changed'] == true && update['fingerprint'] is String)
+                update['fingerprint'] as String,
+            ],
+      );
+      // Retain observed update paths so undoing a read mark restores the badge.
+      update['updateChapterPaths'] = pending.toList();
+      update['changed'] = pending.any((chapter) => marks[chapter] != true);
+    }
     final paths = List<String>.from(meta(comic)['chapterPaths'] as List? ?? []);
     final complete = paths.isNotEmpty && paths.every((p) => marks[p] == true);
     await setMeta(comic, {

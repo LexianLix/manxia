@@ -6,12 +6,12 @@ class ShelfOrbitPose {
   ShelfOrbitPose(double distance, int period) {
     final angle = distance * math.pi * 2 / period;
     depth = math.cos(angle);
-    horizontal = math.sin(angle);
-    vertical = (1 - depth) * 9;
-    scale = .78 + .22 * (depth + 1) / 2;
-    yaw = -horizontal * .28;
+    horizontal = math.sin(angle) + (period == 2 ? .7 * (1 - depth) : 0);
+    vertical = (1 - depth) * 18;
+    scale = .64 + .36 * (depth + 1) / 2;
+    yaw = -horizontal * .50;
     final visible = ((depth + .35) / .7).clamp(0.0, 1.0);
-    opacity = period <= 4 ? .32 + .68 * visible : visible;
+    opacity = period <= 4 ? .68 + .32 * visible : visible;
   }
   late final double depth, horizontal, vertical, scale, yaw, opacity;
 }

@@ -139,7 +139,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
-    'a failed directory explains the disabled button and retries into reading',
+    'a failed directory offers a guarded retry and returns to reading',
     (tester) async {
       late Library library;
       await tester.runAsync(() async {
@@ -158,6 +158,9 @@ void main() {
       );
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh', 'CN'),
+          supportedLocales: const [Locale('zh', 'CN')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: DetailPage(
             comic: comic,
             library: library,
@@ -167,20 +170,20 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('正在读取章节目录…'), findsOneWidget);
+      expect(find.text('正在读取目录'), findsWidgets);
       first.completeError(SourceException('未能识别章节目录'));
       await tester.pumpAndSettle();
       FilledButton start() => tester.widget<FilledButton>(
         find.byWidgetPredicate((w) => w is FilledButton).first,
       );
-      expect(start().onPressed, isNull);
-      expect(find.text('章节暂不可用'), findsOneWidget);
+      expect(start().onPressed, isNotNull);
+      expect(find.text('目录暂时无法读取'), findsOneWidget);
       expect(find.text('原站暂未提供章节'), findsNothing);
       await tester.ensureVisible(find.text('重试读取目录'));
       await tester.tap(find.text('重试读取目录'));
-      await tester.pump();
-      // The retiring retry button is still painted but cannot submit again.
+      // A second tap before the loading frame cannot submit another request.
       await tester.tap(find.text('重试读取目录'), warnIfMissed: false);
+      await tester.pump();
       expect(source.call, 2);
       second.complete(const ComicDetail(comic, [Chapter('/m1/', '第1话')]));
       await tester.pumpAndSettle();

@@ -787,6 +787,25 @@ class _BookPainter extends CustomPainter {
           ..strokeWidth = .5,
       );
     }
+    final edge = 6 * (1 - f);
+    final foreEdge = Path()
+      ..addPolygon([
+        Offset(x + spine + fw, y + dy),
+        Offset(x + spine + fw + edge, y + dy - edge * .35),
+        Offset(x + spine + fw + edge, y + dy + h - edge * .35),
+        Offset(x + spine + fw, y + dy + h),
+      ], true);
+    canvas.drawPath(foreEdge, Paint()..color = const Color(0xffe5e3d7));
+    for (var line = 1; line < 4; line++) {
+      final inset = edge * line / 4;
+      canvas.drawLine(
+        Offset(x + spine + fw + inset, y + dy - inset * .35),
+        Offset(x + spine + fw + inset, y + dy + h - inset * .35),
+        Paint()
+          ..color = const Color(0xffc9cbbc)
+          ..strokeWidth = .45,
+      );
+    }
     canvas.save();
     canvas.translate(x, y);
     canvas.scale(spine / 23, 1);

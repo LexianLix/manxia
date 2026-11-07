@@ -16,10 +16,10 @@ import 'collection_motion.dart';
 import 'reader_page.dart';
 import 'offline_page.dart';
 import 'library_manager.dart';
-import 'content_handoff.dart';
 import 'source_search_page.dart';
 import 'sliver_handoff.dart';
 import 'room_motion.dart';
+import 'materials.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -42,14 +42,20 @@ class DetailPage extends StatefulWidget {
 }
 
 class _DetailPageState extends State<DetailPage> {
+  bool fetchingDetail = false;
   Future<ComicDetail> fetchDetail() async {
-    final result = await widget.source.detail(widget.comic);
+    fetchingDetail = true;
     try {
-      await widget.library.rememberChapters(result.comic, result.chapters);
-    } catch (_) {
-      /* Local metadata must not block a readable catalog. */
+      final result = await widget.source.detail(widget.comic);
+      try {
+        await widget.library.rememberChapters(result.comic, result.chapters);
+      } catch (_) {
+        /* Local metadata must not block a readable catalog. */
+      }
+      return result;
+    } finally {
+      fetchingDetail = false;
     }
-    return result;
   }
 
   late Future<ComicDetail> detail = fetchDetail();
@@ -74,9 +80,12 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   final coverKey = GlobalKey();
-  void retry() => setState(() {
-    detail = fetchDetail();
-  });
+  void retry() {
+    if (fetchingDetail) return;
+    setState(() {
+      detail = fetchDetail();
+    });
+  }
 
   Future<void> copyDiagnostics(String path) async {
     final data = widget.source.detailDiagnostics[path];
@@ -97,17 +106,7 @@ class _DetailPageState extends State<DetailPage> {
         : null;
   }
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final update = widget.library.updates[widget.comic.path];
-      if (mounted && update?['changed'] == true) {
-        update!['changed'] = false;
-        widget.library.persistFeatures();
-      }
-    });
-  }
+  bool descriptionExpanded = false;
 
   Future<void> read(
     Comic comic,
@@ -136,355 +135,277 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: FutureBuilder<ComicDetail>(
-        future: detail,
-        builder: (context, snapshot) {
-          SourceCopyrightException? copyrightFailure =
-              snapshot.error is SourceCopyrightException
-              ? snapshot.error as SourceCopyrightException
-              : null;
-          final comic =
-              snapshot.data?.comic ?? copyrightFailure?.comic ?? widget.comic;
-          final attempts =
-              widget.source.detailDiagnostics[comic.path]?['attempts'];
-          if (snapshot.connectionState == ConnectionState.done &&
-              attempts is List) {
-            for (final attempt in attempts.whereType<Map>()) {
-              if (attempt['availability'] == 'copyright' &&
-                  attempt['notice'] is String) {
-                copyrightFailure = SourceCopyrightException(
-                  attempt['notice'] as String,
-                );
-              }
-            }
+  Widget build(BuildContext context) => FutureBuilder<ComicDetail>(
+    future: detail,
+    builder: (context, snapshot) {
+      SourceCopyrightException? copyrightFailure =
+          snapshot.error is SourceCopyrightException
+          ? snapshot.error as SourceCopyrightException
+          : null;
+      final comic =
+          snapshot.data?.comic ?? copyrightFailure?.comic ?? widget.comic;
+      final attempts = widget.source.detailDiagnostics[comic.path]?['attempts'];
+      if (snapshot.connectionState == ConnectionState.done &&
+          attempts is List) {
+        for (final attempt in attempts.whereType<Map>()) {
+          if (attempt['availability'] == 'copyright' &&
+              attempt['notice'] is String) {
+            copyrightFailure = SourceCopyrightException(
+              attempt['notice'] as String,
+            );
           }
-          final noCopyright = copyrightFailure != null;
-          final emptyCatalog =
-              snapshot.error is ScriptSourceFailure &&
-              (snapshot.error as ScriptSourceFailure).kind ==
-                  ScriptFailureKind.empty;
-          final sourceName = comic.sourceId == 'local'
-              ? '本地书库'
-              : comic.sourceId == 'dm5'
-              ? '动漫屋'
-              : widget.source is SourceHub
-              ? (widget.source as SourceHub).profiles
-                        .where((p) => p['id'] == comic.sourceId)
-                        .map((p) => p['name'] as String)
-                        .firstOrNull ??
-                    '自定义书源'
-              : '自定义书源';
-          final chapters = snapshot.data?.chapters ?? <Chapter>[];
-          final groups = chapters.map((c) => c.group).toSet().toList();
-          if (groups.isNotEmpty && !groups.contains(group)) {
-            group = groups.first;
-          }
-          final visible = chapters.where((c) => c.group == group).toList();
-          final ordered = ascending ? visible.reversed.toList() : visible;
-          final history = widget.library.record(comic);
-          final compact = MediaQuery.sizeOf(context).width < 650;
-          final mainChapters = chapters
-              .where((c) => c.group == (groups.firstOrNull ?? '连载'))
-              .toList()
-              .reversed
-              .toList();
-          void start() {
-            if (history != null) {
-              read(
-                comic,
-                Chapter(history.chapterPath, history.chapterTitle),
-                mainChapters,
-              );
-            } else if (mainChapters.isNotEmpty) {
-              read(comic, mainChapters.first, mainChapters);
-            }
-          }
-
-          Widget info() => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LocalizedText(
-                'MANGA / $sourceName',
-                style: small(context).copyWith(letterSpacing: 2, fontSize: 10),
-              ),
-              const SizedBox(height: 16),
-              LocalizedText(
-                comic.title,
-                style: TextStyle(
-                  fontSize: compact ? 31 : 40,
-                  letterSpacing: 2,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 13),
-              LocalizedText(
-                comic.author.isEmpty ? '漫画详情' : comic.author,
-                style: TextStyle(fontSize: 13, color: quiet(context)),
-              ),
-              const SizedBox(height: 16),
-              if (comic.tags.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: comic.tags
-                      .map(
-                        (t) => Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Theme.of(context).dividerColor,
-                            ),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: LocalizedText(t, style: small(context)),
-                        ),
-                      )
-                      .toList(),
-                ),
-              if (comic.latest.isNotEmpty) ...[
-                const SizedBox(height: 18),
-                LocalizedText('最新章节 · ${comic.latest}', style: small(context)),
-              ],
-              if (comic.description.isNotEmpty) ...[
-                const SizedBox(height: 18),
-                LocalizedText(
-                  comic.description,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.9,
-                    color: quiet(context),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 25),
-              Wrap(
-                spacing: 10,
-                runSpacing: 12,
-                children: [
-                  FilledButton.icon(
-                    onPressed: history != null || mainChapters.isNotEmpty
-                        ? start
-                        : null,
-                    icon: const Icon(Icons.menu_book_outlined, size: 17),
-                    label: LocalizedText(
-                      history != null
-                          ? '继续阅读'
-                          : mainChapters.isNotEmpty
-                          ? noCopyright
-                                ? '阅读已下载章节'
-                                : '开始阅读'
-                          : snapshot.connectionState != ConnectionState.done
-                          ? '正在读取目录'
-                          : noCopyright
-                          ? '书源没有版权'
-                          : emptyCatalog || !snapshot.hasError
-                          ? '暂无章节'
-                          : '章节暂不可用',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                  if (comic.sourceId != 'local')
-                    OutlinedButton.icon(
-                      onPressed: chapters.isEmpty
-                          ? null
-                          : () => selectDownloads(
-                              context,
-                              comic,
-                              chapters.reversed.toList(),
-                            ),
-                      icon: const Icon(Icons.download_outlined, size: 17),
-                      label: const LocalizedText(
-                        '下载章节',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  IconButton(
-                    tooltip: '分组、标签与系列',
-                    onPressed: () => editBook(context, widget.library, comic),
-                    icon: const Icon(Icons.more_horiz, size: 20),
-                  ),
-                  if (widget.source is SourceHub &&
-                      comic.sourceId != 'local' &&
-                      !noCopyright &&
-                      !snapshot.hasError)
-                    TextButton.icon(
-                      onPressed: findAnotherSource,
-                      icon: const Icon(Icons.travel_explore, size: 17),
-                      label: const LocalizedText('切换书源续读'),
-                    ),
-                  ListenableBuilder(
-                    listenable: widget.library,
-                    builder: (context, _) => OutlinedButton.icon(
-                      onPressed: () => collectWithMotion(
-                        context,
-                        comic,
-                        widget.library,
-                        widget.web,
-                        origin: coverBounds(),
-                      ),
-                      icon: Icon(
-                        widget.library.contains(comic)
-                            ? Icons.bookmark
-                            : Icons.bookmark_border,
-                        size: 17,
-                      ),
-                      label: LocalizedText(
-                        widget.library.contains(comic) ? '已收藏' : '加入书架',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              ContentHandoff(
-                child: snapshot.connectionState != ConnectionState.done
-                    ? Padding(
-                        key: const ValueKey('directory-loading'),
-                        padding: const EdgeInsets.only(top: 14),
-                        child: Row(
-                          children: [
-                            const SizedBox.square(
-                              dimension: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            LocalizedText('正在读取章节目录…', style: small(context)),
-                          ],
-                        ),
-                      )
-                    : chapters.isEmpty || noCopyright
-                    ? Container(
-                        key: const ValueKey('directory-retry'),
-                        margin: const EdgeInsets.only(top: 12),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            LocalizedText(
-                              noCopyright
-                                  ? '${copyrightFailure!.message}${chapters.isNotEmpty ? '\n已下载章节仍可离线阅读。' : ''}'
-                                  : snapshot.hasError
-                                  ? friendlyError(snapshot.error)
-                                  : '尚未识别到章节目录，请重新加载。',
-                              style: small(context),
-                            ),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 4,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: retry,
-                                  icon: const Icon(Icons.refresh, size: 16),
-                                  label: const LocalizedText('重试读取目录'),
-                                ),
-                                if (widget.source is SourceHub)
-                                  OutlinedButton.icon(
-                                    onPressed: findAnotherSource,
-                                    icon: const Icon(
-                                      Icons.travel_explore,
-                                      size: 17,
-                                    ),
-                                    label: const LocalizedText('换源查找'),
-                                  ),
-                                if (widget.source.detailDiagnostics.containsKey(
-                                  comic.path,
-                                ))
-                                  PopupMenuButton<String>(
-                                    popUpAnimationStyle: RoomMotion.sheet(
-                                      context,
-                                    ),
-                                    tooltip: translate(
-                                      '更多操作',
-                                      Localizations.localeOf(context),
-                                    ),
-                                    icon: const Icon(
-                                      Icons.more_horiz,
-                                      size: 18,
-                                    ),
-                                    itemBuilder: (_) => [
-                                      const PopupMenuItem(
-                                        value: 'copy',
-                                        child: LocalizedText('复制目录诊断'),
-                                      ),
-                                    ],
-                                    onSelected: (_) =>
-                                        copyDiagnostics(comic.path),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('directory-ready')),
-              ),
-              if (history != null) ...[
-                const SizedBox(height: 14),
-                LocalizedText(
-                  '上次读到 ${history.chapterTitle} · 第 ${history.page + 1} 页',
-                  style: small(context),
-                ),
-              ],
-            ],
+        }
+      }
+      final noCopyright = copyrightFailure != null;
+      final emptyCatalog =
+          snapshot.error is ScriptSourceFailure &&
+          (snapshot.error as ScriptSourceFailure).kind ==
+              ScriptFailureKind.empty;
+      final sourceName = comic.sourceId == 'local'
+          ? '本地书库'
+          : comic.sourceId == 'dm5'
+          ? '动漫屋'
+          : widget.source is SourceHub
+          ? (widget.source as SourceHub).profiles
+                    .where((p) => p['id'] == comic.sourceId)
+                    .map((p) => p['name'] as String)
+                    .firstOrNull ??
+                '自定义书源'
+          : '自定义书源';
+      final chapters = snapshot.data?.chapters ?? <Chapter>[];
+      final groups = chapters.map((c) => c.group).toSet().toList();
+      if (groups.isNotEmpty && !groups.contains(group)) {
+        group = groups.first;
+      }
+      final visible = chapters.where((c) => c.group == group).toList();
+      final ordered = ascending ? visible.reversed.toList() : visible;
+      final history = widget.library.record(comic);
+      final compact = MediaQuery.sizeOf(context).width < 650;
+      final mainChapters = chapters
+          .where((c) => c.group == (groups.firstOrNull ?? '连载'))
+          .toList()
+          .reversed
+          .toList();
+      void start() {
+        if (history != null) {
+          read(
+            comic,
+            Chapter(history.chapterPath, history.chapterTitle),
+            mainChapters,
           );
-          return Center(
+        } else if (mainChapters.isNotEmpty) {
+          read(comic, mainChapters.first, mainChapters);
+        }
+      }
+
+      final ready = snapshot.connectionState == ConnectionState.done;
+      final canRead = history != null || mainChapters.isNotEmpty;
+      final canChangeSource =
+          comic.sourceId != 'local' && widget.source is SourceHub;
+      final stateLabel = !ready
+          ? '正在读取目录'
+          : noCopyright
+          ? '当前书源没有版权'
+          : chapters.isEmpty
+          ? snapshot.hasError && !emptyCatalog
+                ? '目录暂时无法读取'
+                : '暂无章节'
+          : '${chapters.length} 章';
+      final primaryLabel = canRead
+          ? history != null
+                ? '继续阅读'
+                : noCopyright
+                ? '阅读已下载章节'
+                : '开始阅读'
+          : !ready
+          ? '正在读取目录'
+          : canChangeSource
+          ? '换源查找'
+          : noCopyright
+          ? '书源没有版权'
+          : '重新加载';
+
+      Widget info() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LocalizedText(
+            comic.title,
+            style: TextStyle(
+              fontSize: compact ? 25 : 36,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          LocalizedText(
+            comic.author.isEmpty ? '漫画详情' : comic.author,
+            style: TextStyle(fontSize: 13, color: quiet(context)),
+          ),
+          if (comic.tags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              comic.tags.join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: small(context),
+            ),
+          ],
+          if (history != null) ...[
+            const SizedBox(height: 12),
+            LocalizedText(
+              '上次读到 ${history.chapterTitle} · 第 ${history.page + 1} 页',
+              style: small(context),
+            ),
+          ] else if (comic.latest.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            LocalizedText('最新章节 · ${comic.latest}', style: small(context)),
+          ],
+        ],
+      );
+      Widget cover(double width) => SizedBox(
+        width: width,
+        height: width * 1.4,
+        child: DetailCover(
+          comic,
+          web: widget.web,
+          opening: widget.library.option<bool>('bookOpening', true),
+          tag: widget.flightTag,
+          key: coverKey,
+        ),
+      );
+      final stacked =
+          MediaQuery.sizeOf(context).width < 350 ||
+          MediaQuery.textScalerOf(context).scale(14) > 19;
+      return Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: () => Navigator.maybePop(context)),
+          title: const LocalizedText('漫画详情', style: TextStyle(fontSize: 15)),
+          actions: [
+            PopupMenuButton<String>(
+              tooltip: translate('更多操作', Localizations.localeOf(context)),
+              popUpAnimationStyle: RoomMotion.sheet(context),
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'organize',
+                  child: LocalizedText('分组、标签与系列'),
+                ),
+                if (comic.sourceId != 'local')
+                  const PopupMenuItem(
+                    value: 'original',
+                    child: LocalizedText('在原站打开'),
+                  ),
+                if (widget.source.detailDiagnostics.containsKey(comic.path))
+                  const PopupMenuItem(
+                    value: 'diagnostics',
+                    child: LocalizedText('复制目录诊断'),
+                  ),
+              ],
+              onSelected: (value) async {
+                if (value == 'organize') {
+                  await editBook(context, widget.library, comic);
+                } else if (value == 'diagnostics') {
+                  await copyDiagnostics(comic.path);
+                } else {
+                  try {
+                    final url =
+                        comic.path.startsWith('custom:') &&
+                            widget.source is SourceHub
+                        ? (widget.source as SourceHub)
+                              .profile(comic.path)
+                              .decode(comic.path)
+                        : Uri.parse('${Dm5Source.origin}${comic.path}');
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: LocalizedText(friendlyError(error))),
+                      );
+                    }
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+                child: MilkGlass(
+                  radius: 20,
+                  high:
+                      widget.library.option<String>('quality', 'high') ==
+                      'high',
+                  padding: const EdgeInsets.all(6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          key: const ValueKey('detail-read'),
+                          onPressed:
+                              !canRead &&
+                                  (!ready || noCopyright && !canChangeSource)
+                              ? null
+                              : canRead
+                              ? start
+                              : canChangeSource
+                              ? findAnotherSource
+                              : retry,
+                          icon: Icon(
+                            canRead
+                                ? Icons.menu_book_outlined
+                                : Icons.travel_explore,
+                            size: 19,
+                          ),
+                          label: LocalizedText(
+                            primaryLabel,
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ListenableBuilder(
+                        listenable: widget.library,
+                        builder: (context, _) => IconButton(
+                          key: const ValueKey('detail-collect'),
+                          tooltip: translate(
+                            widget.library.contains(comic) ? '已收藏' : '加入书架',
+                            Localizations.localeOf(context),
+                          ),
+                          onPressed: () => collectWithMotion(
+                            context,
+                            comic,
+                            widget.library,
+                            widget.web,
+                            origin: coverBounds(),
+                          ),
+                          icon: Icon(
+                            widget.library.contains(comic)
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: SafeArea(
+          top: false,
+          child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1100),
               child: CustomScrollView(
                 slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        compact ? 18 : 40,
-                        20,
-                        compact ? 18 : 40,
-                        0,
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            tooltip: '返回书架',
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.arrow_back, size: 21),
-                          ),
-                          const SizedBox(width: 8),
-                          LocalizedText('回到阅读室', style: small(context)),
-                          const Spacer(),
-                          if (comic.sourceId != 'local')
-                            IconButton(
-                              tooltip: '在原站打开',
-                              onPressed: () => launchUrl(
-                                comic.path.startsWith('custom:') &&
-                                        widget.source is SourceHub
-                                    ? (widget.source as SourceHub)
-                                          .profile(comic.path)
-                                          .decode(comic.path)
-                                    : Uri.parse(
-                                        '${Dm5Source.origin}${comic.path}',
-                                      ),
-                                mode: LaunchMode.externalApplication,
-                              ),
-                              icon: const Icon(Icons.open_in_new, size: 19),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
@@ -493,54 +414,159 @@ class _DetailPageState extends State<DetailPage> {
                         compact ? 26 : 60,
                         35,
                       ),
-                      child: compact
-                          ? Column(
-                              children: [
-                                SizedBox(
-                                  height: 280,
-                                  width: 200,
-                                  child: DetailCover(
-                                    comic,
-                                    web: widget.web,
-                                    opening: widget.library.option<bool>(
-                                      'bookOpening',
-                                      true,
-                                    ),
-                                    tag: widget.flightTag,
-                                    key: coverKey,
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                info(),
-                              ],
-                            )
-                          : Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (stacked) ...[
+                            Center(child: cover(128)),
+                            const SizedBox(height: 16),
+                            info(),
+                          ] else
+                            Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                SizedBox(
-                                  width: 300,
-                                  height: 350,
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 240,
-                                      height: 336,
-                                      child: DetailCover(
-                                        comic,
-                                        web: widget.web,
-                                        opening: widget.library.option<bool>(
-                                          'bookOpening',
-                                          true,
-                                        ),
-                                        tag: widget.flightTag,
-                                        key: coverKey,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 45),
+                                cover(compact ? 112 : 210),
+                                SizedBox(width: compact ? 20 : 36),
                                 Expanded(child: info()),
                               ],
                             ),
+                          if (comic.description.isNotEmpty) ...[
+                            const SizedBox(height: 18),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final style = TextStyle(
+                                  fontSize: 13,
+                                  height: 1.65,
+                                  color: quiet(context),
+                                );
+                                final measure = TextPainter(
+                                  text: TextSpan(
+                                    text: comic.description,
+                                    style: DefaultTextStyle.of(
+                                      context,
+                                    ).style.merge(style),
+                                  ),
+                                  textDirection: Directionality.of(context),
+                                  textScaler: MediaQuery.textScalerOf(context),
+                                  maxLines: 2,
+                                )..layout(maxWidth: constraints.maxWidth);
+                                final expandable = measure.didExceedMaxLines;
+                                measure.dispose();
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AnimatedSize(
+                                      duration: RoomMotion.duration(
+                                        context,
+                                        RoomMotion.feedback,
+                                      ),
+                                      alignment: Alignment.topLeft,
+                                      curve: RoomMotion.ease,
+                                      child: LocalizedText(
+                                        comic.description,
+                                        maxLines: descriptionExpanded
+                                            ? null
+                                            : 2,
+                                        overflow: descriptionExpanded
+                                            ? null
+                                            : TextOverflow.ellipsis,
+                                        style: style,
+                                      ),
+                                    ),
+                                    if (expandable)
+                                      TextButton(
+                                        onPressed: () => setState(
+                                          () => descriptionExpanded =
+                                              !descriptionExpanded,
+                                        ),
+                                        child: LocalizedText(
+                                          descriptionExpanded ? '收起简介' : '展开简介',
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow
+                                  .withValues(alpha: .8),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            sourceName,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          LocalizedText(
+                                            stateLabel,
+                                            style: small(context),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (!ready)
+                                      const Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: SizedBox.square(
+                                          dimension: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    if (canChangeSource && canRead)
+                                      TextButton.icon(
+                                        onPressed: findAnotherSource,
+                                        icon: const Icon(
+                                          Icons.travel_explore,
+                                          size: 16,
+                                        ),
+                                        label: const LocalizedText('换源查找'),
+                                      ),
+                                  ],
+                                ),
+                                if (ready &&
+                                    (snapshot.hasError ||
+                                        noCopyright ||
+                                        chapters.isEmpty)) ...[
+                                  const SizedBox(height: 8),
+                                  LocalizedText(
+                                    noCopyright
+                                        ? '${copyrightFailure.message}${chapters.isNotEmpty ? '\n已下载章节仍可离线阅读。' : ''}'
+                                        : snapshot.hasError
+                                        ? friendlyError(snapshot.error)
+                                        : '尚未识别到章节目录，请重新加载。',
+                                    style: small(context),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: retry,
+                                    icon: const Icon(Icons.refresh, size: 16),
+                                    label: const LocalizedText('重试读取目录'),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -552,20 +578,43 @@ class _DetailPageState extends State<DetailPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Divider(),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
-                              const LocalizedText(
-                                '章节目录',
-                                style: TextStyle(fontSize: 24),
-                              ),
-                              const SizedBox(width: 12),
-                              if (chapters.isNotEmpty)
-                                LocalizedText(
-                                  '${chapters.length} 章',
-                                  style: small(context),
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 10,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    const LocalizedText(
+                                      '章节目录',
+                                      style: TextStyle(fontSize: 20),
+                                    ),
+                                    if (chapters.isNotEmpty)
+                                      LocalizedText(
+                                        '${chapters.length} 章',
+                                        style: small(context),
+                                      ),
+                                  ],
                                 ),
-                              const Spacer(),
+                              ),
+                              if (chapters.isNotEmpty &&
+                                  comic.sourceId != 'local')
+                                IconButton(
+                                  tooltip: translate(
+                                    '下载章节',
+                                    Localizations.localeOf(context),
+                                  ),
+                                  onPressed: () => selectDownloads(
+                                    context,
+                                    comic,
+                                    chapters.reversed.toList(),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.download_outlined,
+                                    size: 20,
+                                  ),
+                                ),
                               if (chapters.isNotEmpty)
                                 IconButton(
                                   tooltip: ascending ? '切换倒序' : '切换正序',
@@ -598,53 +647,6 @@ class _DetailPageState extends State<DetailPage> {
                                     .toList(),
                               ),
                             ),
-                          ContentHandoff(
-                            child: Column(
-                              key: ValueKey(
-                                snapshot.connectionState != ConnectionState.done
-                                    ? 'catalog-loading'
-                                    : snapshot.hasError
-                                    ? 'catalog-error'
-                                    : chapters.isEmpty
-                                    ? 'catalog-empty'
-                                    : 'catalog-ready',
-                              ),
-                              children: [
-                                if (snapshot.connectionState !=
-                                    ConnectionState.done)
-                                  const Padding(
-                                    padding: EdgeInsets.all(55),
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  )
-                                else if (snapshot.hasError)
-                                  EmptyState(
-                                    icon: noCopyright
-                                        ? Icons.copyright_outlined
-                                        : Icons.cloud_off_outlined,
-                                    title: noCopyright
-                                        ? '当前书源没有版权'
-                                        : emptyCatalog
-                                        ? '暂无章节'
-                                        : '目录暂时无法读取',
-                                    message: friendlyError(snapshot.error),
-                                    action: retry,
-                                    actionLabel: '重新加载',
-                                  )
-                                else if (chapters.isEmpty)
-                                  EmptyState(
-                                    icon: Icons.menu_book_outlined,
-                                    title: '尚未读取到目录',
-                                    message: '当前返回内容中未识别到章节，请重新加载或打开原站核对。',
-                                    action: retry,
-                                    actionLabel: '重新加载',
-                                  ),
-                              ],
-                            ),
-                          ),
                           const SizedBox(height: 8),
                         ],
                       ),
@@ -764,9 +766,9 @@ class _DetailPageState extends State<DetailPage> {
                 ],
               ),
             ),
-          );
-        },
-      ),
-    ),
+          ),
+        ),
+      );
+    },
   );
 }

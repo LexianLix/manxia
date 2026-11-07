@@ -26,13 +26,23 @@ extension FollowUpdates on LibraryFeatures {
     final additions = compatible && previous.isNotEmpty
         ? paths.difference(previous)
         : <String>{};
+    final unread = <String>{
+      ...List<String>.from(prior?['updateChapterPaths'] as List? ?? []),
+      if (prior?['changed'] == true &&
+          prior?['updateChapterPaths'] == null &&
+          prior?['fingerprint'] is String)
+        prior!['fingerprint'] as String,
+      ...additions,
+      if (changed) fingerprint,
+    }..removeWhere((path) => !paths.contains(path) && chapterRead(book, path));
     updates[book.path] = {
       'latest': detail.comic.latest.isNotEmpty
           ? detail.comic.latest
           : detail.chapters.first.title,
       'fingerprint': fingerprint,
       'chapterPaths': paths.toList(),
-      'changed': prior?['changed'] == true || changed || additions.isNotEmpty,
+      'changed': unread.any((path) => !chapterRead(book, path)),
+      'updateChapterPaths': unread.toList(),
       if (prior?['seenFingerprint'] != null)
         'seenFingerprint': prior!['seenFingerprint'],
       if (prior?['readAt'] != null) 'readAt': prior!['readAt'],
@@ -46,6 +56,24 @@ extension FollowUpdates on LibraryFeatures {
     if ((changed || additions.isNotEmpty) && prior?['changed'] != true) {
       announce(LibraryNotice(LibraryNoticeKind.updatesFound));
     }
+  }
+
+  List<Chapter> unreadFollowChapters(ComicDetail detail) {
+    final update = updates[detail.comic.path];
+    final paths = Set<String>.from(
+      update?['updateChapterPaths'] as List? ??
+          [
+            if (update?['changed'] == true && update?['fingerprint'] is String)
+              update!['fingerprint'] as String,
+          ],
+    );
+    return detail.chapters.reversed
+        .where(
+          (chapter) =>
+              paths.contains(chapter.path) &&
+              !chapterRead(detail.comic, chapter.path),
+        )
+        .toList();
   }
 }
 

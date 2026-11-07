@@ -59,7 +59,7 @@ void main() {
       );
       final all = tester.widgetList<BookObject>(find.byType(BookObject));
       expect(all.length, 7);
-      expect(all.every((b) => b.exposure == 1 && b.flattening > .5), isTrue);
+      expect(all.every((b) => b.exposure == 1 && b.flattening < .35), isTrue);
       await tester.fling(
         find.byKey(const ValueKey('shelf-orbit')),
         const Offset(230, 0),

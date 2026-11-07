@@ -29,7 +29,7 @@ void main() {
       });
       await tester.pumpWidget(ManxiaApp(library: library));
       await tester.pumpAndSettle();
-      final action = find.text('翻开这本漫画');
+      final action = find.byKey(const ValueKey('shelf-read'));
       if (size.width == 411) {
         expect(
           tester.getRect(action).bottom,

@@ -89,7 +89,7 @@ class SourceSearchPage extends StatefulWidget {
 class _SourceSearchPageState extends State<SourceSearchPage> {
   late final input = TextEditingController(text: widget.comic.title);
   String? selected, error;
-  String resultSource = '';
+  String resultSource = '', resultQuery = '';
   String? resultId;
   bool allSources = false;
   List<String> failedSources = [];
@@ -126,12 +126,8 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
       failedSources = [];
       allSources = all;
     });
-    try {
-      final batch = await widget.source.searchAcross(
-        ids,
-        query,
-        isCurrent: () => mounted && generation == request,
-      );
+    var received = false;
+    void accept(SourceSearchResult batch) {
       if (!mounted || generation != request) return;
       final failures = batch.failures;
       final stillEnabled = sources;
@@ -163,15 +159,40 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
         });
       }
       setState(() {
-        results = unique.take(80).toList();
+        if (received) {
+          final byId = {
+            for (final comic in unique)
+              '${comic.sourceId}/${comic.path}': comic,
+          };
+          results = [
+            for (final comic in results ?? <Comic>[])
+              if (byId.containsKey('${comic.sourceId}/${comic.path}'))
+                byId.remove('${comic.sourceId}/${comic.path}')!,
+            ...byId.values,
+          ].take(80).toList();
+        } else {
+          results = unique.take(80).toList();
+          revision++;
+        }
+        received = true;
+        resultQuery = query;
         resultSource = all ? '所有已启用书源' : available[id]!;
         resultId = all ? null : id;
         failedSources = failures.keys.map((key) => available[key]!).toList();
         if (failures.length == ids.length) {
           error = friendlyError(failures.values.first);
         }
-        revision++;
       });
+    }
+
+    try {
+      final batch = await widget.source.searchAcross(
+        ids,
+        query,
+        isCurrent: () => mounted && generation == request,
+        onProgress: accept,
+      );
+      accept(batch);
     } catch (e) {
       if (mounted && generation == request) {
         setState(() => error = friendlyError(e));
@@ -209,7 +230,7 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
   }
 
   Future<void> open(Comic comic) async {
-    if (opening || busy) return;
+    if (opening) return;
     setState(() {
       opening = true;
       error = null;
@@ -404,14 +425,23 @@ class _SourceSearchPageState extends State<SourceSearchPage> {
                       ),
                       const SizedBox(height: 16),
                       IgnorePointer(
-                        ignoring: busy || opening,
+                        ignoring:
+                            opening || busy && resultQuery != input.text.trim(),
                         child: AnimatedOpacity(
-                          opacity: busy || opening ? .55 : 1,
+                          opacity:
+                              opening ||
+                                  busy && resultQuery != input.text.trim()
+                              ? .55
+                              : 1,
                           duration: MediaQuery.disableAnimationsOf(context)
                               ? Duration.zero
                               : const Duration(milliseconds: 180),
                           child: ContentHandoff(
-                            child: results!.isEmpty
+                            child: results!.isEmpty && busy
+                                ? const SizedBox.shrink(
+                                    key: ValueKey('source-search-pending'),
+                                  )
+                                : results!.isEmpty
                                 ? const EmptyState(
                                     key: ValueKey('no-source-matches'),
                                     icon: Icons.search_off,

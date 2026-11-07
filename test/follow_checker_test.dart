@@ -3,6 +3,7 @@ import 'package:manxia/data/comic.dart';
 import 'package:manxia/data/dm5_source.dart';
 import 'package:manxia/data/follow_updates.dart';
 import 'package:manxia/data/library.dart';
+import 'package:manxia/data/reading_progress.dart';
 import 'features_test.dart' as fixtures;
 
 class _Source extends Dm5Source {
@@ -22,6 +23,37 @@ class _Source extends Dm5Source {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'updates continue at the oldest unread addition and read marks can be undone',
+    () async {
+      final library = await fixtures.library();
+      await library.toggle(fixtures.comic);
+      await library.recordFollow(
+        ComicDetail(fixtures.comic, const [Chapter('/one/', 'One')]),
+      );
+      final current = ComicDetail(fixtures.comic, const [
+        Chapter('/three/', 'Three'),
+        Chapter('/two/', 'Two'),
+        Chapter('/one/', 'One'),
+      ]);
+      await library.recordFollow(current);
+      expect(
+        library.unreadFollowChapters(current).map((chapter) => chapter.path),
+        ['/two/', '/three/'],
+      );
+      await library.setChapterRead(fixtures.comic, '/two/', true);
+      expect(library.updates[fixtures.comic.path]!['changed'], true);
+      await library.setChapterRead(fixtures.comic, '/three/', true);
+      expect(library.updates[fixtures.comic.path]!['changed'], false);
+      await library.setChapterRead(fixtures.comic, '/two/', false);
+      expect(library.updates[fixtures.comic.path]!['changed'], true);
+      expect(library.unreadFollowChapters(current).single.path, '/two/');
+      await library.markUpdatesRead([fixtures.comic.path]);
+      await library.recordFollow(current);
+      expect(library.updates[fixtures.comic.path]!['changed'], false);
+      expect(library.unreadFollowChapters(current), isEmpty);
+    },
+  );
   test(
     'baseline has no fake updates; new chapters retain a direct unread flag',
     () async {
@@ -43,6 +75,7 @@ void main() {
       expect(library.meta(fixtures.comic).containsKey('followEvents'), false);
       await library.recordFollow(next, at: DateTime(2026, 11, 1));
       await library.recordFollow(first);
+      expect(library.updates[fixtures.comic.path]!['changed'], true);
       await library.recordFollow(next);
       expect(library.updates[fixtures.comic.path]!['changed'], true);
       await library.markUpdatesRead([fixtures.comic.path]);

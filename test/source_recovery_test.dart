@@ -120,7 +120,20 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
       expect(find.text('作者甲 · 2 个来源'), findsOneWidget);
+      final listScroll = find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('作者乙 · second 书源'),
+        250,
+        scrollable: listScroll,
+      );
       expect(find.text('作者乙 · second 书源'), findsOneWidget);
+      tester.state<ScrollableState>(listScroll).position.jumpTo(0);
+      await tester.pumpAndSettle();
       expect(find.text('部分书源失败：broken 书源'), findsOneWidget);
       await tester.tap(find.text('作者甲 · 2 个来源'));
       await tester.pumpAndSettle();

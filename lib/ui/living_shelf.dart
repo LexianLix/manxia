@@ -25,6 +25,7 @@ class LivingShelf extends StatefulWidget {
     this.onFocus,
     this.onBookOrigin,
     this.onAmbientColor,
+    this.onContinue,
   });
   final List<Comic> books;
   final Library library;
@@ -33,6 +34,7 @@ class LivingShelf extends StatefulWidget {
   final ValueChanged<Comic>? onFocus;
   final void Function(Comic, Rect)? onBookOrigin;
   final ValueChanged<Color>? onAmbientColor;
+  final ValueChanged<Comic>? onContinue;
   @override
   State<LivingShelf> createState() => _LivingShelfState();
 }
@@ -256,7 +258,7 @@ class _LivingShelfState extends State<LivingShelf>
   Widget orbit(BuildContext context) => SizedBox(
     key: const ValueKey('shelf-orbit'),
     height: MediaQuery.sizeOf(context).width < 1000
-        ? (MediaQuery.sizeOf(context).height - 530).clamp(168.0, 270.0)
+        ? (MediaQuery.sizeOf(context).height - 530).clamp(184.0, 286.0)
         : 310,
     child: LayoutBuilder(
       builder: (context, box) {
@@ -271,9 +273,9 @@ class _LivingShelfState extends State<LivingShelf>
           _ => 1.0,
         };
         final radius =
-            math.min(box.maxWidth * (count == 2 ? .25 : .48), 310.0) * density;
+            math.min(box.maxWidth * (count == 2 ? .25 : .40), 310.0) * density;
         final bookWidth = math.min(
-          (box.maxWidth * .40).clamp(140.0, 180.0),
+          (box.maxWidth * .44).clamp(140.0, 190.0),
           (box.maxHeight - 24) / 1.5,
         );
         final bookHeight = bookWidth * 1.5;
@@ -423,7 +425,7 @@ class _LivingShelfState extends State<LivingShelf>
                                                   web: widget.web,
                                                   number: real + 1,
                                                   exposure: 1,
-                                                  flattening: .58,
+                                                  flattening: .24,
                                                   light: 0,
                                                   bookmark:
                                                       widget.library.record(
@@ -571,10 +573,21 @@ class _LivingShelfState extends State<LivingShelf>
           children: [
             Flexible(
               child: FilledButton.icon(
-                onPressed: () => openBook(comic),
+                key: const ValueKey('shelf-read'),
+                onPressed: () {
+                  if (widget.library.record(comic) != null &&
+                      widget.onContinue != null) {
+                    widget.onContinue!(comic);
+                  } else {
+                    openBook(comic);
+                  }
+                },
                 icon: const Icon(Icons.menu_book_outlined, size: 17),
-                label: const LocalizedText(
-                  '翻开这本漫画',
+                label: LocalizedText(
+                  widget.library.record(comic) != null &&
+                          widget.onContinue != null
+                      ? '继续阅读'
+                      : '翻开这本漫画',
                   style: TextStyle(fontSize: 12),
                 ),
               ),

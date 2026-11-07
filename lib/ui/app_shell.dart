@@ -133,6 +133,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void navigate(int i) {
     if (tab == i) return;
+    updateRequest++;
     setState(() {
       tab = i;
     });
@@ -199,17 +200,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       case 'continue':
         final record = continueRecord;
         if (record != null) {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ReaderPage(
-                comic: record.comic,
-                chapter: Chapter(record.chapterPath, record.chapterTitle),
-                library: widget.library,
-                source: source,
-                web: widget.web,
-              ),
-            ),
-          );
+          await continueBook(record.comic);
         }
     }
   }
@@ -217,6 +208,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> open(Comic c) async {
     final flightTag = BookLink.takeTag(context, c);
     if (opening) return;
+    updateRequest++;
     opening = true;
     final origin = openingOrigin?.$1 == c.path ? openingOrigin?.$2 : null;
     openingOrigin = null;
@@ -234,6 +226,69 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       );
     } finally {
       opening = false;
+    }
+  }
+
+  Future<void> continueBook(Comic comic) async {
+    if (opening) return;
+    updateRequest++;
+    final record = widget.library.record(comic);
+    if (record == null) return open(comic);
+    opening = true;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => ReaderPage(
+            comic: comic,
+            chapter: Chapter(record.chapterPath, record.chapterTitle),
+            library: widget.library,
+            source: source,
+            web: widget.web,
+          ),
+        ),
+      );
+    } finally {
+      opening = false;
+    }
+  }
+
+  int updateRequest = 0;
+  Future<void> readUpdates(Comic comic) async {
+    if (opening) return;
+    final request = ++updateRequest;
+    try {
+      final detail = await source.detail(comic);
+      if (!mounted || tab != 1 || request != updateRequest || opening) return;
+      final unread = widget.library.unreadFollowChapters(detail);
+      if (unread.isEmpty) {
+        await open(comic);
+        return;
+      }
+      opening = true;
+      try {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => ReaderPage(
+              comic: detail.comic,
+              chapter: unread.first,
+              chapters: detail.chapters.reversed.toList(),
+              initialPage: 0,
+              library: widget.library,
+              source: source,
+              web: widget.web,
+            ),
+          ),
+        );
+      } finally {
+        opening = false;
+      }
+    } catch (error) {
+      if (mounted && tab == 1 && request == updateRequest && !opening) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: LocalizedText(friendlyError(error))));
+        await open(comic);
+      }
     }
   }
 
@@ -331,6 +386,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                                   navigationRequest:
                                                       discoveryRequest,
                                                   onOpen: open,
+                                                  onReadUpdate: readUpdates,
                                                 ),
                                                 2 => _history(),
                                                 _ => const SizedBox.shrink(),
@@ -779,6 +835,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   library: widget.library,
                   web: widget.web,
                   onOpen: open,
+                  onContinue: continueBook,
                   onAmbientColor: (color) {
                     if (mounted) atmosphere.value = color;
                   },
@@ -903,17 +960,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   ),
                 );
               } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReaderPage(
-                      comic: record.comic,
-                      chapter: Chapter(record.chapterPath, record.chapterTitle),
-                      library: widget.library,
-                      source: source,
-                      web: widget.web,
-                    ),
-                  ),
-                );
+                continueBook(record.comic);
               }
             },
             icon: const Icon(Icons.arrow_forward, size: 21),

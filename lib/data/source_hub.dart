@@ -9,6 +9,11 @@ import 'plugin.dart';
 import 'script_source.dart';
 export 'source_profile.dart';
 
+typedef SourceSearchResult = ({
+  List<Comic> books,
+  Map<String, Object> failures,
+});
+
 class SourceHub extends Dm5Source {
   SourceHub(
     this.library, {
@@ -71,36 +76,44 @@ class SourceHub extends Dm5Source {
       profile['id'] as String: profile['name'] as String,
   };
 
-  Future<({List<Comic> books, Map<String, Object> failures})> searchAcross(
+  Future<SourceSearchResult> searchAcross(
     Iterable<String> sourceIds,
     String query, {
     required bool Function() isCurrent,
+    void Function(SourceSearchResult)? onProgress,
   }) async {
-    final ids = sourceIds.toList();
-    final books = <Comic>[];
+    final ids = sourceIds.toSet().toList();
+    final books = <String, List<Comic>>{};
     final failures = <String, Object>{};
+    SourceSearchResult snapshot() {
+      final enabled = sourceNames;
+      return (
+        books: books.values
+            .expand((items) => items)
+            .where((book) => enabled.containsKey(book.sourceId))
+            .toList(),
+        failures: Map.unmodifiable(failures),
+      );
+    }
+
     for (var offset = 0; offset < ids.length; offset += 3) {
       if (!isCurrent()) break;
-      final batch = await Future.wait(
+      await Future.wait(
         ids.skip(offset).take(3).map((id) async {
           try {
-            return await searchIn(
+            final result = await searchIn(
               id,
               query,
             ).timeout(const Duration(seconds: 16));
+            books[id] = result.take(40).toList();
           } catch (error) {
             failures[id] = error;
-            return <Comic>[];
           }
+          if (isCurrent()) onProgress?.call(snapshot());
         }),
       );
-      books.addAll(batch.expand((results) => results.take(40)));
     }
-    final enabled = sourceNames;
-    return (
-      books: books.where((book) => enabled.containsKey(book.sourceId)).toList(),
-      failures: failures,
-    );
+    return snapshot();
   }
 
   void refreshImageOrigins() {

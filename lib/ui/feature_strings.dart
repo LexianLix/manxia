@@ -1,4 +1,15 @@
 const featureEnglish = <String, String>{
+  '漫画详情': 'Comic details',
+  '正在读取目录': 'Loading chapters',
+  '目录暂时无法读取': 'Chapters unavailable',
+  '换源查找': 'Find another source',
+  '重试读取目录': 'Retry chapters',
+  '复制目录诊断': 'Copy chapter diagnostics',
+  '正在查询书源…': 'Searching sources…',
+  '书源查询完成': 'Source search complete',
+  '展开简介': 'Read synopsis',
+  '收起简介': 'Collapse synopsis',
+  '重试失败的书源': 'Retry failed sources',
   '{author} · {count} 个来源': '{author} · {count} sources',
   '暂无章节': 'No chapters available',
   '这一章暂无可读图片': 'No pages available for this chapter',
@@ -177,6 +188,17 @@ const featureEnglish = <String, String>{
 };
 
 const featureTraditional = <String, String>{
+  '漫画详情': '漫畫詳情',
+  '正在读取目录': '正在讀取目錄',
+  '目录暂时无法读取': '目錄暫時無法讀取',
+  '换源查找': '換源查找',
+  '重试读取目录': '重試讀取目錄',
+  '复制目录诊断': '複製目錄診斷',
+  '正在查询书源…': '正在查詢書源…',
+  '书源查询完成': '書源查詢完成',
+  '展开简介': '展開簡介',
+  '收起简介': '收起簡介',
+  '重试失败的书源': '重試失敗的書源',
   '{author} · {count} 个来源': '{author} · {count} 個來源',
   '暂无章节': '暫無章節',
   '这一章暂无可读图片': '這一章暫無可讀圖片',
