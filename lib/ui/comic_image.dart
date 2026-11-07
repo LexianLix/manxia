@@ -102,6 +102,7 @@ class ComicImage extends StatefulWidget {
     required this.web,
     this.fit = BoxFit.cover,
     this.cacheWidth,
+    this.cacheHeight,
     this.fallback,
     this.animate = true,
   });
@@ -109,7 +110,7 @@ class ComicImage extends StatefulWidget {
   final bool web;
   final bool animate;
   final BoxFit fit;
-  final int? cacheWidth;
+  final int? cacheWidth, cacheHeight;
   final Widget? fallback;
   @override
   State<ComicImage> createState() => _ComicImageState();
@@ -141,9 +142,16 @@ class _ComicImageState extends State<ComicImage> {
     child: const Center(child: Icon(Icons.image_outlined, size: 20)),
   );
   Widget picture(BuildContext c, ImageProvider provider) => Image(
-    image: widget.cacheWidth == null
+    image: widget.cacheWidth == null && widget.cacheHeight == null
         ? provider
-        : ResizeImage.resizeIfNeeded(widget.cacheWidth, null, provider),
+        : widget.cacheHeight == null
+        ? ResizeImage.resizeIfNeeded(widget.cacheWidth, null, provider)
+        : ResizeImage(
+            provider,
+            width: widget.cacheWidth,
+            height: widget.cacheHeight,
+            policy: ResizeImagePolicy.fit,
+          ),
     fit: widget.fit,
     gaplessPlayback: true,
     frameBuilder: (_, child, frame, sync) => CoverArrival(

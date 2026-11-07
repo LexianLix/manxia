@@ -47,7 +47,7 @@ def has_shelf(xml):
         nodes = ET.fromstring(xml).iter("node")
         labels = {node.get("content-desc") or node.get("text") for node in nodes
                   if node.get("package") == "io.manxia.manxia"}
-        return {"我的书架", "书架", "设置"}.issubset(labels)
+        return {"书架", "发现", "设置"}.issubset(labels)
     except ET.ParseError:
         return False
 

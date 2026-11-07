@@ -141,7 +141,7 @@ void main() {
       await settleFirstFrame(tester);
       expect(source.calls, ['/one/', '/two/']);
       expect(library.record(library.samples.first)!.chapterPath, '/one/');
-      await tester.tap(find.text(translate('下一章', const Locale('en'))));
+      await tester.tap(find.byTooltip(translate('下一章', const Locale('en'))));
       await settleFirstFrame(tester);
       expect(source.calls, ['/one/', '/two/']);
       expect(library.record(library.samples.first)!.chapterPath, '/two/');

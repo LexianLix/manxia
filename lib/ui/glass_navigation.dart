@@ -33,6 +33,7 @@ class FrostedNavigation extends StatefulWidget {
     this.highQuality = true,
     this.haptics = true,
     this.liquid = true,
+    this.embedded = false,
     this.anchors = const {},
     this.destinations = const [
       RoomDestination(0, '书架', Icons.auto_stories_outlined, Icons.auto_stories),
@@ -43,7 +44,7 @@ class FrostedNavigation extends StatefulWidget {
   });
   final int selectedIndex;
   final ValueChanged<int> onSelected;
-  final bool highQuality, haptics, liquid;
+  final bool highQuality, haptics, liquid, embedded;
   final List<RoomDestination> destinations;
   final Map<int, GlobalKey> anchors;
   @override
@@ -243,8 +244,11 @@ class _FrostedNavigationState extends State<FrostedNavigation>
     final dark = scheme.brightness == Brightness.dark;
     return SafeArea(
       top: false,
+      bottom: !widget.embedded,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: widget.embedded
+            ? EdgeInsets.zero
+            : const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Center(
           heightFactor: 1,
           child: ConstrainedBox(
@@ -307,18 +311,19 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                       height: barHeight,
                       child: Stack(
                         children: [
-                          Positioned.fill(
-                            child: RepaintBoundary(
-                              child: MilkGlass(
-                                radius: 28,
-                                high: widget.highQuality,
-                                blurSigma: 16,
-                                tintOpacity: dark ? .74 : .62,
-                                shadow: true,
-                                child: const SizedBox.expand(),
+                          if (!widget.embedded)
+                            Positioned.fill(
+                              child: RepaintBoundary(
+                                child: MilkGlass(
+                                  radius: 28,
+                                  high: widget.highQuality,
+                                  blurSigma: 16,
+                                  tintOpacity: dark ? .30 : .18,
+                                  shadow: true,
+                                  child: const SizedBox.expand(),
+                                ),
                               ),
                             ),
-                          ),
                           Positioned.fill(
                             child: AnimatedBuilder(
                               animation: Listenable.merge([
@@ -376,7 +381,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                                 innerWidth - labelWidth,
                                               ),
                                       width: labelWidth,
-                                      top: 36,
+                                      top: 32,
                                       bottom: 0,
                                       child: IgnorePointer(
                                         child: ExcludeSemantics(
@@ -392,6 +397,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
                                                 fontSize: 11,
+                                                height: 1.25,
                                                 color: scheme.primary,
                                               ),
                                             ),

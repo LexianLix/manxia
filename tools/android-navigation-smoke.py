@@ -92,13 +92,21 @@ def main():
             pixel=Image.open(io.BytesIO(png)).convert('RGB').getpixel((5,(top+bottom)//2))
             assert pixel[0]<150 and pixel[2]-pixel[0]>20, f'{tab} header hides wallpaper: {pixel}'
             result[tab.lower()+'_header_pixel']=pixel
+        width,height=map(int,re.findall(r'\d+',adb('shell','wm','size'))[-2:])
+        adb('shell','input','swipe',str(width//2),str(height*4//5),str(width//2),str(height//3),'240')
+        xml=wait_ui('Expand navigation')
+        handle=next(n for n in ET.fromstring(xml).iter('node') if 'Expand navigation' in n.get('content-desc','')+' '+n.get('text',''))
+        left,_,right,_=map(int,re.findall(r'\d+',handle.get('bounds')))
+        assert right < width*.3, f'Compact navigation did not settle on the left: {left},{right}'
+        capture('compact-navigation');tap('Expand navigation');wait_ui('Library');capture('expanded-navigation')
+        result['glass_navigation_folds_and_expands']=True
         tap('Settings');wait_ui('Preferences')
         for i in range(5):
             tap('Reading preferences');wait_ui('Reading defaults')
             adb('shell','input','swipe','540','1450','540','600','220')
             adb('shell','input','keyevent','4');wait_ui('Preferences')
         result['repeated_route_return']=True;capture('returned-settings')
-        tap('Library');xml=wait_ui('My library')
+        tap('Library');xml=wait_ui('Library')
         assert 'Follow calendar' not in xml
         result['calendar_removed']=True
         tap('Settings');tap('Downloads & cache');scroll_to('Download network:')

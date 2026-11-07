@@ -4,6 +4,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/chapter_links.dart';
+import '../data/offline_library.dart';
 import 'localized_text.dart';
 import 'reader_surfaces.dart';
 import 'room_motion.dart';
@@ -58,6 +59,41 @@ class _Segment {
 typedef _Item = ({_Segment segment, int page});
 
 class _ContinuousStripState extends State<ContinuousStrip> {
+  final repairRevisions = <String, int>{};
+  final repairing = <String>{};
+  Future<void> repair(_Segment segment, int page) async {
+    final address = segment.urls[page];
+    if (!repairing.add(address)) return;
+    try {
+      final offline = OfflineLibrary.instance;
+      if (offline == null) throw StateError('离线书库尚未就绪');
+      await offline.repairPage(address);
+      if (mounted &&
+          segments.contains(segment) &&
+          segment.urls[page] == address) {
+        setState(
+          () => repairRevisions[address] = (repairRevisions[address] ?? 0) + 1,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: LocalizedText(
+              error is StateError
+                  ? error.message.toString()
+                  : error is SourceException
+                  ? error.message
+                  : error.toString(),
+            ),
+          ),
+        );
+      }
+    } finally {
+      repairing.remove(address);
+    }
+  }
+
   late final seed = _Segment(widget.chapter, List.unmodifiable(widget.urls));
   late final segments = <_Segment>[seed];
   late String currentPath = seed.chapter.path;
@@ -478,6 +514,12 @@ class _ContinuousStripState extends State<ContinuousStrip> {
                 constraints: const BoxConstraints(maxWidth: 1000),
                 child: PagePicture(
                   segment.urls[item.page],
+                  key: ValueKey((
+                    segment.chapter.path,
+                    item.page,
+                    repairRevisions[segment.urls[item.page]] ?? 0,
+                  )),
+                  pageNumber: item.page + 1,
                   web: widget.web,
                   strip: true,
                   knownAspect: aspects[aspectKey(segment.urls[item.page])],
@@ -501,7 +543,7 @@ class _ContinuousStripState extends State<ContinuousStrip> {
                   },
                   onImageError: (e) => imageError(segment, item.page, e),
                   onRetry: segment.urls[item.page].startsWith('offline:')
-                      ? null
+                      ? () => repair(segment, item.page)
                       : () => refresh(segment),
                 ),
               ),

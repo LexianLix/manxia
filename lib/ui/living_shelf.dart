@@ -26,6 +26,8 @@ class LivingShelf extends StatefulWidget {
     this.onBookOrigin,
     this.onAmbientColor,
     this.onContinue,
+    this.onManage,
+    this.showCollectionAction = true,
   });
   final List<Comic> books;
   final Library library;
@@ -34,7 +36,8 @@ class LivingShelf extends StatefulWidget {
   final ValueChanged<Comic>? onFocus;
   final void Function(Comic, Rect)? onBookOrigin;
   final ValueChanged<Color>? onAmbientColor;
-  final ValueChanged<Comic>? onContinue;
+  final ValueChanged<Comic>? onContinue, onManage;
+  final bool showCollectionAction;
   @override
   State<LivingShelf> createState() => _LivingShelfState();
 }
@@ -404,6 +407,9 @@ class _LivingShelfState extends State<LivingShelf>
                                       child: Tooltip(
                                         message: item.title,
                                         child: GestureDetector(
+                                          onLongPress: widget.onManage == null
+                                              ? null
+                                              : () => widget.onManage!(item),
                                           onTap: () {
                                             if (focused) {
                                               openBook(item);
@@ -491,6 +497,11 @@ class _LivingShelfState extends State<LivingShelf>
   @override
   Widget build(BuildContext context) {
     final comic = widget.books[selected];
+    final record = widget.library.record(comic);
+    final updated = widget.library.updates[comic.path]?['changed'] == true;
+    final latest =
+        widget.library.updates[comic.path]?['latest'] as String? ??
+        comic.latest;
     final muted = Theme.of(
       context,
     ).colorScheme.onSurface.withValues(alpha: .63);
@@ -498,75 +509,98 @@ class _LivingShelfState extends State<LivingShelf>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         orbit(context),
-        Row(
-          children: [
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: animate ? RoomMotion.feedback : Duration.zero,
-                transitionBuilder: (child, a) => FadeTransition(
-                  opacity: a.drive(CurveTween(curve: const Interval(.5, 1))),
-                  child: SlideTransition(
-                    position:
-                        Tween(
-                          begin: const Offset(0, .16),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(parent: a, curve: RoomMotion.ease),
-                        ),
-                    child: child,
-                  ),
-                ),
-                layoutBuilder: (current, previous) => Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [...previous, ?current],
-                ),
-                child: Column(
-                  key: ValueKey(comic.path),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    LocalizedText(
-                      comic.title,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    LocalizedText(
-                      widget.library.updates[comic.path]?['changed'] == true
-                          ? '有更新 · {chapter}'
-                          : widget.library.record(comic) == null
-                          ? '动漫屋 · 拖动书架，挑选故事'
-                          : '书签 · ${widget.library.record(comic)!.chapterTitle}',
-                      arguments: {
-                        'chapter':
-                            widget.library.updates[comic.path]?['latest']
-                                as String? ??
-                            comic.latest,
-                      },
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: muted),
-                    ),
-                  ],
+        LayoutBuilder(
+          builder: (context, box) {
+            final title = AnimatedSwitcher(
+              duration: animate ? RoomMotion.feedback : Duration.zero,
+              transitionBuilder: (child, a) => FadeTransition(
+                opacity: a.drive(CurveTween(curve: const Interval(.5, 1))),
+                child: SlideTransition(
+                  position: Tween(
+                    begin: const Offset(0, .16),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(parent: a, curve: RoomMotion.ease)),
+                  child: child,
                 ),
               ),
-            ),
-            IconButton(
-              tooltip: '上一本',
-              onPressed: () => step(-1),
-              icon: const Icon(Icons.chevron_left, size: 21),
-            ),
-            LocalizedText(
-              '${(selected + 1).toString().padLeft(2, '0')} / ${widget.books.length.toString().padLeft(2, '0')}',
-              style: TextStyle(fontSize: 11, color: muted),
-            ),
-            IconButton(
-              tooltip: '下一本',
-              onPressed: () => step(1),
-              icon: const Icon(Icons.chevron_right, size: 21),
-            ),
-          ],
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.centerLeft,
+                children: [...previous, ?current],
+              ),
+              child: Column(
+                key: ValueKey(comic.path),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LocalizedText(
+                    comic.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  LocalizedText(
+                    widget.library.updates[comic.path]?['changed'] == true
+                        ? '有更新 · {chapter}'
+                        : record == null
+                        ? (comic.latest.isNotEmpty ? comic.latest : '拖动书架，挑选故事')
+                        : record.total > 0
+                        ? '{chapter} · 第 {page} / {total} 页'
+                        : record.chapterTitle,
+                    arguments: {
+                      'chapter': updated
+                          ? latest
+                          : (record?.chapterTitle ?? ''),
+                      'page': (record?.page ?? 0) + 1,
+                      'total': record?.total ?? 0,
+                    },
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: muted),
+                  ),
+                ],
+              ),
+            );
+            final navigation = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: '上一本',
+                  onPressed: () => step(-1),
+                  icon: const Icon(Icons.chevron_left, size: 21),
+                ),
+                LocalizedText(
+                  '${(selected + 1).toString().padLeft(2, '0')} / ${widget.books.length.toString().padLeft(2, '0')}',
+                  style: TextStyle(fontSize: 11, color: muted),
+                ),
+                IconButton(
+                  tooltip: '下一本',
+                  onPressed: () => step(1),
+                  icon: const Icon(Icons.chevron_right, size: 21),
+                ),
+              ],
+            );
+            return box.maxWidth < 330 ||
+                    MediaQuery.textScalerOf(context).scale(14) > 18
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      title,
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: navigation,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: title),
+                      navigation,
+                    ],
+                  );
+          },
         ),
         const SizedBox(height: 12),
         Row(
@@ -592,38 +626,40 @@ class _LivingShelfState extends State<LivingShelf>
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            MilkGlass(
-              radius: 8,
-              high: widget.library.option<String>('quality', 'high') == 'high',
-              child: IconButton(
-                tooltip: widget.library.contains(comic) ? '移出收藏' : '加入收藏',
-                onPressed: () => collectWithMotion(
-                  context,
-                  comic,
-                  widget.library,
-                  widget.web,
-                  origin: bookBounds(),
-                ),
-                icon: AnimatedSwitcher(
-                  duration: RoomMotion.duration(context, RoomMotion.feedback),
-                  transitionBuilder: (child, a) => ScaleTransition(
-                    scale: CurvedAnimation(
-                      parent: a,
-                      curve: Curves.easeOutBack,
-                    ),
-                    child: child,
+            if (widget.showCollectionAction) const SizedBox(width: 12),
+            if (widget.showCollectionAction)
+              MilkGlass(
+                radius: 8,
+                high:
+                    widget.library.option<String>('quality', 'high') == 'high',
+                child: IconButton(
+                  tooltip: widget.library.contains(comic) ? '移出收藏' : '加入收藏',
+                  onPressed: () => collectWithMotion(
+                    context,
+                    comic,
+                    widget.library,
+                    widget.web,
+                    origin: bookBounds(),
                   ),
-                  child: Icon(
-                    widget.library.contains(comic)
-                        ? Icons.bookmark
-                        : Icons.bookmark_border,
-                    key: ValueKey(widget.library.contains(comic)),
-                    size: 20,
+                  icon: AnimatedSwitcher(
+                    duration: RoomMotion.duration(context, RoomMotion.feedback),
+                    transitionBuilder: (child, a) => ScaleTransition(
+                      scale: CurvedAnimation(
+                        parent: a,
+                        curve: Curves.easeOutBack,
+                      ),
+                      child: child,
+                    ),
+                    child: Icon(
+                      widget.library.contains(comic)
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                      key: ValueKey(widget.library.contains(comic)),
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
-            ),
             const Spacer(),
             if (MediaQuery.sizeOf(context).width > 700)
               LocalizedText(

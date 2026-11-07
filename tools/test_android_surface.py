@@ -22,6 +22,12 @@ class PaintedHomeTest(unittest.TestCase):
     def test_painted_title_is_accepted(self):
         self.assertTrue(home_title_evidence(self.xml, self.screenshot(True))["painted"])
 
+    def test_compact_title_is_accepted_but_footer_label_is_not(self):
+        image = self.screenshot(True)
+        self.assertTrue(home_title_evidence(self.xml.replace('我的书架', '书架'), image)['painted'])
+        footer = self.xml.replace('我的书架', '书架').replace('[10,10][190,60]', '[10,80][190,115]')
+        self.assertFalse(home_title_evidence(footer, image)['painted'])
+
     def test_missing_or_outside_title_is_rejected(self):
         image = self.screenshot(True)
         self.assertFalse(home_title_evidence("<hierarchy/>", image)["painted"])

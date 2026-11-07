@@ -28,7 +28,7 @@ void main() {
       });
       await tester.pumpWidget(ManxiaApp(library: library));
       await tester.pumpAndSettle();
-      expect(find.text(translate('我的书架', locale)), findsOneWidget);
+      expect(find.text(translate('书架', locale)), findsWidgets);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip(translate('设置', locale)));
       await tester.pumpAndSettle();
@@ -63,7 +63,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('02 / 07'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('切换封面网格'));
+      await tester.tap(find.byTooltip('整理书架'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('切换封面网格'));
       await tester.pumpAndSettle();
       expect(library.grid, true);
       expect(tester.takeException(), isNull);

@@ -126,7 +126,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 80));
     });
     await tester.pumpAndSettle();
-    final button = find.byKey(const ValueKey('collection-每日精选'));
+    final button = find.byKey(const ValueKey('collection-今天想看什么'));
     await tester.ensureVisible(button);
     await tester.tap(button);
     await tester.pumpAndSettle();
@@ -266,11 +266,11 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
-      expect(find.text('今日主推'), findsOneWidget);
+      expect(find.text('今天想看什么'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await capture(tester, key, 'discovery-${width.toInt()}');
       if (width == 390) {
-        final all = find.byKey(const ValueKey('collection-每日精选'));
+        final all = find.byKey(const ValueKey('collection-今天想看什么'));
         await tester.ensureVisible(all);
         await tester.tap(all);
         await tester.pumpAndSettle();
@@ -281,12 +281,17 @@ void main() {
         await capture(tester, key, 'daily-full-390');
         await tester.tap(find.byType(BackButton));
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('排行'));
-
-        await tester.tap(find.text('排行'));
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('discovery-options')),
+        );
+        await tester.tap(find.byKey(const ValueKey('discovery-options')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('完整榜单'));
         await tester.pumpAndSettle();
         await capture(tester, key, 'ranking-390');
         expect(tester.takeException(), isNull);
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
       }
       await tester.tap(
         find.text(width < 1000 ? '书架' : '我的书架').hitTestable().first,
@@ -353,8 +358,8 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 80));
       });
       await tester.pumpAndSettle();
-      expect(find.text(translate('今日主推', locale)), findsOneWidget);
-      expect(find.text(translate('搜索漫画名称', locale)), findsOneWidget);
+      expect(find.text(translate('今天想看什么', locale)), findsOneWidget);
+      expect(find.text(translate('搜索漫画、作者或关键词', locale)), findsOneWidget);
       await capture(tester, key, 'localized-discovery-$locale');
       await tester.tap(find.byKey(const ValueKey('open-comic-search')));
       await tester.pumpAndSettle();
@@ -364,7 +369,9 @@ void main() {
       expect(tester.takeException(), isNull);
       Navigator.of(tester.element(find.byType(TextField).first)).pop();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('collection-每日精选')));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('collection-今天想看什么')),
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

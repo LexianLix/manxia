@@ -95,7 +95,10 @@ void main() {
       expect(scroll.offset, 0);
       expect(find.text('New catalog book'), findsWidgets);
       expect(updates, findsNothing);
-      await tester.tap(find.byTooltip('Refresh discovery'));
+      await tester.tap(find.byKey(const ValueKey('discovery-options')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Refresh discovery'));
+      await tester.pumpAndSettle();
       await tester.pump();
       source.responses.last.completeError(StateError('offline'));
       await tester.pumpAndSettle();
@@ -152,16 +155,18 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('排行'));
-      await tester.tap(find.text('排行'));
+      await tester.tap(find.byKey(const ValueKey('discovery-options')));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('完整榜单'));
+      await tester.pumpAndSettle();
+      expect(find.text('近期排行'), findsOneWidget);
       expect(
         tester
-            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '近期排行'))
-            .selected,
-        isTrue,
+            .widgetList<ComicGrid>(find.byType(ComicGrid))
+            .expand((g) => g.books)
+            .length,
+        2,
       );
-      expect(find.text('这个来源暂未提供榜单'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
@@ -256,7 +261,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await tap(find.text('分类'));
+      await tap(find.text('全部漫画'));
       final catalogRequest = Completer<SourceCatalog>();
       source.pausedCatalog = catalogRequest;
       await tester.ensureVisible(find.widgetWithText(ChoiceChip, '科幻'));
@@ -267,9 +272,8 @@ void main() {
       catalogRequest.complete(source.catalogResult);
       await tester.pumpAndSettle();
       expect(source.catalogs, ['/manhua-adventure/', '/manhua-scifi/']);
-      await tap(find.text('排行'));
-      await tap(find.widgetWithText(ChoiceChip, '新番'));
-      await tap(find.text('分类'));
+      await tap(find.text('逛一逛'));
+      await tap(find.text('全部漫画'));
       expect(source.categoriesCalls, 1);
       expect(source.catalogs.length, 2);
       expect(

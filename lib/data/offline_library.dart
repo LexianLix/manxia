@@ -39,6 +39,32 @@ class OfflineLibrary extends ChangeNotifier {
   late final NetworkMonitor network;
   final _aborts = <String, Completer<void>>{};
   bool _closed = false;
+  int _readingLoads = 0;
+  Completer<void>? _readingIdle;
+
+  /// Let foreground chapter loading finish before starting another download.
+  VoidCallback prioritizeReading() {
+    if (_closed) return () {};
+    _readingLoads++;
+    _readingIdle ??= Completer<void>();
+    var released = false;
+    return () {
+      if (released) return;
+      released = true;
+      if (--_readingLoads == 0) {
+        _readingIdle?.complete();
+        _readingIdle = null;
+        pump();
+      }
+    };
+  }
+
+  Future<void> _waitForReading() async {
+    while (!_closed && _readingIdle != null) {
+      await _readingIdle!.future;
+    }
+  }
+
   (NetworkInfo, bool)? _lastPolicy;
   bool get networkAllowed =>
       network.value.permits(library.option<bool>('downloadWifiOnly', false));
@@ -344,7 +370,7 @@ class OfflineLibrary extends ChangeNotifier {
   }
 
   void pump() {
-    if (_closed) return;
+    if (_closed || _readingLoads > 0) return;
     final limit = library.option<int>('downloadParallel', 2).clamp(1, 4);
     for (final e in entries.where((e) => e['status'] == 'queued').toList()) {
       if (!allowed(e)) {
@@ -364,6 +390,8 @@ class OfflineLibrary extends ChangeNotifier {
     e.remove('pauseReason');
     await persist();
     try {
+      await _waitForReading();
+      if (_closed || e['status'] != 'downloading') return;
       if ((e['urls'] as List).isEmpty) {
         e['urls'] = await source.networkPages(e['chapter']['path']);
         e['total'] = (e['urls'] as List).length;
@@ -373,6 +401,8 @@ class OfflineLibrary extends ChangeNotifier {
       var refreshed = false;
       final keys = List<String>.from(e['keys']);
       for (var i = e['done'] as int; i < urls.length; i++) {
+        await _waitForReading();
+        if (_closed) break;
         if (e['status'] != 'downloading' || !allowed(e)) break;
         final imageKey = key('${e['chapter']['path']}/$i');
         if (await read(imageKey) == null) {
@@ -557,6 +587,8 @@ class OfflineLibrary extends ChangeNotifier {
   @override
   void dispose() {
     _closed = true;
+    _readingIdle?.complete();
+    _readingIdle = null;
     library.removeListener(networkChanged);
     network.removeListener(networkChanged);
     for (final abort in _aborts.values) {
@@ -565,6 +597,72 @@ class OfflineLibrary extends ChangeNotifier {
     network.dispose();
     _client.close();
     super.dispose();
+  }
+
+  /// Repair exactly one downloaded page. Old indexes need no schema migration.
+  Future<void> repairPage(String address) async {
+    if (!address.startsWith('offline:') || !ready) throw StateError('离线书库尚未就绪');
+    final imageKey = address.substring(8);
+    final entry = entries
+        .where((e) => (e['keys'] as List).contains(imageKey))
+        .firstOrNull;
+    if (entry == null || entry['local'] == true) {
+      throw StateError('本地漫画图片缺失，请重新导入原文件。');
+    }
+    if (entry['status'] != 'complete') throw StateError('这一章仍在下载，请到下载页面继续任务。');
+    if (!allowed(entry)) throw StateError('当前网络不符合下载设置，请连接允许的网络后重试。');
+    final index = (entry['keys'] as List).indexOf(imageKey);
+    var urls = List<String>.from(entry['urls']);
+    if (index >= urls.length) throw StateError('离线目录缺少原图地址，请重新下载本章。');
+    var response = await requestImage(entry['id'], urls[index]);
+    if (expiredImageStatus(response.statusCode)) {
+      urls = await refreshChapterLinks(
+        source,
+        entry['chapter']['path'],
+        urls,
+        completed: urls.length,
+      );
+      response = await requestImage(entry['id'], urls[index]);
+    }
+    if (response.statusCode != 200 ||
+        !(response.headers['content-type'] ?? '').startsWith('image/')) {
+      throw StateError('第 ${index + 1} 页暂时无法下载，请稍后重试。');
+    }
+    final size = response.bodyBytes.length;
+    if (size == 0 || size > 20 * 1024 * 1024) {
+      throw StateError('图片大小无效，无法修复这一页。');
+    }
+    // Reconcile legacy accounting only for this rare repair, without retaining
+    // an entire chapter in memory or double-counting a previously missing file.
+    var remaining = 0;
+    for (final key in entry['keys'] as List) {
+      if (key != imageKey) remaining += (await _store!.read(key))?.length ?? 0;
+    }
+    if (_closed || !entries.contains(entry) || !allowed(entry)) {
+      throw StateError('修复已取消或网络已变化。');
+    }
+    if (capacityBytes > 0 &&
+        bytes - (entry['bytes'] as int) + remaining + size + _reservedBytes >
+            capacityBytes) {
+      throw const OfflineCapacityException();
+    }
+    _reservedBytes += size;
+    try {
+      await _store!.write(imageKey, response.bodyBytes);
+      if (!entries.contains(entry)) {
+        if (!entries.any((e) => (e['keys'] as List).contains(imageKey))) {
+          await _store!.delete(imageKey);
+        }
+        throw StateError('章节已移除，修复已取消。');
+      }
+      final cached = _memory.remove(imageKey);
+      _memoryBytes -= cached?.length ?? 0;
+      entry['bytes'] = remaining + size;
+      entry['urls'] = urls;
+      await persist();
+    } finally {
+      _reservedBytes -= size;
+    }
   }
 
   Future<Comic> importImages(

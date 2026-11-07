@@ -14,6 +14,8 @@ import 'package:manxia/data/reading_profiles.dart';
 import 'package:manxia/data/offline_library.dart';
 import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/reader_page.dart';
+import 'package:manxia/ui/reader_page_map.dart';
+import 'package:manxia/ui/comic_image.dart';
 import 'package:manxia/ui/reader_surfaces.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:manxia/ui/room_motion.dart';
@@ -27,6 +29,158 @@ const comic = Comic(
 const a = Chapter('/old/', 'Old chapter'), b = Chapter('/new/', 'New chapter');
 const c = Chapter('/third/', 'Third chapter');
 void main() {
+  testWidgets(
+    'page map and scrub preview preserve progress until committed and can return',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = await _Fixture.start(
+        tester,
+        initialPage: 1,
+        initialUrls: const [
+          'offline:old',
+          'offline:old',
+          'offline:old',
+          'offline:old',
+        ],
+      );
+      await tester.tap(find.byKey(const ValueKey('reader-page-map')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReaderPageMap), findsOneWidget);
+      expect(f.library.record(comic)!.page, 1);
+      await tester.tap(find.byKey(const ValueKey('page-map-3')));
+      await _decode(tester);
+      expect(f.library.record(comic)!.page, 3);
+      expect(find.byKey(const ValueKey('reader-return-point')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('reader-return-point')));
+      await _decode(tester);
+      expect(f.library.record(comic)!.page, 1);
+      final slider = tester.widget<Slider>(find.byType(Slider).first);
+      slider.onChangeStart!(0);
+      slider.onChanged!(0);
+      await tester.pump();
+      expect(f.library.record(comic)!.page, 1);
+      expect(
+        find.byKey(const ValueKey('reader-scrub-preview')),
+        findsOneWidget,
+      );
+      slider.onChangeEnd!(0);
+      await _decode(tester);
+      expect(f.library.record(comic)!.page, 0);
+      await tester.tap(find.byKey(const ValueKey('reader-return-point')));
+      await _decode(tester);
+      expect(f.library.record(comic)!.page, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'long chapter map opens near the current page and builds bounded thumbnails',
+    (tester) async {
+      final f = await _Fixture.start(
+        tester,
+        initialPage: 250,
+        initialUrls: List.filled(500, 'offline:old'),
+      );
+      await tester.tap(find.byKey(const ValueKey('reader-page-map')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('page-map-250')), findsOneWidget);
+      final thumbnails = tester
+          .widgetList<ComicImage>(
+            find.descendant(
+              of: find.byType(ReaderPageMap),
+              matching: find.byType(ComicImage),
+            ),
+          )
+          .toList();
+      expect(thumbnails.length, lessThan(40));
+      expect(
+        thumbnails.every(
+          (image) => image.cacheWidth == 160 && image.cacheHeight == 240,
+        ),
+        isTrue,
+      );
+      expect(f.library.record(comic)!.page, 250);
+      Navigator.of(tester.element(find.byType(ReaderPageMap))).pop();
+      await tester.pumpAndSettle();
+      expect(f.library.record(comic)!.page, 250);
+      expect(find.byKey(const ValueKey('reader-return-point')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'slow seek keeps the old page and a newer seek wins over late decoding',
+    (tester) async {
+      final f = await _Fixture.start(
+        tester,
+        initialUrls: const ['offline:old', 'offline:new', 'offline:old'],
+      );
+      await tester.tap(find.byKey(const ValueKey('reader-page-map')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('page-map-1')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(f.library.record(comic)!.page, 0);
+      expect(find.byKey(const ValueKey('reader-seek-loading')), findsOneWidget);
+      final slider = tester.widget<Slider>(find.byType(Slider).first);
+      slider.onChangeStart!(2);
+      slider.onChanged!(2);
+      slider.onChangeEnd!(2);
+      await _decode(tester);
+      expect(f.library.record(comic)!.page, 2);
+      f.store.next.complete(f.bytes);
+      await _decode(tester);
+      expect(f.library.record(comic)!.page, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a failed seek leaves the decoded page and progress intact', (
+    tester,
+  ) async {
+    final f = await _Fixture.start(
+      tester,
+      initialUrls: const ['offline:old', 'offline:new'],
+    );
+    f.store.next.complete(Uint8List.fromList([1, 2, 3]));
+    await _decode(tester);
+    await tester.tap(find.byKey(const ValueKey('reader-page-map')));
+    await _decode(tester);
+    await tester.tap(find.byKey(const ValueKey('page-map-1')));
+    await _decode(tester);
+    expect(f.library.record(comic)!.page, 0);
+    expect(find.text('第 2 页暂时无法加载，已保留当前位置'), findsOneWidget);
+    expect(find.byKey(const ValueKey('reader-return-point')), findsNothing);
+    expect(find.byKey(const ValueKey('reader-seek-loading')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'catalog detour can return across chapters and clears the return action',
+    (tester) async {
+      final f = await _Fixture.start(
+        tester,
+        catalog: const [a, b],
+        pageSets: {
+          b.path: const ['offline:old'],
+        },
+      );
+      await tester.tap(find.byTooltip('章节与书签'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(b.title));
+      await _decode(tester);
+      expect(f.library.record(comic)!.chapterPath, b.path);
+      await tester.tap(find.byKey(const ValueKey('reader-return-point')));
+      await _decode(tester);
+      expect(f.library.record(comic)!.chapterPath, a.path);
+      expect(find.byKey(const ValueKey('reader-return-point')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final reduced in [false, true]) {
     testWidgets(
       'continuous chapters keep local history through mode changes; reduced=$reduced',
@@ -339,7 +493,7 @@ void main() {
       '$mode reduced-motion handoff commits the decoded page without moving its viewport',
       (tester) async {
         final f = await _Fixture.start(tester, mode: mode, reduced: true);
-        await tester.tap(find.text('下一章'));
+        await tester.tap(find.byTooltip('下一章'));
         await tester.pump();
         f.source.next.complete(['offline:new']);
         f.store.next.complete(f.bytes);
@@ -376,7 +530,7 @@ void main() {
     'a later catalog selection wins over an earlier chapter response',
     (tester) async {
       final f = await _Fixture.start(tester, catalog: const [a, b, c]);
-      await tester.tap(find.text('下一章'));
+      await tester.tap(find.byTooltip('下一章'));
       await tester.pump();
       await tester.tap(find.byTooltip('章节与书签'));
       await tester.pump();
@@ -403,7 +557,7 @@ void main() {
     'prepared chapter keeps its decoded surface when becoming visible',
     (tester) async {
       final f = await _Fixture.start(tester);
-      await tester.tap(find.text('下一章'));
+      await tester.tap(find.byTooltip('下一章'));
       await tester.pump();
       f.source.next.complete(['offline:new']);
       await tester.pump();
@@ -429,7 +583,7 @@ void main() {
     }
     final f = await _Fixture.start(tester);
     await f.capture(tester, 'current');
-    await tester.tap(find.text('下一章'));
+    await tester.tap(find.byTooltip('下一章'));
     await tester.pump();
     f.source.next.complete(['offline:new']);
     await tester.pump();
@@ -463,7 +617,7 @@ void main() {
     'a ready third chapter waits for the visible blend without resetting its poses',
     (tester) async {
       final f = await _Fixture.start(tester, catalog: const [a, b, c]);
-      await tester.tap(find.text('下一章'));
+      await tester.tap(find.byTooltip('下一章'));
       await tester.pump();
       f.source.next.complete(['offline:new']);
       f.store.next.complete(f.bytes);
@@ -491,7 +645,7 @@ void main() {
       }
       final before = alpha();
       expect(before, inExclusiveRange(0, 1));
-      await tester.tap(find.text('下一章'));
+      await tester.tap(find.byTooltip('下一章'));
       await tester.pump();
       f.source.next.complete(['offline:third']);
       f.store.third.complete(f.bytes);
@@ -508,7 +662,7 @@ void main() {
     'cancelled image preparation cannot commit when its late frame arrives',
     (tester) async {
       final f = await _Fixture.start(tester);
-      await tester.tap(find.text('下一章'));
+      await tester.tap(find.byTooltip('下一章'));
       await tester.pump();
       f.source.next.complete(['offline:new']);
       await tester.pump();
@@ -531,7 +685,7 @@ void main() {
     tester,
   ) async {
     final f = await _Fixture.start(tester);
-    await tester.tap(find.text('下一章'));
+    await tester.tap(find.byTooltip('下一章'));
     await tester.pump();
     f.source.next.completeError(SourceException('网络暂时不可用'));
     await tester.pumpAndSettle();
@@ -552,7 +706,7 @@ void main() {
     'a corrupt next image keeps the old chapter and can be cancelled',
     (tester) async {
       final f = await _Fixture.start(tester);
-      await tester.tap(find.text('下一章'));
+      await tester.tap(find.byTooltip('下一章'));
       await tester.pump();
       f.source.next.complete(['offline:new']);
       f.store.next.complete(Uint8List.fromList([1, 2, 3]));
@@ -618,7 +772,7 @@ void main() {
         });
         await tester.pumpAndSettle();
         expect(library.record(comic)!.chapterPath, a.path);
-        await tester.tap(find.text('下一章'));
+        await tester.tap(find.byTooltip('下一章'));
         await tester.pump();
         if (waitForImage) {
           source.next.complete(['offline:new']);

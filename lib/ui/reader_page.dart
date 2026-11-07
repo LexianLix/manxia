@@ -17,6 +17,7 @@ import 'app_shell.dart' show EmptyState, friendlyError;
 import 'reader_surfaces.dart';
 import 'reader_layout.dart';
 import 'reader_preloader.dart';
+import 'reader_page_map.dart';
 import 'chapter_catalog.dart';
 import 'content_handoff.dart';
 import 'materials.dart';
@@ -78,6 +79,19 @@ class _ReaderPageState extends State<ReaderPage>
   int page = 0, total = 0, request = 0;
   int? scrubPage;
   bool scrubbing = false;
+  ({Chapter chapter, int page, double position})? returnPoint;
+  String? returningChapter;
+  bool pageMapOpen = false;
+  int seekGeneration = 0;
+  bool seeking = false;
+  VoidCallback? releaseSeekPriority;
+  void cancelSeek() {
+    seekGeneration++;
+    seeking = false;
+    releaseSeekPriority?.call();
+    releaseSeekPriority = null;
+  }
+
   double fraction = 0;
   bool controls = true, first = true;
   Offset doubleTapPoint = Offset.zero;
@@ -87,6 +101,7 @@ class _ReaderPageState extends State<ReaderPage>
   Future<List<String>>? warmPages;
   int warmGeneration = 0;
   bool get bottomTools => options['toolbarDock'] == 'bottom';
+  VoidCallback? releaseDownloadPriority;
   Timer? saveTimer;
   Timer? chromeTimer;
   void armChromeTimer() {
@@ -194,6 +209,7 @@ class _ReaderPageState extends State<ReaderPage>
     double? offset,
     bool fresh = false,
   ]) async {
+    cancelSeek();
     scrubPage = null;
     scrubbing = false;
     final target = selected ?? pendingChapter ?? chapter;
@@ -202,6 +218,9 @@ class _ReaderPageState extends State<ReaderPage>
         chapterError == null) {
       return;
     }
+    releaseDownloadPriority?.call();
+    releaseDownloadPriority = OfflineLibrary.instance?.prioritizeReading();
+    final release = releaseDownloadPriority;
     final generation = ++request;
     final restart = chapterImagesChanged && !fresh;
     if (fresh || restart) {
@@ -261,6 +280,7 @@ class _ReaderPageState extends State<ReaderPage>
                 : widget.source.pages(target.path));
       if (!mounted || generation != request) return;
       if (list.isEmpty) {
+        release?.call();
         setState(() {
           chapterFailureTitle = '这一章暂无可读图片';
           chapterError = '这一章没有返回可读取的图片，请重新加载。';
@@ -278,6 +298,7 @@ class _ReaderPageState extends State<ReaderPage>
       ownedScenes.add(prepared);
       setState(() => incoming = prepared);
     } catch (e) {
+      release?.call();
       if (mounted && generation == request) {
         setState(() {
           chapterFailureTitle = e is SourceCopyrightException
@@ -300,6 +321,9 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void cancelLoad() {
+    returningChapter = null;
+    releaseDownloadPriority?.call();
+    releaseDownloadPriority = null;
     final obsolete = incoming;
     request++;
     setState(() {
@@ -320,6 +344,8 @@ class _ReaderPageState extends State<ReaderPage>
         value.failed) {
       return;
     }
+    releaseDownloadPriority?.call();
+    releaseDownloadPriority = null;
     value.ready = true;
     // Finish the currently visible blend before handing off another frame.
     // A ready third request waits here; rapid retargeting cannot snap layers.
@@ -330,6 +356,8 @@ class _ReaderPageState extends State<ReaderPage>
     if (!mounted || !identical(incoming, value) || value.request != request) {
       return;
     }
+    releaseDownloadPriority?.call();
+    releaseDownloadPriority = null;
     value.failed = true;
     setState(() {
       chapterFailureTitle = '这一章暂时无法打开';
@@ -361,6 +389,10 @@ class _ReaderPageState extends State<ReaderPage>
       scene = value;
       incoming = null;
       chapter = value.chapter;
+      if (returningChapter == value.chapter.path) {
+        returnPoint = null;
+        returningChapter = null;
+      }
       urls = value.urls;
       page = value.page;
       fraction = value.position;
@@ -444,6 +476,9 @@ class _ReaderPageState extends State<ReaderPage>
 
   void position(int value, double offset) {
     if (!mounted) return;
+    if (seeking && (value != page || (offset - fraction).abs() > .004)) {
+      setState(cancelSeek);
+    }
     if (value != page) forward = value > page;
     scene?.page = value;
     scene?.position = offset;
@@ -563,12 +598,153 @@ class _ReaderPageState extends State<ReaderPage>
         'standard' => 1500,
         _ => 2200,
       };
+  void keepReturnPoint() {
+    if (scene?.presented != true) return;
+    returnPoint ??= (chapter: chapter, page: page, position: fraction);
+  }
+
+  Future<bool> seek(
+    int target, {
+    double offset = 0,
+    bool remember = true,
+  }) async {
+    if (total == 0 || scene?.presented != true || pendingChapter != null) {
+      return false;
+    }
+    if (target == page && (offset - fraction).abs() < .002) return true;
+    cancelSeek();
+    final generation = seekGeneration;
+    final origin = scene, originChapter = chapter.path, links = urls;
+    final anchor = paired && target > 0 ? 1 + ((target - 1) ~/ 2) * 2 : target;
+    final indexes = [
+      anchor.clamp(0, total - 1),
+      if (paired && anchor > 0 && anchor + 1 < total) anchor + 1,
+    ];
+    chromeTimer?.cancel();
+    preloader.clear();
+    final release = OfflineLibrary.instance?.prioritizeReading();
+    releaseSeekPriority = release;
+    setState(() => seeking = true);
+    try {
+      for (final index in indexes) {
+        final provider = await pageProvider(
+          links[index],
+          widget.web,
+          decodeWidth,
+        );
+        if (!mounted || generation != seekGeneration) return false;
+        var success = true;
+        await precacheImage(
+          provider,
+          context,
+          onError: (_, _) => success = false,
+        );
+        if (!success) throw StateError('Page not ready');
+      }
+      if (!mounted ||
+          generation != seekGeneration ||
+          !identical(scene, origin) ||
+          chapter.path != originChapter ||
+          !identical(urls, links)) {
+        return false;
+      }
+      if (remember) keepReturnPoint();
+      setState(() => seeking = false);
+      go(anchor, offset: offset);
+      return true;
+    } catch (_) {
+      if (mounted && generation == seekGeneration) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: LocalizedText(
+              '第 {page} 页暂时无法加载，已保留当前位置',
+              arguments: {'page': target + 1},
+            ),
+            action: SnackBarAction(
+              label: translate('重试', Localizations.localeOf(context)),
+              onPressed: () => seek(target, offset: offset, remember: remember),
+            ),
+          ),
+        );
+      }
+      return false;
+    } finally {
+      release?.call();
+      if (mounted && generation == seekGeneration) {
+        releaseSeekPriority = null;
+        setState(() => seeking = false);
+        armChromeTimer();
+        preload();
+      }
+    }
+  }
+
+  Future<void> returnToReading() async {
+    final point = returnPoint;
+    if (point == null || pendingChapter != null) return;
+    if (point.chapter.path == chapter.path) {
+      final restored = await seek(
+        point.page,
+        offset: point.position,
+        remember: false,
+      );
+      if (mounted && restored) setState(() => returnPoint = null);
+      return;
+    }
+    returningChapter = point.chapter.path;
+    await changeChapter(point.chapter, at: point.page, offset: point.position);
+    if (mounted &&
+        chapter.path == point.chapter.path &&
+        pendingChapter == null) {
+      setState(() {
+        returnPoint = null;
+        returningChapter = null;
+      });
+    }
+  }
+
+  Future<void> pageMap() async {
+    final origin = scene;
+    if (origin?.presented != true || pendingChapter != null || pageMapOpen) {
+      return;
+    }
+    pageMapOpen = true;
+    chromeTimer?.cancel();
+    preloader.clear();
+    ModalRoute<dynamic>? route;
+    try {
+      final selected = await showModalBottomSheet<int>(
+        context: context,
+        isScrollControlled: true,
+        sheetAnimationStyle: RoomMotion.sheet(context),
+        builder: (c) {
+          route = ModalRoute.of(c);
+          return ReaderPageMap(
+            urls: List.unmodifiable(urls),
+            web: widget.web,
+            selected: page,
+          );
+        },
+      );
+      await route?.completed;
+      if (!mounted || !identical(scene, origin)) return;
+      if (selected != null) await seek(selected);
+    } finally {
+      pageMapOpen = false;
+      if (mounted) {
+        preload();
+        armChromeTimer();
+      }
+    }
+  }
+
   void go(int value, {double offset = 0}) {
     if (total == 0 || scene?.presented != true) return;
     command.go(value.clamp(0, total - 1), position: offset.clamp(0, 1));
   }
 
   void turn(int direction) {
+    if (seeking) setState(cancelSeek);
     if (direction > 0 &&
         total > 0 &&
         lastVisiblePage >= total - 1 &&
@@ -771,14 +947,13 @@ class _ReaderPageState extends State<ReaderPage>
         onReady: () => ready(value),
         onLoadError: () => failed(value),
         onImageError: (index, error) {
+          value.failurePage = index;
           if (error is NetworkImageLoadException &&
               expiredImageStatus(error.statusCode)) {
             retryImage(value, index, automatic: true);
           }
         },
-        onRetryPage: value.urls.any((url) => !url.startsWith('offline:'))
-            ? (index) => retryImage(value, index)
-            : null,
+        onRetryPage: (index) => retryImage(value, index),
         speed: identical(scene, value) && value.presented && foreground
             ? (options['autoScroll'] as num).toDouble()
             : 0,
@@ -790,6 +965,20 @@ class _ReaderPageState extends State<ReaderPage>
     );
   }
 
+  Future<void> retryChapter() async {
+    final value = incoming;
+    final index = value?.failurePage ?? value?.page ?? 0;
+    if (value != null &&
+        value.failed &&
+        index < value.urls.length &&
+        value.urls[index].startsWith('offline:')) {
+      await retryImage(value, index);
+    } else {
+      await load();
+    }
+  }
+
+  final repairingPages = <String>{};
   Future<void> retryImage(
     _ChapterScene value,
     int index, {
@@ -805,7 +994,26 @@ class _ReaderPageState extends State<ReaderPage>
         (automatic && value.refreshed)) {
       return;
     }
-    if (value.urls[index].startsWith('offline:')) return;
+    if (value.urls[index].startsWith('offline:')) {
+      final key = '${value.request}/$index';
+      if (!repairingPages.add(key)) return;
+      try {
+        await OfflineLibrary.instance!.repairPage(value.urls[index]);
+        if (mounted &&
+            (identical(value, scene) || identical(value, incoming))) {
+          await load(value.activeChapter, value.page, value.position);
+        }
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: LocalizedText(friendlyError(error))),
+          );
+        }
+      } finally {
+        repairingPages.remove(key);
+      }
+      return;
+    }
     value.refreshed = true;
     await load(value.chapter, value.page, value.position, true);
   }
@@ -845,7 +1053,7 @@ class _ReaderPageState extends State<ReaderPage>
                 icon: Icons.cloud_off_outlined,
                 title: chapterFailureTitle,
                 message: chapterError!,
-                action: load,
+                action: retryChapter,
                 actionLabel: '重新加载',
               ),
               if (canRecoverSource)
@@ -997,7 +1205,7 @@ class _ReaderPageState extends State<ReaderPage>
                   children: [
                     if (chapterError != null)
                       TextButton(
-                        onPressed: load,
+                        onPressed: retryChapter,
                         child: LocalizedText(
                           chapterImagesChanged ? '从本章开头重新加载' : '重试',
                         ),
@@ -1026,6 +1234,9 @@ class _ReaderPageState extends State<ReaderPage>
 
   @override
   void dispose() {
+    cancelSeek();
+    releaseDownloadPriority?.call();
+    releaseDownloadPriority = null;
     WidgetsBinding.instance.removeObserver(this);
     warmGeneration++;
     preloader.dispose();
@@ -1139,6 +1350,37 @@ class _ReaderPageState extends State<ReaderPage>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (seeking)
+            const LinearProgressIndicator(
+              key: ValueKey('reader-seek-loading'),
+              minHeight: 1,
+            ),
+          if (scrubPage != null && scrubPage! < urls.length)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                key: const ValueKey('reader-scrub-preview'),
+                width: 76,
+                height: 104,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: ReaderThumbnail(
+                    url: urls[scrubPage!],
+                    web: widget.web,
+                  ),
+                ),
+              ),
+            ),
+          if (returnPoint != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('reader-return-point'),
+                onPressed: pendingChapter == null ? returnToReading : null,
+                icon: const Icon(Icons.undo, size: 16),
+                label: const LocalizedText('返回刚才位置'),
+              ),
+            ),
           if (total > 1)
             Slider(
               value: (scrubPage ?? page).clamp(0, total - 1).toDouble(),
@@ -1157,15 +1399,15 @@ class _ReaderPageState extends State<ReaderPage>
                   setState(() => scrubPage = v.round());
                 } else {
                   // Keyboard and accessibility adjustments have no drag end.
-                  go(v.round());
+                  seek(v.round());
                 }
               },
-              onChangeEnd: (v) {
+              onChangeEnd: (v) async {
                 setState(() {
                   scrubbing = false;
                   scrubPage = null;
                 });
-                go(v.round());
+                await seek(v.round());
                 armChromeTimer();
               },
             ),
@@ -1186,13 +1428,35 @@ class _ReaderPageState extends State<ReaderPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    LocalizedText(
-                      total == 0
-                          ? '加载章节中'
-                          : scrubPage != null
-                          ? '${scrubPage! + 1} / $total'
-                          : pageLabel,
-                      style: const TextStyle(fontSize: 12),
+                    InkWell(
+                      key: const ValueKey('reader-page-map'),
+                      onTap: total > 0 ? pageMap : null,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.grid_view_outlined, size: 14),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: LocalizedText(
+                                total == 0
+                                    ? '加载章节中'
+                                    : scrubPage != null
+                                    ? '${scrubPage! + 1} / $total'
+                                    : pageLabel,
+                                style: const TextStyle(fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     LocalizedText(
                       '轻触中间收起工具栏 · 长按图片缩放',
@@ -1211,14 +1475,15 @@ class _ReaderPageState extends State<ReaderPage>
                   chapters.indexWhere((c) => c.path == chapter.path) <
                       chapters.length - 1 &&
                   chapters.any((c) => c.path == chapter.path))
-                TextButton(
+                IconButton(
                   onPressed: () => changeChapter(
                     chapters[chapters.indexWhere(
                           (c) => c.path == chapter.path,
                         ) +
                         1],
                   ),
-                  child: const LocalizedText('下一章'),
+                  tooltip: translate('下一章', Localizations.localeOf(context)),
+                  icon: const Icon(Icons.last_page),
                 )
               else
                 IconButton(
@@ -1580,9 +1845,12 @@ class _ReaderPageState extends State<ReaderPage>
                             );
                             if (mounted) setState(() {});
                           },
-                          onSelected: (ch) {
+                          onSelected: (ch) async {
+                            final route = ModalRoute.of(c);
+                            if (ch.path != chapter.path) keepReturnPoint();
                             Navigator.pop(c);
-                            changeChapter(ch);
+                            await route?.completed;
+                            if (mounted) changeChapter(ch);
                           },
                         ),
                   ListenableBuilder(
@@ -1617,8 +1885,12 @@ class _ReaderPageState extends State<ReaderPage>
                                         .removeBookmark(mark['id']),
                                     icon: const Icon(Icons.delete_outline),
                                   ),
-                                  onTap: () {
+                                  onTap: () async {
+                                    final route = ModalRoute.of(c);
+                                    keepReturnPoint();
                                     Navigator.pop(c);
+                                    await route?.completed;
+                                    if (!mounted) return;
                                     if (mark['chapterPath'] == chapter.path) {
                                       go(
                                         mark['page'],
@@ -1706,7 +1978,6 @@ class _ReaderPageState extends State<ReaderPage>
                     '这本漫画的阅读方式',
                     style: TextStyle(fontSize: 21),
                   ),
-                  const SizedBox(height: 22),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.bookmarks_outlined),
@@ -1720,269 +1991,322 @@ class _ReaderPageState extends State<ReaderPage>
                       if (mounted) chooseReadingProfile();
                     },
                   ),
-                  const Divider(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<String>(
-                      direction:
-                          MediaQuery.sizeOf(c).width < 600 &&
-                              (Localizations.localeOf(c).languageCode == 'en' ||
-                                  MediaQuery.textScalerOf(c).scale(14) > 18)
-                          ? Axis.vertical
-                          : Axis.horizontal,
-                      segments: const [
-                        ButtonSegment(
-                          value: 'page',
-                          label: LocalizedText('横向'),
-                        ),
-                        ButtonSegment(
-                          value: 'strip',
-                          label: LocalizedText('连续条漫'),
-                        ),
-                        ButtonSegment(
-                          value: 'vertical',
-                          label: LocalizedText('竖向'),
-                        ),
-                      ],
-                      selected: {mode},
-                      onSelectionChanged: (v) {
-                        save();
-                        set('mode', v.first);
-                      },
+                  ExpansionTile(
+                    key: const PageStorageKey('reader-settings-0'),
+                    initiallyExpanded: true,
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 16),
+                    title: const LocalizedText(
+                      '画面与翻页',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  toggle('从右向左翻页', 'rtl'),
-                  toggle('宽屏自动双页', 'doublePage'),
-                  toggle('自动裁白边', 'autoCrop'),
-                  toggle('分区点击翻页', 'tapZones'),
-                  toggle('双击局部放大', 'doubleTapZoom'),
-                  toggle('条漫连续跨章', 'continuousStrip'),
-                  DropdownButtonFormField<int>(
-                    isExpanded: true,
-                    initialValue:
-                        [0, 3, 5, 10].contains(options['smartOfflineChapters'])
-                        ? (options['smartOfflineChapters'] as num).toInt()
-                        : 0,
-                    decoration: const InputDecoration(
-                      label: LocalizedText('提前下载后续章节'),
-                      helper: LocalizedText('智能离线仅在非计费 Wi-Fi 下下载'),
-                      helperMaxLines: 2,
-                    ),
-                    items: [0, 3, 5, 10]
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: v,
-                            child: LocalizedText(
-                              v == 0 ? '关闭智能离线' : '后续 {count} 章',
-                              arguments: {'count': v},
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<String>(
+                          direction:
+                              MediaQuery.sizeOf(c).width < 600 &&
+                                  (Localizations.localeOf(c).languageCode ==
+                                          'en' ||
+                                      MediaQuery.textScalerOf(c).scale(14) > 18)
+                              ? Axis.vertical
+                              : Axis.horizontal,
+                          segments: const [
+                            ButtonSegment(
+                              value: 'page',
+                              label: LocalizedText('横向'),
                             ),
+                            ButtonSegment(
+                              value: 'strip',
+                              label: LocalizedText('连续条漫'),
+                            ),
+                            ButtonSegment(
+                              value: 'vertical',
+                              label: LocalizedText('竖向'),
+                            ),
+                          ],
+                          selected: {mode},
+                          onSelectionChanged: (v) {
+                            save();
+                            set('mode', v.first);
+                          },
+                        ),
+                      ),
+                      toggle('从右向左翻页', 'rtl'),
+                      toggle('宽屏自动双页', 'doublePage'),
+                      toggle('自动裁白边', 'autoCrop'),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: options['turn'] as String,
+                        decoration: const InputDecoration(
+                          label: LocalizedText('翻页效果'),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'slide',
+                            child: LocalizedText('平移'),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) {
-                        set('smartOfflineChapters', v);
-                        prepareOffline();
-                      }
-                    },
-                  ),
-                  DropdownButtonFormField<String>(
-                    initialValue: options['hand'] as String? ?? 'auto',
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      label: LocalizedText('单手操作预设'),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'auto',
-                        child: LocalizedText('跟随阅读方向'),
+                          DropdownMenuItem(
+                            value: 'paper',
+                            child: LocalizedText('纸页弯曲'),
+                          ),
+                        ],
+                        onChanged: (v) => set('turn', v),
                       ),
-                      DropdownMenuItem(
-                        value: 'left',
-                        child: LocalizedText('左手为主'),
+                      slider('手动裁边', 'crop', 0, .15),
+                      slider('画面亮度', 'brightness', .15, 1),
+                      slider('护眼暖色', 'warmth', 0, 1),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: options['background'] as String,
+                        decoration: const InputDecoration(
+                          label: LocalizedText('阅读背景'),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'theme',
+                            child: LocalizedText('跟随应用'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'ink',
+                            child: LocalizedText('夜墨'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'paper',
+                            child: LocalizedText('纸白'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'sepia',
+                            child: LocalizedText('旧纸'),
+                          ),
+                        ],
+                        onChanged: (v) => set('background', v),
                       ),
-                      DropdownMenuItem(
-                        value: 'right',
-                        child: LocalizedText('右手为主'),
-                      ),
+                      if (MediaQuery.disableAnimationsOf(c))
+                        automatic
+                      else
+                        AnimatedSize(
+                          duration: RoomMotion.feedback,
+                          curve: RoomMotion.ease,
+                          alignment: Alignment.topLeft,
+                          child: automatic,
+                        ),
                     ],
-                    onChanged: (v) {
-                      if (v != null) {
-                        set('hand', v);
-                        set('toolbarDock', v == 'auto' ? 'top' : 'bottom');
-                      }
-                    },
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Row(
-                        children: [
-                          for (final zone in [
-                            (options['leftTapWidth'] as num).toDouble(),
-                            1 -
-                                (options['leftTapWidth'] as num).toDouble() -
+                  ExpansionTile(
+                    key: const PageStorageKey('reader-settings-1'),
+                    initiallyExpanded: false,
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 16),
+                    title: const LocalizedText(
+                      '手势与工具栏',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    children: [
+                      toggle('分区点击翻页', 'tapZones'),
+                      toggle('双击局部放大', 'doubleTapZoom'),
+                      toggle('条漫连续跨章', 'continuousStrip'),
+                      DropdownButtonFormField<String>(
+                        initialValue: options['hand'] as String? ?? 'auto',
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          label: LocalizedText('单手操作预设'),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'auto',
+                            child: LocalizedText('跟随阅读方向'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'left',
+                            child: LocalizedText('左手为主'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'right',
+                            child: LocalizedText('右手为主'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            set('hand', v);
+                            set('toolbarDock', v == 'auto' ? 'top' : 'bottom');
+                          }
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Row(
+                            children: [
+                              for (final zone in [
+                                (options['leftTapWidth'] as num).toDouble(),
+                                1 -
+                                    (options['leftTapWidth'] as num)
+                                        .toDouble() -
+                                    (options['rightTapWidth'] as num)
+                                        .toDouble(),
                                 (options['rightTapWidth'] as num).toDouble(),
-                            (options['rightTapWidth'] as num).toDouble(),
-                          ].indexed)
-                            Expanded(
-                              flex: (zone.$2 * 100).round().clamp(1, 100),
-                              child: ColoredBox(
-                                color: readerTheme.colorScheme.primary
-                                    .withValues(
-                                      alpha: zone.$1 == 1 ? .04 : .12,
+                              ].indexed)
+                                Expanded(
+                                  flex: (zone.$2 * 100).round().clamp(1, 100),
+                                  child: ColoredBox(
+                                    color: readerTheme.colorScheme.primary
+                                        .withValues(
+                                          alpha: zone.$1 == 1 ? .04 : .12,
+                                        ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      child: LocalizedText(
+                                        zone.$1 == 1
+                                            ? '工具栏'
+                                            : readerTap(
+                                                    zone.$1 == 0 ? 0 : 1,
+                                                    options,
+                                                    rtl,
+                                                  ) ==
+                                                  ReaderTap.next
+                                            ? '下一页'
+                                            : '上一页',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(fontSize: 11),
+                                        maxLines: 2,
+                                      ),
                                     ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  child: LocalizedText(
-                                    zone.$1 == 1
-                                        ? '工具栏'
-                                        : readerTap(
-                                                zone.$1 == 0 ? 0 : 1,
-                                                options,
-                                                rtl,
-                                              ) ==
-                                              ReaderTap.next
-                                        ? '下一页'
-                                        : '上一页',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 11),
-                                    maxLines: 2,
                                   ),
                                 ),
-                              ),
-                            ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      slider('左侧点击区域', 'leftTapWidth', .12, .4),
+                      slider('右侧点击区域', 'rightTapWidth', .12, .4),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const LocalizedText('工具栏集中到底部'),
+                        value: bottomTools,
+                        onChanged: (v) =>
+                            set('toolbarDock', v ? 'bottom' : 'top'),
+                      ),
+                      toggle(
+                        '保持屏幕常亮',
+                        'keepAwake',
+                        action: (v) => WakelockPlus.toggle(
+                          enable: v,
+                        ).catchError((Object _) {}),
+                      ),
+                      toggle(
+                        '音量键翻页',
+                        'volumeKeys',
+                        action: (v) => native('volumeKeys', v),
+                      ),
+                      Wrap(
+                        spacing: 10,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () =>
+                                SystemChrome.setPreferredOrientations([
+                                  DeviceOrientation.portraitUp,
+                                ]),
+                            child: const LocalizedText('锁定竖屏'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () =>
+                                SystemChrome.setPreferredOrientations([
+                                  DeviceOrientation.landscapeLeft,
+                                  DeviceOrientation.landscapeRight,
+                                ]),
+                            child: const LocalizedText('锁定横屏'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                SystemChrome.setPreferredOrientations(
+                                  DeviceOrientation.values,
+                                ),
+                            child: const LocalizedText('自动旋转'),
+                          ),
                         ],
                       ),
-                    ),
-                  ),
-                  slider('左侧点击区域', 'leftTapWidth', .12, .4),
-                  slider('右侧点击区域', 'rightTapWidth', .12, .4),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const LocalizedText('工具栏集中到底部'),
-                    value: bottomTools,
-                    onChanged: (v) => set('toolbarDock', v ? 'bottom' : 'top'),
-                  ),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: options['turn'] as String,
-                    decoration: const InputDecoration(
-                      label: LocalizedText('翻页效果'),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'slide',
-                        child: LocalizedText('平移'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'paper',
-                        child: LocalizedText('纸页弯曲'),
-                      ),
                     ],
-                    onChanged: (v) => set('turn', v),
                   ),
-                  const SizedBox(height: 18),
-                  slider('手动裁边', 'crop', 0, .15),
-                  slider('画面亮度', 'brightness', .15, 1),
-                  slider('护眼暖色', 'warmth', 0, 1),
-                  if (MediaQuery.disableAnimationsOf(c))
-                    automatic
-                  else
-                    AnimatedSize(
-                      duration: RoomMotion.feedback,
-                      curve: RoomMotion.ease,
-                      alignment: Alignment.topLeft,
-                      child: automatic,
+                  ExpansionTile(
+                    key: const PageStorageKey('reader-settings-2'),
+                    initiallyExpanded: false,
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 16),
+                    title: const LocalizedText(
+                      '离线与书源',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  toggle(
-                    '保持屏幕常亮',
-                    'keepAwake',
-                    action: (v) => WakelockPlus.toggle(
-                      enable: v,
-                    ).catchError((Object _) {}),
-                  ),
-                  toggle(
-                    '音量键翻页',
-                    'volumeKeys',
-                    action: (v) => native('volumeKeys', v),
-                  ),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: options['background'] as String,
-                    decoration: const InputDecoration(
-                      label: LocalizedText('阅读背景'),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'theme',
-                        child: LocalizedText('跟随应用'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'ink',
-                        child: LocalizedText('夜墨'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'paper',
-                        child: LocalizedText('纸白'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'sepia',
-                        child: LocalizedText('旧纸'),
-                      ),
-                    ],
-                    onChanged: (v) => set('background', v),
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
                     children: [
-                      OutlinedButton(
-                        onPressed: () => SystemChrome.setPreferredOrientations([
-                          DeviceOrientation.portraitUp,
-                        ]),
-                        child: const LocalizedText('锁定竖屏'),
-                      ),
-                      OutlinedButton(
-                        onPressed: () => SystemChrome.setPreferredOrientations([
-                          DeviceOrientation.landscapeLeft,
-                          DeviceOrientation.landscapeRight,
-                        ]),
-                        child: const LocalizedText('锁定横屏'),
-                      ),
-                      TextButton(
-                        onPressed: () => SystemChrome.setPreferredOrientations(
-                          DeviceOrientation.values,
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        initialValue:
+                            [
+                              0,
+                              3,
+                              5,
+                              10,
+                            ].contains(options['smartOfflineChapters'])
+                            ? (options['smartOfflineChapters'] as num).toInt()
+                            : 0,
+                        decoration: const InputDecoration(
+                          label: LocalizedText('提前下载后续章节'),
+                          helper: LocalizedText('智能离线仅在非计费 Wi-Fi 下下载'),
+                          helperMaxLines: 2,
                         ),
-                        child: const LocalizedText('自动旋转'),
+                        items: [0, 3, 5, 10]
+                            .map(
+                              (v) => DropdownMenuItem(
+                                value: v,
+                                child: LocalizedText(
+                                  v == 0 ? '关闭智能离线' : '后续 {count} 章',
+                                  arguments: {'count': v},
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            set('smartOfflineChapters', v);
+                            prepareOffline();
+                          }
+                        },
                       ),
+                      if (OfflineLibrary.instance != null)
+                        TextButton.icon(
+                          onPressed: () async {
+                            await OfflineLibrary.instance!.enqueue(
+                              widget.comic,
+                              chapter,
+                            );
+                            if (c.mounted) {
+                              ScaffoldMessenger.of(c).showSnackBar(
+                                const SnackBar(
+                                  content: LocalizedText('当前章节已加入下载队列'),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.download_outlined),
+                          label: const LocalizedText('下载当前章节'),
+                        ),
                     ],
                   ),
-                  if (OfflineLibrary.instance != null)
-                    TextButton.icon(
-                      onPressed: () async {
-                        await OfflineLibrary.instance!.enqueue(
-                          widget.comic,
-                          chapter,
-                        );
-                        if (c.mounted) {
-                          ScaffoldMessenger.of(c).showSnackBar(
-                            const SnackBar(
-                              content: LocalizedText('当前章节已加入下载队列'),
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.download_outlined),
-                      label: const LocalizedText('下载当前章节'),
-                    ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 12),
                   const LocalizedText(
-                    '设置仅作用于当前漫画。自动滚动可随时设为 0 停止。',
+                    '设置仅作用于当前漫画。',
                     style: TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ],
@@ -2015,6 +2339,7 @@ class _ChapterScene {
   double position;
   bool ready = false, failed = false, presented = false;
   bool refreshed = false;
+  int? failurePage;
   ({Chapter chapter, int page, double position})? previous;
 }
 

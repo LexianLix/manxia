@@ -1,3 +1,4 @@
+import 'browse_chrome.dart';
 import 'localized_text.dart';
 import 'plugin_labels.dart';
 import 'plugin_effects_page.dart';
@@ -573,71 +574,75 @@ class _PluginsPageState extends State<PluginsPage> {
                         .contains(search.toLowerCase()),
               )
               .toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 32),
-            children: [
-              const LocalizedText(
-                '你的漫匣，\n由你定义。',
-                style: TextStyle(fontSize: 22, height: 1.3),
-              ),
-              const SizedBox(height: 12),
-              const LocalizedText(
-                '主题、阅读习惯与常用入口，组合成自己的阅读室。',
-                style: TextStyle(fontSize: 12, height: 1.7),
-              ),
-              const SizedBox(height: 24),
-              SegmentedButton<bool>(
-                segments: [
-                  const ButtonSegment(
-                    value: false,
-                    label: LocalizedText('发现插件'),
+          return BrowseEdges(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 112),
+              children: [
+                const LocalizedText(
+                  '你的漫匣，\n由你定义。',
+                  style: TextStyle(fontSize: 22, height: 1.3),
+                ),
+                const SizedBox(height: 12),
+                const LocalizedText(
+                  '主题、阅读习惯与常用入口，组合成自己的阅读室。',
+                  style: TextStyle(fontSize: 12, height: 1.7),
+                ),
+                const SizedBox(height: 24),
+                SegmentedButton<bool>(
+                  segments: [
+                    const ButtonSegment(
+                      value: false,
+                      label: LocalizedText('发现插件'),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: LocalizedText(
+                        '已安装 {count}',
+                        arguments: {'count': registry.installed.length},
+                      ),
+                    ),
+                  ],
+                  selected: {installedOnly},
+                  onSelectionChanged: (v) =>
+                      setState(() => installedOnly = v.first),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  onChanged: (v) => setState(() => search = v),
+                  decoration: InputDecoration(
+                    hintText: translate(
+                      '搜索插件、作者或用途',
+                      Localizations.localeOf(context),
+                    ),
+                    prefixIcon: const Icon(Icons.search),
                   ),
-                  ButtonSegment(
-                    value: true,
-                    label: LocalizedText(
-                      '已安装 {count}',
-                      arguments: {'count': registry.installed.length},
+                ),
+                const SizedBox(height: 12),
+                LocalizedText(status, style: const TextStyle(fontSize: 11)),
+                if (busy || state.connectionState == ConnectionState.waiting)
+                  const LinearProgressIndicator(),
+                if (state.hasError && !installedOnly)
+                  LocalizedText(
+                    '目录读取失败：{message}',
+                    arguments: {'message': '${state.error}'},
+                  ),
+                const SizedBox(height: 18),
+                if (shown.isEmpty &&
+                    state.connectionState != ConnectionState.waiting)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 36),
+                    child: LocalizedText(
+                      '这里还没有插件。可以浏览内置目录，或导入 JSON、角色 ZIP 插件。',
                     ),
                   ),
-                ],
-                selected: {installedOnly},
-                onSelectionChanged: (v) =>
-                    setState(() => installedOnly = v.first),
-              ),
-              const SizedBox(height: 18),
-              TextField(
-                onChanged: (v) => setState(() => search = v),
-                decoration: InputDecoration(
-                  hintText: translate(
-                    '搜索插件、作者或用途',
-                    Localizations.localeOf(context),
-                  ),
-                  prefixIcon: const Icon(Icons.search),
+                ...shown.map(tile),
+                const SizedBox(height: 16),
+                const LocalizedText(
+                  'API 1 支持声明式扩展。API 2 支持 Android 脚本漫画源。',
+                  style: TextStyle(fontSize: 11, height: 1.8),
                 ),
-              ),
-              const SizedBox(height: 12),
-              LocalizedText(status, style: const TextStyle(fontSize: 11)),
-              if (busy || state.connectionState == ConnectionState.waiting)
-                const LinearProgressIndicator(),
-              if (state.hasError && !installedOnly)
-                LocalizedText(
-                  '目录读取失败：{message}',
-                  arguments: {'message': '${state.error}'},
-                ),
-              const SizedBox(height: 18),
-              if (shown.isEmpty &&
-                  state.connectionState != ConnectionState.waiting)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 36),
-                  child: LocalizedText('这里还没有插件。可以浏览内置目录，或导入 JSON、角色 ZIP 插件。'),
-                ),
-              ...shown.map(tile),
-              const SizedBox(height: 16),
-              const LocalizedText(
-                'API 1 支持声明式扩展。API 2 支持 Android 脚本漫画源。',
-                style: TextStyle(fontSize: 11, height: 1.8),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),

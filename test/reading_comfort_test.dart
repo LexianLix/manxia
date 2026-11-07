@@ -154,6 +154,11 @@ void main() {
       final viewport = tester.getRect(find.byType(PageView).first);
       await tester.tap(find.byTooltip(translate('阅读设置', const Locale('en'))));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.text(translate('手势与工具栏', const Locale('en'))),
+      );
+      await tester.tap(find.text(translate('手势与工具栏', const Locale('en'))));
+      await tester.pumpAndSettle();
       final selector = find.byWidgetPredicate(
         (w) => w is DropdownButtonFormField<String> && w.initialValue == 'auto',
       );

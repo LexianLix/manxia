@@ -1,4 +1,5 @@
 import 'companion.dart';
+import 'browse_chrome.dart';
 import 'character_settings_page.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
@@ -31,8 +32,6 @@ import 'book_navigation.dart';
 import 'collection_target.dart';
 import 'content_handoff.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'materials.dart';
-import 'book_object.dart' show ComicCover;
 
 const green = Color(0xff47775e);
 Color quiet(BuildContext c) =>
@@ -50,8 +49,10 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late int tab = widget.library.option<int>('startTab', 0).clamp(0, 5);
+  final browseChrome = BrowseChrome();
   bool opening = false;
   bool openingLicenses = false;
+  ModalRoute<dynamic>? shelfPopupRoute;
   Timer? followTimer;
   bool foreground = true;
   @override
@@ -125,6 +126,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void dispose() {
     followTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    browseChrome.dispose();
     atmosphere.dispose();
     discoveryRequest.dispose();
     source.close();
@@ -134,6 +136,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void navigate(int i) {
     if (tab == i) return;
     updateRequest++;
+    browseChrome.expand();
     setState(() {
       tab = i;
     });
@@ -191,6 +194,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         navigate(1);
       case 'updates':
         showUpdates();
+      case 'history':
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              appBar: AppBar(),
+              body: BrowseEdges(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: _history(),
+                ),
+              ),
+            ),
+          ),
+        );
       case 'settings':
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -306,7 +323,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           });
         }
         return Scaffold(
-          extendBody: false,
+          extendBody: true,
           body: Stack(
             children: [
               SafeArea(
@@ -332,68 +349,80 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                   child: _topbar(wide),
                                 ),
                               Expanded(
-                                child: RetainedPages(
-                                  index: tab,
-                                  order: wide
-                                      ? roomDestinations
-                                            .map((d) => d.id)
-                                            .toList()
-                                      : ids,
-                                  onSelected: navigate,
-                                  animate: widget.library.motion,
-                                  builder: (page) => page == 5
-                                      ? PluginsPage(library: widget.library)
-                                      : page == 4
-                                      ? OfflinePage(
-                                          library: widget.library,
-                                          source: source,
-                                          web: widget.web,
-                                        )
-                                      : page == 3
-                                      ? SettingsPage(
-                                          library: widget.library,
-                                          source: source,
-                                          web: widget.web,
-                                        )
-                                      : SingleChildScrollView(
-                                          key: PageStorageKey(
-                                            'reading-room-$page',
-                                          ),
-                                          padding: EdgeInsets.fromLTRB(
-                                            compact ? 20 : 36,
-                                            compact ? 12 : 24,
-                                            compact ? 18 : 36,
-                                            32,
-                                          ),
-                                          child: Center(
-                                            child: ConstrainedBox(
-                                              constraints: const BoxConstraints(
-                                                maxWidth: 1100,
+                                child: NotificationListener<ScrollNotification>(
+                                  onNotification: browseChrome.observe,
+                                  child: RetainedPages(
+                                    index: tab,
+                                    order: wide
+                                        ? roomDestinations
+                                              .map((d) => d.id)
+                                              .toList()
+                                        : ids,
+                                    onSelected: navigate,
+                                    animate: widget.library.motion,
+                                    builder: (page) => page == 5
+                                        ? PluginsPage(library: widget.library)
+                                        : page == 4
+                                        ? OfflinePage(
+                                            library: widget.library,
+                                            source: source,
+                                            web: widget.web,
+                                          )
+                                        : page == 3
+                                        ? SettingsPage(
+                                            library: widget.library,
+                                            source: source,
+                                            web: widget.web,
+                                          )
+                                        : BrowseEdges(
+                                            child: SingleChildScrollView(
+                                              key: PageStorageKey(
+                                                'reading-room-$page',
                                               ),
-                                              child: switch (page) {
-                                                0 => _shelf(compact),
-                                                1 => DiscoveryPage(
-                                                  key: ValueKey(
-                                                    widget.library
-                                                        .option<String>(
-                                                          'source',
-                                                          'dm5',
-                                                        ),
-                                                  ),
-                                                  library: widget.library,
-                                                  source: source,
-                                                  web: widget.web,
-                                                  navigationRequest:
-                                                      discoveryRequest,
-                                                  onOpen: open,
-                                                  onReadUpdate: readUpdates,
+                                              padding: EdgeInsets.fromLTRB(
+                                                compact ? 20 : 36,
+                                                compact ? 12 : 24,
+                                                compact ? 18 : 36,
+                                                wide
+                                                    ? 32
+                                                    : 112 +
+                                                          MediaQuery.viewPaddingOf(
+                                                            context,
+                                                          ).bottom,
+                                              ),
+                                              child: Center(
+                                                child: ConstrainedBox(
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        maxWidth: 1100,
+                                                      ),
+                                                  child: switch (page) {
+                                                    0 => _shelf(compact),
+                                                    1 => DiscoveryPage(
+                                                      key: ValueKey(
+                                                        widget.library
+                                                            .option<String>(
+                                                              'source',
+                                                              'dm5',
+                                                            ),
+                                                      ),
+                                                      library: widget.library,
+                                                      source: source,
+                                                      web: widget.web,
+                                                      navigationRequest:
+                                                          discoveryRequest,
+                                                      onOpen: open,
+                                                      onReadUpdate: readUpdates,
+                                                    ),
+                                                    2 => _history(),
+                                                    _ =>
+                                                      const SizedBox.shrink(),
+                                                  },
                                                 ),
-                                                2 => _history(),
-                                                _ => const SizedBox.shrink(),
-                                              },
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -424,7 +453,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
           bottomNavigationBar: wide
               ? null
-              : FrostedNavigation(
+              : BrowseNavigation(
+                  chrome: browseChrome,
                   anchors: {0: shelfAnchor(widget.library)},
                   selectedIndex: math.max(0, ids.indexOf(tab)),
                   destinations: ids.map((id) => roomDestinations[id]).toList(),
@@ -625,120 +655,179 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ),
     ],
   );
-  Widget _heading(String title, String description, {Widget? trailing}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  LocalizedText(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
-                    ),
-                  ),
-                  if (description.isNotEmpty) const SizedBox(height: 6),
-                  if (description.isNotEmpty)
-                    LocalizedText(
-                      description,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: quiet(context),
-                        height: 1.6,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            ?trailing,
-          ],
+  Future<void> manageShelf([Comic? selected]) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => LibraryManager(
+            library: widget.library,
+            web: widget.web,
+            onOpen: open,
+            initialSelection: selected?.path,
+          ),
         ),
       );
+
   Widget _shelf(bool compact) {
     final archived = widget.library.option<bool>('showArchived', false);
     final books = widget.library.books
         .where((b) => widget.library.archived(b) == archived)
         .toList();
-    final pinned = widget.library.option<bool>('continuePinned', true);
     return Column(
+      key: const ValueKey('shelf-home'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _heading(
-          '我的书架',
-          '',
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (CompanionScope.maybeOf(context)?.active == true)
-                CompanionAvatar(onPressed: companionActions),
-              MilkGlass(
-                radius: 24,
-                padding: EdgeInsets.zero,
-                child: IconButton(
-                  tooltip: translate('搜索漫画', Localizations.localeOf(context)),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ComicSearchPage(
-                        library: widget.library,
-                        source: source,
-                        web: widget.web,
-                        onOpen: open,
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(Icons.search, size: 21),
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                tooltip: translate(
-                  widget.library.grid ? '切换立体书架' : '切换封面网格',
-                  Localizations.localeOf(context),
-                ),
-                onPressed: () =>
-                    widget.library.setting('grid', !widget.library.grid),
-                icon: Icon(
-                  widget.library.grid
-                      ? Icons.view_carousel_outlined
-                      : Icons.grid_view_outlined,
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
-        ),
         Row(
           children: [
             Expanded(
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  LocalizedText(
-                    archived ? '已归档' : '未归档收藏',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+              child: LocalizedText(
+                archived ? '归档书架' : '书架',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: translate('搜索漫画', Localizations.localeOf(context)),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ComicSearchPage(
+                    library: widget.library,
+                    source: source,
+                    web: widget.web,
+                    onOpen: open,
                   ),
-                  LocalizedText(
-                    '{count} 册',
-                    arguments: {
-                      'count': books.length.toString().padLeft(2, '0'),
+                ),
+              ),
+              icon: const Icon(Icons.search, size: 21),
+            ),
+            PopupMenuButton<String>(
+              popUpAnimationStyle: RoomMotion.sheet(context),
+              tooltip: translate('整理书架', Localizations.localeOf(context)),
+              icon: const Icon(Icons.more_horiz, size: 21),
+              onSelected: (value) async {
+                await shelfPopupRoute?.completed;
+                if (!mounted) return;
+                switch (value) {
+                  case 'manage':
+                    manageShelf();
+                  case 'grid':
+                    widget.library.setting('grid', !widget.library.grid);
+                  case 'archive':
+                    widget.library.setOption('showArchived', !archived);
+                  case 'updates':
+                    showUpdates();
+                  case 'companion':
+                    companionActions();
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'manage',
+                  child: Builder(
+                    builder: (c) {
+                      shelfPopupRoute = ModalRoute.of(c);
+                      return const LocalizedText('整理收藏');
                     },
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'grid',
+                  child: LocalizedText(
+                    widget.library.grid ? '切换立体书架' : '切换封面网格',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'archive',
+                  child: LocalizedText(archived ? '返回未归档收藏' : '查看已归档'),
+                ),
+                const PopupMenuItem(
+                  value: 'updates',
+                  child: LocalizedText('查看更新'),
+                ),
+                const PopupMenuItem(
+                  value: 'history',
+                  child: LocalizedText('阅读足迹'),
+                ),
+                if (CompanionScope.maybeOf(context)?.active == true)
+                  const PopupMenuItem(
+                    value: 'companion',
+                    child: LocalizedText('小夏与阅读伙伴'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ContentHandoff(
+          child: books.isEmpty
+              ? Padding(
+                  key: const ValueKey('empty-shelf'),
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: EmptyState(
+                    icon: Icons.auto_stories_outlined,
+                    title: archived
+                        ? '归档书架暂时没有漫画'
+                        : widget.library.favorites.isNotEmpty
+                        ? '故事已收进归档书架'
+                        : '书架，等你放上第一本漫画',
+                    message: archived || widget.library.favorites.isNotEmpty
+                        ? '在整理菜单切换书架，或恢复已归档收藏。'
+                        : '搜索喜欢的漫画，加入收藏后在这里继续阅读。',
+                    action: archived || widget.library.favorites.isNotEmpty
+                        ? () => widget.library.setOption(
+                            'showArchived',
+                            !archived,
+                          )
+                        : () => navigate(1),
+                    actionLabel: archived || widget.library.favorites.isNotEmpty
+                        ? '切换书架'
+                        : '发现漫画',
+                  ),
+                )
+              : widget.library.grid
+              ? ComicGrid(
+                  key: const ValueKey('grid-shelf'),
+                  books: books,
+                  library: widget.library,
+                  web: widget.web,
+                  onOpen: open,
+                  onManage: manageShelf,
+                )
+              : LivingShelf(
+                  key: const ValueKey('living-shelf'),
+                  books: books,
+                  library: widget.library,
+                  web: widget.web,
+                  onOpen: open,
+                  onContinue: continueBook,
+                  onManage: manageShelf,
+                  showCollectionAction: false,
+                  onAmbientColor: (color) {
+                    if (mounted) atmosphere.value = color;
+                  },
+                  onBookOrigin: (comic, rect) =>
+                      openingOrigin = (comic.path, rect),
+                ),
+        ),
+        if (books.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 24),
+            child: Row(
+              children: [
+                Expanded(
+                  child: LocalizedText(
+                    '{count} 册收藏 · 长按书本整理',
+                    arguments: {'count': books.length},
                     style: small(context),
                   ),
-                  if (books.any(
-                    (b) => widget.library.updates[b.path]?['changed'] == true,
-                  ))
-                    LocalizedText(
+                ),
+                if (books.any(
+                  (b) => widget.library.updates[b.path]?['changed'] == true,
+                ))
+                  TextButton(
+                    onPressed: showUpdates,
+                    child: LocalizedText(
                       '有更新 {count}',
                       arguments: {
                         'count': books
@@ -749,138 +838,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                             )
                             .length,
                       },
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            IconButton(
-              tooltip: translate('整理收藏', Localizations.localeOf(context)),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LibraryManager(
-                    library: widget.library,
-                    web: widget.web,
-                    onOpen: open,
-                  ),
-                ),
-              ),
-              icon: const Icon(Icons.tune, size: 18),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Divider(color: Theme.of(context).dividerColor, height: 1),
-        if (widget.library.favorites.isNotEmpty ||
-            continueRecord != null ||
-            archived)
-          Wrap(
-            spacing: 8,
-            children: [
-              FilterChip(
-                label: const LocalizedText('已归档'),
-                selected: archived,
-                onSelected: (v) => widget.library.setOption('showArchived', v),
-              ),
-              FilterChip(
-                label: const LocalizedText('继续阅读置顶'),
-                selected: pinned,
-                onSelected: (v) =>
-                    widget.library.setOption('continuePinned', v),
-              ),
-            ],
-          ),
-        if (pinned && continueRecord != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: _continueCard(),
-          ),
-        ContentHandoff(
-          child: books.isEmpty
-              ? Padding(
-                  key: const ValueKey('empty-shelf'),
-                  padding: const EdgeInsets.symmetric(vertical: 36),
-                  child: EmptyState(
-                    icon: Icons.auto_stories_outlined,
-                    title: archived
-                        ? '归档书架暂时没有漫画'
-                        : widget.library.favorites.isNotEmpty
-                        ? '故事已收进归档书架'
-                        : '书架，等你放上第一本漫画',
-                    message: archived || widget.library.favorites.isNotEmpty
-                        ? '切换归档筛选可查看其他收藏，整理菜单可恢复到书架。'
-                        : '去发现页搜索喜欢的漫画，加入收藏。',
-                    action: () => navigate(1),
-                    actionLabel: '发现漫画',
-                  ),
-                )
-              : widget.library.grid
-              ? Padding(
-                  key: const ValueKey('grid-shelf'),
-                  padding: const EdgeInsets.symmetric(vertical: 28),
-                  child: ComicGrid(
-                    books: books,
-                    library: widget.library,
-                    web: widget.web,
-                    onOpen: open,
-                  ),
-                )
-              : LivingShelf(
-                  key: const ValueKey('living-shelf'),
-                  books: books,
-                  library: widget.library,
-                  web: widget.web,
-                  onOpen: open,
-                  onContinue: continueBook,
-                  onAmbientColor: (color) {
-                    if (mounted) atmosphere.value = color;
-                  },
-                  onBookOrigin: (comic, rect) =>
-                      openingOrigin = (comic.path, rect),
-                ),
-        ),
-        if (!pinned && continueRecord != null) ...[
-          const SizedBox(height: 20),
-          _continueCard(),
-        ],
-        if (books.isNotEmpty && !widget.library.grid) ...[
-          const SizedBox(height: 26),
-          Row(
-            children: [
-              const Expanded(
-                child: LocalizedText(
-                  '我的收藏',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => LibraryManager(
-                      library: widget.library,
-                      web: widget.web,
-                      onOpen: open,
+                      style: const TextStyle(fontSize: 11),
                     ),
                   ),
-                ),
-                child: const LocalizedText('查看全部'),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          ComicGrid(
-            books: books.take(6).toList(),
-            library: widget.library,
-            web: widget.web,
-            onOpen: open,
-            minItemWidth: 100,
-          ),
-        ],
       ],
     );
   }
@@ -892,84 +855,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             widget.library.meta(r.comic)['status'] != '已读',
       )
       .firstOrNull;
-  Widget _continueCard() {
-    final record = continueRecord;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: .68),
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 36,
-            height: 50,
-            child: record == null
-                ? Icon(
-                    Icons.bookmark_outline,
-                    color: Theme.of(context).colorScheme.primary,
-                  )
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: ComicCover(record.comic, web: widget.web),
-                  ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                LocalizedText(
-                  record?.comic.title ?? '还没有翻开的故事',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                LocalizedText(
-                  record == null
-                      ? '开始阅读后，书签会替你记住这一页。'
-                      : '{chapter} · 第 {page} / {total} 页',
-                  arguments: record == null
-                      ? const {}
-                      : {
-                          'chapter': record.chapterTitle,
-                          'page': record.page + 1,
-                          'total': record.total,
-                        },
-                  style: small(context),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: translate(
-              record == null ? '去选一本漫画' : '继续阅读',
-              Localizations.localeOf(context),
-            ),
-            onPressed: () {
-              if (record == null) {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ComicSearchPage(
-                      library: widget.library,
-                      source: source,
-                      web: widget.web,
-                      onOpen: open,
-                    ),
-                  ),
-                );
-              } else {
-                continueBook(record.comic);
-              }
-            },
-            icon: const Icon(Icons.arrow_forward, size: 21),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _history() =>
       HistoryPage(library: widget.library, source: source, web: widget.web);
 }
@@ -992,6 +877,7 @@ class ComicGrid extends StatelessWidget {
     this.library,
     this.discoveryActions = false,
     this.sourceLabels = const {},
+    this.onManage,
   });
   final Map<String, String> sourceLabels;
   final bool discoveryActions;
@@ -1002,6 +888,7 @@ class ComicGrid extends StatelessWidget {
   final Animation<double>? itemArrival;
   final int arrivingFrom;
   final ValueChanged<Comic> onOpen;
+  final ValueChanged<Comic>? onManage;
   SliverGridDelegateWithFixedCrossAxisCount delegate(double width) =>
       SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: math.max(2, (width / minItemWidth).floor()),
@@ -1039,7 +926,9 @@ class ComicGrid extends StatelessWidget {
       onOpen: onOpen,
       builder: (cover, open) => InkWell(
         onTap: open,
-        onLongPress: discoveryActions && library != null
+        onLongPress: onManage != null
+            ? () => onManage!(comic)
+            : discoveryActions && library != null
             ? () => showDiscoveryInterest(context, library!, comic)
             : null,
         borderRadius: BorderRadius.circular(12),

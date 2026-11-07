@@ -1,3 +1,4 @@
+import 'browse_chrome.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'package:flutter/foundation.dart';
@@ -236,248 +237,259 @@ class _OfflinePageState extends State<OfflinePage> {
                     )
                   else
                     Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        itemCount: offline.entries.length,
-                        itemBuilder: (c, i) {
-                          final e = offline.entries[i];
-                          final comic = Comic.fromJson(
-                            Map<String, dynamic>.from(e['comic']),
-                          );
-                          final chapter = Chapter.fromJson(
-                            Map<String, dynamic>.from(e['chapter']),
-                          );
-                          final status = switch (e['status']) {
-                            'complete' => '已离线',
-                            'downloading' => '下载中',
-                            'queued' => '等待下载',
-                            'paused' => '已暂停',
-                            _ => '下载失败',
-                          };
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 14),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(c).dividerColor,
+                      child: BrowseEdges(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 112),
+                          itemCount: offline.entries.length,
+                          itemBuilder: (c, i) {
+                            final e = offline.entries[i];
+                            final comic = Comic.fromJson(
+                              Map<String, dynamic>.from(e['comic']),
+                            );
+                            final chapter = Chapter.fromJson(
+                              Map<String, dynamic>.from(e['chapter']),
+                            );
+                            final status = switch (e['status']) {
+                              'complete' => '已离线',
+                              'downloading' => '下载中',
+                              'queued' => '等待下载',
+                              'paused' => '已暂停',
+                              _ => '下载失败',
+                            };
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 14),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Theme.of(c).dividerColor,
+                                ),
+                                borderRadius: BorderRadius.circular(9),
                               ),
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 48,
-                                      height: 64,
-                                      child: ComicCover(comic, web: widget.web),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          LocalizedText(
-                                            comic.title,
-                                            style: const TextStyle(
-                                              fontSize: 15,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 48,
+                                        height: 64,
+                                        child: ComicCover(
+                                          comic,
+                                          web: widget.web,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            LocalizedText(
+                                              comic.title,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                              ),
                                             ),
+                                            const SizedBox(height: 5),
+                                            LocalizedText(
+                                              '${chapter.title} · $status',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        tooltip: '离线章节操作',
+                                        onSelected: (action) async {
+                                          try {
+                                            if (action == 'pause') {
+                                              await offline.pause(e['id']);
+                                            }
+                                            if (action == 'resume') {
+                                              await offline.resume(e['id']);
+                                            }
+                                            if (action == 'priority') {
+                                              await offline.prioritize(e['id']);
+                                            }
+                                            if (action == 'export') {
+                                              await FileActions.exportChapter(
+                                                offline,
+                                                e,
+                                              );
+                                            }
+                                            if (action == 'delete' ||
+                                                action == 'deleteComic') {
+                                              if (!c.mounted) return;
+                                              final ok = await showDialog<bool>(
+                                                context: c,
+                                                builder: (d) => AlertDialog(
+                                                  title: LocalizedText(
+                                                    action == 'deleteComic'
+                                                        ? '清理这本漫画的全部离线文件？'
+                                                        : '删除离线章节？',
+                                                  ),
+                                                  content: LocalizedText(
+                                                    action == 'deleteComic'
+                                                        ? '将移除此设备上 ${comic.title} 的全部离线章节。收藏与阅读记录会保留。'
+                                                        : '将移除此设备上的 ${comic.title} ${chapter.title}。收藏与阅读记录会保留。',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            d,
+                                                            false,
+                                                          ),
+                                                      child:
+                                                          const LocalizedText(
+                                                            '取消',
+                                                          ),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            d,
+                                                            true,
+                                                          ),
+                                                      child:
+                                                          const LocalizedText(
+                                                            '删除',
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (ok == true) {
+                                                if (action == 'deleteComic') {
+                                                  await offline.removeComic(
+                                                    comic.path,
+                                                  );
+                                                } else {
+                                                  await offline.remove(e['id']);
+                                                }
+                                              }
+                                            }
+                                          } catch (error) {
+                                            if (mounted) {
+                                              setState(
+                                                () =>
+                                                    message = error.toString(),
+                                              );
+                                            }
+                                          }
+                                        },
+                                        itemBuilder: (_) => [
+                                          if (e['status'] != 'complete')
+                                            const PopupMenuItem(
+                                              value: 'priority',
+                                              child: LocalizedText('优先下载'),
+                                            ),
+                                          if ([
+                                            'queued',
+                                            'downloading',
+                                          ].contains(e['status']))
+                                            const PopupMenuItem(
+                                              value: 'pause',
+                                              child: LocalizedText('暂停下载'),
+                                            ),
+                                          if ([
+                                            'paused',
+                                            'failed',
+                                          ].contains(e['status']))
+                                            const PopupMenuItem(
+                                              value: 'resume',
+                                              child: LocalizedText('继续 / 重试'),
+                                            ),
+                                          if (e['status'] == 'complete')
+                                            const PopupMenuItem(
+                                              value: 'export',
+                                              child: LocalizedText('导出 CBZ'),
+                                            ),
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: LocalizedText('删除离线章节'),
                                           ),
-                                          const SizedBox(height: 5),
-                                          LocalizedText(
-                                            '${chapter.title} · $status',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.grey,
-                                            ),
+                                          const PopupMenuItem(
+                                            value: 'deleteComic',
+                                            child: LocalizedText('清理这本漫画的离线文件'),
                                           ),
                                         ],
                                       ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (e['status'] == 'downloading' ||
+                                      e['status'] == 'paused' ||
+                                      e['status'] == 'failed') ...[
+                                    LinearProgressIndicator(
+                                      value: (e['total'] as int) > 0
+                                          ? (e['done'] as int) /
+                                                (e['total'] as int)
+                                          : e['status'] == 'downloading'
+                                          ? null
+                                          : 0,
+                                      minHeight: 2,
                                     ),
-                                    PopupMenuButton<String>(
-                                      tooltip: '离线章节操作',
-                                      onSelected: (action) async {
-                                        try {
-                                          if (action == 'pause') {
-                                            await offline.pause(e['id']);
-                                          }
-                                          if (action == 'resume') {
-                                            await offline.resume(e['id']);
-                                          }
-                                          if (action == 'priority') {
-                                            await offline.prioritize(e['id']);
-                                          }
-                                          if (action == 'export') {
-                                            await FileActions.exportChapter(
-                                              offline,
-                                              e,
-                                            );
-                                          }
-                                          if (action == 'delete' ||
-                                              action == 'deleteComic') {
-                                            if (!c.mounted) return;
-                                            final ok = await showDialog<bool>(
-                                              context: c,
-                                              builder: (d) => AlertDialog(
-                                                title: LocalizedText(
-                                                  action == 'deleteComic'
-                                                      ? '清理这本漫画的全部离线文件？'
-                                                      : '删除离线章节？',
-                                                ),
-                                                content: LocalizedText(
-                                                  action == 'deleteComic'
-                                                      ? '将移除此设备上 ${comic.title} 的全部离线章节。收藏与阅读记录会保留。'
-                                                      : '将移除此设备上的 ${comic.title} ${chapter.title}。收藏与阅读记录会保留。',
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(d, false),
-                                                    child: const LocalizedText(
-                                                      '取消',
-                                                    ),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(d, true),
-                                                    child: const LocalizedText(
-                                                      '删除',
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                            if (ok == true) {
-                                              if (action == 'deleteComic') {
-                                                await offline.removeComic(
-                                                  comic.path,
-                                                );
-                                              } else {
-                                                await offline.remove(e['id']);
-                                              }
-                                            }
-                                          }
-                                        } catch (error) {
-                                          if (mounted) {
-                                            setState(
-                                              () => message = error.toString(),
-                                            );
-                                          }
-                                        }
-                                      },
-                                      itemBuilder: (_) => [
-                                        if (e['status'] != 'complete')
-                                          const PopupMenuItem(
-                                            value: 'priority',
-                                            child: LocalizedText('优先下载'),
-                                          ),
-                                        if ([
-                                          'queued',
-                                          'downloading',
-                                        ].contains(e['status']))
-                                          const PopupMenuItem(
-                                            value: 'pause',
-                                            child: LocalizedText('暂停下载'),
-                                          ),
-                                        if ([
-                                          'paused',
-                                          'failed',
-                                        ].contains(e['status']))
-                                          const PopupMenuItem(
-                                            value: 'resume',
-                                            child: LocalizedText('继续 / 重试'),
-                                          ),
-                                        if (e['status'] == 'complete')
-                                          const PopupMenuItem(
-                                            value: 'export',
-                                            child: LocalizedText('导出 CBZ'),
-                                          ),
-                                        const PopupMenuItem(
-                                          value: 'delete',
-                                          child: LocalizedText('删除离线章节'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'deleteComic',
-                                          child: LocalizedText('清理这本漫画的离线文件'),
-                                        ),
-                                      ],
+                                    const SizedBox(height: 8),
+                                    LocalizedText(
+                                      '${e['done']} / ${e['total']} 页',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 12),
-                                if (e['status'] == 'downloading' ||
-                                    e['status'] == 'paused' ||
-                                    e['status'] == 'failed') ...[
-                                  LinearProgressIndicator(
-                                    value: (e['total'] as int) > 0
-                                        ? (e['done'] as int) /
-                                              (e['total'] as int)
-                                        : e['status'] == 'downloading'
-                                        ? null
-                                        : 0,
-                                    minHeight: 2,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  LocalizedText(
-                                    '${e['done']} / ${e['total']} 页',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                                if (e['error'] != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: LocalizedText(
-                                      e['error'],
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.orange,
-                                      ),
-                                    ),
-                                  ),
-                                if (e['status'] == 'complete')
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton.icon(
-                                      onPressed: () => Navigator.push(
-                                        c,
-                                        MaterialPageRoute(
-                                          builder: (_) => ReaderPage(
-                                            comic: comic,
-                                            chapter: chapter,
-                                            chapters: offline
-                                                .chapters(comic)
-                                                .reversed
-                                                .toList(),
-                                            library: widget.library,
-                                            source: widget.source,
-                                            web: widget.web,
-                                          ),
+                                  if (e['error'] != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: LocalizedText(
+                                        e['error'],
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.orange,
                                         ),
                                       ),
-                                      icon: const Icon(
-                                        Icons.menu_book_outlined,
-                                        size: 16,
-                                      ),
-                                      label: const LocalizedText(
-                                        '离线阅读',
-                                        style: TextStyle(fontSize: 12),
+                                    ),
+                                  if (e['status'] == 'complete')
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton.icon(
+                                        onPressed: () => Navigator.push(
+                                          c,
+                                          MaterialPageRoute(
+                                            builder: (_) => ReaderPage(
+                                              comic: comic,
+                                              chapter: chapter,
+                                              chapters: offline
+                                                  .chapters(comic)
+                                                  .reversed
+                                                  .toList(),
+                                              library: widget.library,
+                                              source: widget.source,
+                                              web: widget.web,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.menu_book_outlined,
+                                          size: 16,
+                                        ),
+                                        label: const LocalizedText(
+                                          '离线阅读',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ),
                 ],

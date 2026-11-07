@@ -68,7 +68,11 @@ void main() {
       expect(find.byType(CompanionAvatar), findsNothing);
       Navigator.of(tester.element(find.byType(CharacterSettingsPage))).pop();
       await tester.pumpAndSettle();
-      expect(find.byType(CompanionAvatar), findsOneWidget);
+      await tester.tap(find.byTooltip('整理书架'));
+      await tester.pumpAndSettle();
+      expect(find.text('小夏与阅读伙伴'), findsOneWidget);
+      Navigator.of(tester.element(find.text('小夏与阅读伙伴'))).pop();
+      await tester.pumpAndSettle();
       await library.setOption('companion', {'visible': false});
       await tester.pumpAndSettle();
       expect(find.byType(CompanionAvatar), findsNothing);
@@ -234,7 +238,10 @@ void main() {
     });
     await tester.pumpWidget(ManxiaApp(library: library));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Xiaxia & companions'));
+    await tester.tap(find.byTooltip('Organize library'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Xiaxia & companions'));
+    await tester.tap(find.text('Xiaxia & companions'));
     await tester.pumpAndSettle();
     final action = find.text('Xiaxia & companions');
     await tester.ensureVisible(action);

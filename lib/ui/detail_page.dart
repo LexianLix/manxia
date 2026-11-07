@@ -20,6 +20,8 @@ import 'source_search_page.dart';
 import 'sliver_handoff.dart';
 import 'room_motion.dart';
 import 'materials.dart';
+import '../data/offline_library.dart';
+import 'visible_listenable_builder.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -733,6 +735,10 @@ class _DetailPageState extends State<DetailPage> {
                                         ),
                                         if (marked)
                                           const Icon(Icons.bookmark, size: 14),
+                                        ChapterOfflineBadge(
+                                          library: widget.library,
+                                          path: chapter.path,
+                                        ),
                                         if (widget.library.chapterRead(
                                           comic,
                                           chapter.path,
@@ -771,4 +777,51 @@ class _DetailPageState extends State<DetailPage> {
       );
     },
   );
+}
+
+class ChapterOfflineBadge extends StatelessWidget {
+  const ChapterOfflineBadge({
+    super.key,
+    required this.library,
+    required this.path,
+  });
+  final Library library;
+  final String path;
+  @override
+  Widget build(BuildContext context) {
+    final offline = OfflineLibrary.instance;
+    if (offline == null || !identical(offline.library, library)) {
+      return const SizedBox.shrink();
+    }
+    return VisibleListenableBuilder(
+      listenable: offline,
+      builder: (context, _) {
+        final entry = offline.entries
+            .where((e) => e['chapter']['path'] == path)
+            .firstOrNull;
+        if (entry == null) return const SizedBox.shrink();
+        final (label, icon) = switch (entry['status']) {
+          'complete' => ('已下载', Icons.download_done),
+          'failed' => ('下载失败', Icons.error_outline),
+          'paused' => ('下载已暂停', Icons.pause_circle_outline),
+          'downloading' => ('正在下载', Icons.downloading_outlined),
+          _ => ('等待下载', Icons.schedule),
+        };
+        return Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Tooltip(
+            key: ValueKey('offline-status-$path'),
+            message: translate(label, Localizations.localeOf(context)),
+            child: Icon(
+              icon,
+              size: 14,
+              color: entry['status'] == 'failed'
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

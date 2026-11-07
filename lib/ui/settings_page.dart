@@ -1,3 +1,4 @@
+import 'browse_chrome.dart';
 import 'character_settings_page.dart';
 import 'visible_listenable_builder.dart';
 import 'package:flutter/material.dart';
@@ -36,55 +37,67 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 720),
-      child: ListView(
-        key: const PageStorageKey('settings-home-scroll'),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-        children: [
-          const LocalizedText(
-            '偏好设置',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 6),
-          LocalizedText(
-            '按习惯整理，让阅读更简单。',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 24),
-          for (final entry in const [
-            ('appearance', '外观与动效', '背景图片、随图配色、导航与动效', Icons.palette_outlined),
-            ('reading', '阅读习惯', '背景、双页与工具栏', Icons.auto_stories_outlined),
-            ('sources', '漫画源', '默认来源、管理与连接检查', Icons.public),
-            ('storage', '下载与缓存', '预载、下载并行与图片缓存', Icons.download_outlined),
-            ('backup', '备份与同步', '资料备份、离线书库与 WebDAV', Icons.cloud_sync_outlined),
-            ('updates', '关于与更新', '检查版本、在线升级与开源许可', Icons.info_outline),
-          ]) ...[
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 2,
+      child: BrowseEdges(
+        child: ListView(
+          key: const PageStorageKey('settings-home-scroll'),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
+          children: [
+            const LocalizedText(
+              '偏好设置',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
               ),
-              leading: Icon(entry.$4, size: 21),
-              title: LocalizedText(
-                entry.$2,
-                style: const TextStyle(fontSize: 14),
-              ),
-              subtitle: LocalizedText(
-                entry.$3,
-                style: const TextStyle(fontSize: 11, height: 1.6),
-              ),
-              trailing: const Icon(Icons.chevron_right, size: 18),
-              onTap: () => open(context, entry.$1, entry.$2),
             ),
-            const Divider(height: 1, indent: 46),
+            const SizedBox(height: 6),
+            LocalizedText(
+              '按习惯整理，让阅读更简单。',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+            for (final entry in const [
+              (
+                'appearance',
+                '外观与动效',
+                '背景图片、随图配色、导航与动效',
+                Icons.palette_outlined,
+              ),
+              ('reading', '阅读习惯', '背景、双页与工具栏', Icons.auto_stories_outlined),
+              ('sources', '漫画源', '默认来源、管理与连接检查', Icons.public),
+              ('storage', '下载与缓存', '预载、下载并行与图片缓存', Icons.download_outlined),
+              (
+                'backup',
+                '备份与同步',
+                '资料备份、离线书库与 WebDAV',
+                Icons.cloud_sync_outlined,
+              ),
+              ('updates', '关于与更新', '检查版本、在线升级与开源许可', Icons.info_outline),
+            ]) ...[
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                leading: Icon(entry.$4, size: 21),
+                title: LocalizedText(
+                  entry.$2,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                subtitle: LocalizedText(
+                  entry.$3,
+                  style: const TextStyle(fontSize: 11, height: 1.6),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => open(context, entry.$1, entry.$2),
+              ),
+              const Divider(height: 1, indent: 46),
+            ],
           ],
-        ],
+        ),
       ),
     ),
   );

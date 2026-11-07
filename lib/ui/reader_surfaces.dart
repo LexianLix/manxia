@@ -305,6 +305,7 @@ class _PagedSurfaceState extends State<PagedSurface>
     double curl = 0,
     Alignment alignment = Alignment.center,
   }) => PagePicture(
+    pageNumber: index + 1,
     url,
     web: widget.web,
     crop: widget.crop,
@@ -615,6 +616,7 @@ class _StripSurfaceState extends State<StripSurface> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1000),
             child: PagePicture(
+              pageNumber: i + 1,
               widget.urls[i],
               registerZoom: (owner, open) {
                 if (open == null) {
@@ -699,6 +701,7 @@ class PagePicture extends StatefulWidget {
     this.onRetry,
     this.registerZoom,
     this.knownAspect,
+    this.pageNumber,
     this.curl = 0,
     this.alignment = Alignment.center,
   });
@@ -713,6 +716,7 @@ class PagePicture extends StatefulWidget {
   final double curl;
   final void Function(Object, bool Function(Offset)?)? registerZoom;
   final double? knownAspect;
+  final int? pageNumber;
   final Alignment alignment;
   @override
   State<PagePicture> createState() => _PagePictureState();
@@ -887,7 +891,8 @@ class _PagePictureState extends State<PagePicture> {
               const Icon(Icons.broken_image_outlined, color: Colors.grey),
               const SizedBox(height: 12),
               LocalizedText(
-                error!,
+                widget.pageNumber == null ? error! : '第 {page} 页 · {error}',
+                arguments: {'page': widget.pageNumber ?? 0, 'error': error!},
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               TextButton(

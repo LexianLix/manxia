@@ -102,10 +102,12 @@ Future<void> editBook(
 class LibraryManager extends StatefulWidget {
   const LibraryManager({
     super.key,
+    this.initialSelection,
     required this.library,
     required this.web,
     required this.onOpen,
   });
+  final String? initialSelection;
   final Library library;
   final bool web;
   final ValueChanged<Comic> onOpen;
@@ -114,7 +116,9 @@ class LibraryManager extends StatefulWidget {
 }
 
 class _LibraryManagerState extends State<LibraryManager> {
-  final selection = <String>{};
+  late final selection = <String>{
+    if (widget.initialSelection != null) widget.initialSelection!,
+  };
   String query = '', group = '全部', status = '全部';
   bool series = false;
   @override

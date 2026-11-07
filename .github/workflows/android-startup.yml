@@ -33,6 +33,11 @@ on:
         type: boolean
         default: false
         required: false
+      browse_flow:
+        description: Exercise navigation, shared wallpaper and network callbacks
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -119,10 +124,13 @@ jobs:
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third
             python3 tools/android-icon-smoke.py --output startup-evidence/launcher
+            if [ '${{ inputs.browse_flow }}' = 'true' ]; then python3 tools/android-navigation-smoke.py startup.apk; fi
             if [ '${{ inputs.script_sources }}' = 'true' ] && [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: startup-android-${{ matrix.api }}-${{ matrix.abi }}
-          path: startup-evidence/
+          path: |
+            startup-evidence/
+            navigation-evidence/
           if-no-files-found: warn

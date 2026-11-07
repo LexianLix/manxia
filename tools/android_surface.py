@@ -21,7 +21,9 @@ def home_title_evidence(xml, screenshot):
         nodes = ET.fromstring(xml).iter("node")
         title = next((n for n in nodes if
                       n.get("package") == "io.manxia.manxia" and
-                      (n.get("content-desc") or n.get("text")) == "我的书架"), None)
+                      (n.get("content-desc") or n.get("text")) in {"我的书架", "书架", "My library", "Library"} and
+                      len(re.findall(r"\d+", n.get("bounds", ""))) == 4 and
+                      int(re.findall(r"\d+", n.get("bounds", ""))[1]) < image.height * .4), None)
     except ET.ParseError:
         title = None
     bounds = [int(v) for v in re.findall(r"\d+", title.get("bounds", ""))] if title is not None else []
