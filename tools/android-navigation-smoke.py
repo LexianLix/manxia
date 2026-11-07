@@ -61,7 +61,13 @@ def wait_ui(word, timeout=45):
 def scroll_to(word):
     width,height = map(int,re.findall(r'\d+',adb('shell','wm','size'))[-2:])
     for _ in range(10):
-        if has_label(read_ui(), word):return
+        nodes = [n for n in ET.fromstring(read_ui()).iter('node')
+                 if word in n.get('text','')+' '+n.get('content-desc','')]
+        for node in nodes:
+            _,top,_,bottom = map(int,re.findall(r'\d+',node.get('bounds')))
+            # A semantic node can remain visible behind the floating dock.
+            # Move actions into the clear viewport before tapping them.
+            if height*.15 <= (top+bottom)/2 <= height*.75:return
         adb('shell','input','swipe',str(width//2),str(height*4//5),str(width//2),str(height//3),'300')
     raise RuntimeError('Cannot scroll to '+word)
 
