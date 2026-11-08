@@ -90,7 +90,6 @@ def main():
         nav.wait_ui('Installed 1')
         result['installed'] = True
         nav.tap('Installed 1')
-        hide_keyboard()
         nav.scroll_to('Test script source')
         nav.tap('Test script source')
         nav.wait_ui('Run source test')
@@ -101,7 +100,6 @@ def main():
         result['search_detail_image'] = True
         nav.adb('shell', 'input', 'keyevent', '4')
         nav.wait_ui('Plugin store')
-        hide_keyboard()
         nav.scroll_to('Set as discovery source')
         nav.tap('Set as discovery source')
         nav.wait_ui('Current discovery source')
@@ -168,6 +166,8 @@ def main():
         result['position_history_restored'] = True
         result['passed'] = True
     finally:
+        (nav.OUT / 'flow-logcat.txt').write_text(
+            nav.adb('logcat', '-d', '-v', 'threadtime'), encoding='utf-8')
         if not result.get('passed'):
             try:
                 nav.capture('failure')
