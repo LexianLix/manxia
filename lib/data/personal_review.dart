@@ -1,3 +1,4 @@
+import 'package:characters/characters.dart';
 import 'comic.dart';
 import 'library_features.dart';
 
@@ -40,7 +41,7 @@ extension PersonalReviews on LibraryFeatures {
     if (stars != null && (stars < 1 || stars > 5)) {
       throw ArgumentError('rating');
     }
-    if (text.length > 500) throw ArgumentError('review length');
+    if (text.characters.length > 500) throw ArgumentError('review length');
     return setMeta(comic, {
       'personalReview': {
         'rating': stars,

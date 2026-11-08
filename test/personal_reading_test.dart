@@ -44,6 +44,19 @@ void main() {
     },
   );
   test(
+    'review length matches the editor for emoji and joined characters',
+    () async {
+      final library = await fixtures.library();
+      final text = '👩‍🚀' * 500;
+      await library.setReview(fixtures.comic, 5, text);
+      expect(library.reviewText(fixtures.comic), text);
+      expect(
+        () => library.setReview(fixtures.comic, 5, '$text好'),
+        throwsArgumentError,
+      );
+    },
+  );
+  test(
     'a chapter or distant jump retains origin and destination after reload',
     () async {
       final library = await fixtures.library();
