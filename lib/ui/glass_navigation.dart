@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -18,11 +19,26 @@ class RoomDestination {
 
 const roomDestinations = [
   RoomDestination(0, '书架', Icons.auto_stories_outlined, Icons.auto_stories),
-  RoomDestination(1, '发现', Icons.explore_outlined, Icons.explore),
-  RoomDestination(2, '足迹', Icons.history_outlined, Icons.history),
-  RoomDestination(3, '设置', Icons.tune_outlined, Icons.tune),
-  RoomDestination(4, '下载', Icons.download_outlined, Icons.download),
-  RoomDestination(5, '插件', Icons.extension_outlined, Icons.extension),
+  RoomDestination(1, '发现', CupertinoIcons.compass, CupertinoIcons.compass_fill),
+  RoomDestination(2, '足迹', CupertinoIcons.clock, CupertinoIcons.clock_fill),
+  RoomDestination(
+    3,
+    '设置',
+    CupertinoIcons.slider_horizontal_3,
+    CupertinoIcons.slider_horizontal_3,
+  ),
+  RoomDestination(
+    4,
+    '下载',
+    CupertinoIcons.arrow_down_circle,
+    CupertinoIcons.arrow_down_circle_fill,
+  ),
+  RoomDestination(
+    5,
+    '插件',
+    CupertinoIcons.square_grid_2x2,
+    CupertinoIcons.square_grid_2x2_fill,
+  ),
 ];
 
 class FrostedNavigation extends StatefulWidget {
@@ -370,6 +386,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                   ),
                                   for (final entry in items.entries)
                                     _member(entry.value, scheme, compactLabels),
+                                  _refraction(scheme, dark),
                                   if (compactLabels)
                                     Positioned(
                                       left:
@@ -417,6 +434,33 @@ class _FrostedNavigationState extends State<FrostedNavigation>
               },
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _refraction(ColorScheme scheme, bool dark) {
+    final head = 7 + lens.value * innerWidth;
+    final painter = WaterDropPainter(
+      head: head,
+      tail:
+          7 +
+          (widget.liquid && !reduced ? tail.value : lens.value) * innerWidth,
+      width: math.min(34, lensWidth * innerWidth - 8),
+      press: contact.value,
+      color: scheme.primary,
+      dark: dark,
+      centerY: iconY,
+    );
+    final bounds = painter.contour().getBounds();
+    return Positioned.fromRect(
+      rect: bounds,
+      child: IgnorePointer(
+        child: GlassLens(
+          enabled: widget.highQuality && widget.liquid,
+          center: Offset(head, iconY) - bounds.topLeft,
+          strength: .14 + contact.value * .22,
+          clipper: _DropClipper(painter, bounds.topLeft),
         ),
       ),
     );
@@ -520,6 +564,16 @@ class _FrostedNavigationState extends State<FrostedNavigation>
 
 /// Two linked volumes form one closed contour. Only this small path repaints;
 /// the expensive backdrop remains stationary throughout a drag or spring.
+class _DropClipper extends CustomClipper<Path> {
+  _DropClipper(this.painter, this.origin);
+  final Offset origin;
+  final WaterDropPainter painter;
+  @override
+  Path getClip(Size size) => painter.contour().shift(-origin);
+  @override
+  bool shouldReclip(_DropClipper old) => painter.shouldRepaint(old.painter);
+}
+
 class WaterDropPainter extends CustomPainter {
   WaterDropPainter({
     required this.head,
@@ -590,9 +644,9 @@ class WaterDropPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withValues(alpha: dark ? .19 : .83),
-            color.withValues(alpha: dark ? .25 : .20),
-            Colors.white.withValues(alpha: dark ? .07 : .52),
+            Colors.white.withValues(alpha: dark ? .14 : .32),
+            color.withValues(alpha: dark ? .16 : .10),
+            Colors.white.withValues(alpha: dark ? .07 : .12),
           ],
         ).createShader(Offset.zero & size),
     );
@@ -600,8 +654,8 @@ class WaterDropPainter extends CustomPainter {
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = Colors.white.withValues(alpha: dark ? .35 : .96),
+        ..strokeWidth = .65
+        ..color = Colors.white.withValues(alpha: dark ? .24 : .38),
     );
   }
 

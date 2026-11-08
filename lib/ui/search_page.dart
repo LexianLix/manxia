@@ -1,3 +1,4 @@
+import 'room_design.dart';
 import 'package:flutter/material.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
@@ -178,7 +179,7 @@ class _ComicSearchState extends State<ComicSearchPage> {
         ? groupSearchComics(books)
         : null;
     return Scaffold(
-      appBar: AppBar(title: const LocalizedText('搜索漫画')),
+      appBar: const RoomGlassBar(title: '搜索漫画'),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -522,10 +523,7 @@ class _SourceResult extends StatelessWidget {
       identity: '${comic.sourceId}/${comic.path}',
       child: Card(
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Theme.of(context).dividerColor),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         margin: const EdgeInsets.only(bottom: 8),
         child: variants.length == 1
             ? sourceRow(comic, showTitle: true)

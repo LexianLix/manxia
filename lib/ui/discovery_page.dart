@@ -1,3 +1,5 @@
+import 'room_design.dart';
+import 'materials.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'dart:convert';
@@ -135,6 +137,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
           child: LocalizedText('这个栏目暂时没有漫画，试试其他栏目。', style: small(context)),
         )
       : ComicGrid(
+          horizontal: true,
           discoveryActions: true,
           books: books.take(6).toList(),
           library: widget.library,
@@ -438,14 +441,9 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         children: [
           KeyedSubtree(
             key: headingKey,
-            child: Row(
-              children: [
-                const Expanded(
-                  child: LocalizedText(
-                    '发现',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-                  ),
-                ),
+            child: RoomPageHeading(
+              title: '发现',
+              actions: [
                 PopupMenuButton<String>(
                   key: const ValueKey('discovery-options'),
                   popUpAnimationStyle: RoomMotion.sheet(context),
@@ -517,14 +515,11 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                 ),
               ),
             ),
-            child: Ink(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: .045),
-                borderRadius: BorderRadius.circular(18),
-              ),
+            child: MilkGlass(
+              role: GlassRole.control,
+              radius: 26,
+              high: widget.library.option<String>('quality', 'high') == 'high',
+              padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
               child: Row(
                 children: [
                   Icon(Icons.search, size: 20, color: quiet(context)),
@@ -544,18 +539,10 @@ class _DiscoveryPageState extends State<DiscoveryPage>
           SingleChildScrollView(
             key: tabsKey,
             scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final label in ['逛一逛', '全部漫画', '收藏更新'])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: LocalizedText(label),
-                      selected: tab == label,
-                      onSelected: (_) => selectTab(label),
-                    ),
-                  ),
-              ],
+            child: RoomTabs<String>(
+              value: tab,
+              labels: const {'逛一逛': '逛一逛', '全部漫画': '全部漫画', '收藏更新': '收藏更新'},
+              onChanged: selectTab,
             ),
           ),
           if (error != null || pending != null || snapshot.cached)
@@ -1016,7 +1003,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
               LocalizedText(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w600,
                 ),
               ),

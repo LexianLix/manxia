@@ -12,6 +12,7 @@ import 'ui/room_scroll.dart';
 import 'ui/startup.dart';
 import 'ui/room_backdrop.dart';
 import 'ui/companion.dart';
+import 'ui/materials.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,13 +87,18 @@ class _ManxiaAppState extends State<ManxiaApp> {
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(
         textScaler: TextScaler.linear(library.option<double>('textScale', 1)),
-        highContrast: library.option<bool>('highContrast', false),
+        highContrast:
+            MediaQuery.highContrastOf(context) ||
+            library.option<bool>('highContrast', false),
         disableAnimations:
             MediaQuery.disableAnimationsOf(context) || !library.motion,
       ),
-      child: CompanionScope(
-        library: library,
-        child: RoomBackdrop(library: library, child: child!),
+      child: GlassPerformanceScope(
+        high: library.option<String>('quality', 'high') == 'high',
+        child: CompanionScope(
+          library: library,
+          child: RoomBackdrop(library: library, child: child!),
+        ),
       ),
     ),
     themeMode: library.dark ? ThemeMode.dark : ThemeMode.light,
@@ -115,6 +121,12 @@ class _ManxiaAppState extends State<ManxiaApp> {
     final scheme = ColorScheme.fromSeed(
       contrastLevel: library.option<bool>('highContrast', false) ? 1 : 0,
       seedColor: seed,
+      primary:
+          (appearance.wallpaper == null || !appearance.follow) &&
+              theme['seed'] == null &&
+              !library.option<bool>('highContrast', false)
+          ? (dark ? const Color(0xff7db4ff) : const Color(0xff006ee6))
+          : null,
       brightness: dark ? Brightness.dark : Brightness.light,
       surface: appearance.wallpaper != null && appearance.follow
           ? RoomAppearance.surface(seed, dark)
@@ -137,6 +149,35 @@ class _ManxiaAppState extends State<ManxiaApp> {
         },
       ),
       colorScheme: scheme,
+      textTheme: const TextTheme(
+        headlineLarge: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
+          letterSpacing: -.8,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          height: 1.25,
+          letterSpacing: -.6,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+          letterSpacing: -.3,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
+        bodyLarge: TextStyle(fontSize: 16, height: 1.45),
+        bodyMedium: TextStyle(fontSize: 14, height: 1.45),
+        bodySmall: TextStyle(fontSize: 12, height: 1.4),
+        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
       visualDensity: VisualDensity.standard,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -144,9 +185,10 @@ class _ManxiaAppState extends State<ManxiaApp> {
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 54,
+        centerTitle: true,
         titleTextStyle: TextStyle(
           fontFamily: 'RoomSans',
-          fontSize: 18,
+          fontSize: 17,
           fontWeight: FontWeight.w600,
           color: scheme.onSurface,
         ),
@@ -184,34 +226,95 @@ class _ManxiaAppState extends State<ManxiaApp> {
       sliderTheme: SliderThemeData(
         trackHeight: 3,
         activeTrackColor: scheme.primary,
+        inactiveTrackColor: scheme.onSurface.withValues(alpha: .10),
+        thumbColor: Colors.white,
+        thumbShape: const RoundSliderThumbShape(
+          enabledThumbRadius: 8,
+          elevation: 1,
+          pressedElevation: 2,
+        ),
+        activeTickMarkColor: Colors.transparent,
+        inactiveTickMarkColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
         color: scheme.surface.withValues(alpha: .68),
         elevation: 0,
       ),
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: NoSplash.splashFactory,
+      switchTheme: SwitchThemeData(
+        thumbColor: const WidgetStatePropertyAll(Colors.white),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.onSurface.withValues(alpha: .14),
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
+      chipTheme: ChipThemeData(
+        showCheckmark: false,
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
+        backgroundColor: scheme.onSurface.withValues(alpha: .045),
+        selectedColor: scheme.primary.withValues(alpha: .12),
+        labelStyle: TextStyle(
+          fontFamily: 'RoomSans',
+          fontSize: 13,
+          color: scheme.onSurface,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          side: const WidgetStatePropertyAll(BorderSide.none),
+          shape: const WidgetStatePropertyAll(StadiumBorder()),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? scheme.surfaceContainerLowest
+                : scheme.onSurface.withValues(alpha: .045),
+          ),
+          foregroundColor: WidgetStatePropertyAll(scheme.onSurface),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(
+              fontFamily: 'RoomSans',
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerLowest.withValues(alpha: .97),
+        surfaceTintColor: Colors.transparent,
+        elevation: 5,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
+          minimumSize: const Size(40, 42),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          side: BorderSide(
+            color: scheme.onSurface.withValues(alpha: .13),
+            width: .7,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: scheme.onSurface.withValues(alpha: .035),
+        fillColor: scheme.surfaceContainerLowest.withValues(alpha: .75),
         border: OutlineInputBorder(
           borderSide: BorderSide.none,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(24),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,

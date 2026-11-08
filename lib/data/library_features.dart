@@ -7,6 +7,7 @@ import 'plugin.dart';
 import 'backup_preview.dart';
 import 'reading_profile.dart';
 import 'library_notice.dart';
+import 'reading_journal.dart';
 
 mixin LibraryFeatures on ChangeNotifier {
   final notices = ValueNotifier<LibraryNotice?>(null);
@@ -24,6 +25,7 @@ mixin LibraryFeatures on ChangeNotifier {
   List<Comic> get favorites;
   List<ReadingRecord> get history;
   final Map<String, Map<String, dynamic>> metadata = {};
+  final ReadingJournal journal = ReadingJournal();
   final Map<String, dynamic> options = {};
   final List<String> searchHistory = [];
   final List<Map<String, dynamic>> bookmarks = [], sourceProfiles = [];
@@ -124,6 +126,12 @@ mixin LibraryFeatures on ChangeNotifier {
     ...Map<String, dynamic>.from(meta(comic)['reader'] as Map? ?? {}),
   };
   void loadFeatures() {
+    final device = prefs.getString('reading.device.v1');
+    if (device != null) {
+      journal.device = device;
+    } else {
+      prefs.setString('reading.device.v1', journal.device);
+    }
     try {
       final value =
           jsonDecode(prefs.getString('source.status.v1') ?? '{}') as Map;
@@ -144,6 +152,7 @@ mixin LibraryFeatures on ChangeNotifier {
       options.addAll(Map<String, dynamic>.from(j['options'] ?? {}));
       tombstones.addAll(Map<String, int>.from(j['tombstones'] ?? {}));
       favoriteTimes.addAll(Map<String, int>.from(j['favoriteTimes'] ?? {}));
+      journal.merge(j['journal'], tombstones);
       searchHistory.addAll(List<String>.from(j['searchHistory'] ?? []));
       bookmarks.addAll(
         (j['bookmarks'] as List? ?? []).map(
@@ -163,8 +172,8 @@ mixin LibraryFeatures on ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> persistFeatures() async {
-    notifyListeners();
+  Future<void> persistFeatures({bool notify = true}) async {
+    if (notify) notifyListeners();
     await prefs.setString(
       'features.v2',
       jsonEncode({
@@ -176,6 +185,7 @@ mixin LibraryFeatures on ChangeNotifier {
         'updates': updates,
         'tombstones': tombstones,
         'favoriteTimes': favoriteTimes,
+        'journal': journal.toJson(),
       }),
     );
   }
@@ -254,6 +264,7 @@ mixin LibraryFeatures on ChangeNotifier {
   }
 
   Future<void> removeHistory(Comic comic) async {
+    journal.removePositions(comic.path);
     tombstones['history:${comic.path}'] = DateTime.now().millisecondsSinceEpoch;
     history.removeWhere((r) => r.comic.path == comic.path);
     notifyListeners();
@@ -294,6 +305,7 @@ mixin LibraryFeatures on ChangeNotifier {
     },
     'tombstones': tombstones,
     'favoriteTimes': favoriteTimes,
+    'journal': journal.toJson(),
     'sources': sourceProfiles,
   };
   Future<void> restore(
@@ -403,6 +415,7 @@ mixin LibraryFeatures on ChangeNotifier {
         }
       }
     }
+    journal.merge(j['journal'], tombstones);
     // Device addresses, passwords and appearance remain local. Reader preferences
     // live with each comic's timestamped metadata and are merged above.
     await persistFeatures();

@@ -287,7 +287,7 @@ class _DetailComicCover extends ComicCover {
     super.comic, {
     required super.web,
     required this.opening,
-  }) : super(fit: BoxFit.contain);
+  }) : super(fit: BoxFit.cover);
   final bool opening;
 }
 

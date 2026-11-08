@@ -11,6 +11,12 @@ import 'room_motion.dart';
 import 'reader_zoom.dart';
 
 class ReaderControl extends ChangeNotifier {
+  final Set<String> decodedUrls = {};
+  VoidCallback? onDecoded;
+  void decoded(String url) {
+    if (decodedUrls.add(url)) onDecoded?.call();
+  }
+
   int page = 0;
   int? target;
   double position = 0;
@@ -313,7 +319,10 @@ class _PagedSurfaceState extends State<PagedSurface>
     decodeWidth: widget.decodeWidth,
     curl: curl,
     alignment: alignment,
-    onReady: (_) => ready(index),
+    onReady: (_) {
+      widget.control.decoded(url);
+      ready(index);
+    },
     onImageError: (error) => widget.onImageError?.call(index, error),
     onRetry: widget.onRetryPage == null
         ? null
@@ -630,7 +639,10 @@ class _StripSurfaceState extends State<StripSurface> {
               crop: widget.crop,
               autoCrop: widget.autoCrop,
               decodeWidth: widget.decodeWidth,
-              onReady: i == initialPage ? restore : null,
+              onReady: (height) {
+                widget.control.decoded(widget.urls[i]);
+                if (i == initialPage) restore(height);
+              },
               onLoadError: i == initialPage ? widget.onLoadError : null,
               onImageError: (error) => widget.onImageError?.call(i, error),
               onRetry: widget.onRetryPage == null

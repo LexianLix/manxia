@@ -26,7 +26,7 @@
 
 ## 简介
 
-漫匣面向 Android 手机与平板，将漫画发现、个人书架、本地导入与离线阅读放在一起。以清透的晴昼玻璃为默认外观，浅弧环绕书架、实体书装订与紧凑的悬浮导航，让收藏与阅读保留实体书的手感。可使用自己的背景图片，并让导航、按钮和阅读工具栏跟随图片配色。
+漫匣面向 Android 手机与平板，将漫画发现、个人书架、本地导入与离线阅读放在一起。大标题、分组页面和磨砂透明的玻璃控制层，与浅弧环绕书架、实体书装订和紧凑的悬浮导航融为一体。可使用自己的背景图片，并让导航、按钮和阅读工具栏跟随图片配色。
 
 默认接入动漫屋，支持每日精选、完整栏目浏览、分类搜索和原站榜单；也可以导入自己的图片、CBZ 或 PDF，整理成随身书库。收藏、进度和离线内容保存在本机，可手动备份或配置 WebDAV。
 
@@ -52,6 +52,15 @@
 <p align="center"><img src="docs/images/reader-pages.png" width="260" alt="页面缩略图，可快速找页并返回原阅读位置" /></p>
 <p align="center"><sub>缩略图找页 · 使用项目试读素材演示，预览不改写阅读进度。</sub></p>
 
+<p align="center">
+  <img src="docs/images/reading-statistics.png" width="28%" alt="个人阅读时长、浏览页数和七天趋势" />
+  &nbsp;
+  <img src="docs/images/personal-review.png" width="28%" alt="个人五星评分与短评" />
+  &nbsp;
+  <img src="docs/images/reading-positions.png" width="28%" alt="重启后也可恢复的阅读位置记录" />
+</p>
+<p align="center"><sub>统计、评分与位置记录使用演示资料展示，统计数值并非实际用户数据。</sub></p>
+
 ## 功能特性
 
 - **立体书架**：漫画封面满幅装订，书脊随封面取色，页边与前后层次呈现实体书的厚度；封面和书页沿书脊展开，返回时合书归位。沿浅弧循环环绕，快速甩动后惯性滑行、减速吸附，支持疏密调整与列表展示，也可直接继续上次阅读。
@@ -61,6 +70,9 @@
 - **脚本漫画源**：API 2 支持 Android JavaScript 漫画源，提供安装域名确认、搜索／目录／首图试跑和上一版回退。换源时可搜索所有已启用来源，选择对应章节继续阅读。
 - **阅读伙伴**：可选安装小夏角色包，在书架、空状态和操作反馈中出现；支持大小、提醒频率与停用，阅读正文自动隐藏。可以导入、导出自己的静态表情角色 ZIP。
 - **个人阅读方案**：保存并命名自己的布局、背景和操作习惯，在真实阅读页面预览后应用或取消；支持当前漫画、全局默认与应用后撤销。
+- **个人阅读统计**：查看有效阅读时长、去重浏览页数、常读作品和七天趋势。后台、加载与长时间无操作不计时；统计从实际使用开始，旧版时长不作推算。
+- **评分与短评**：逐本记录五星评分和最多 500 字的个人感想，在设置中集中查看与编辑。默认保存在个人书库，随资料备份与 WebDAV 同步迁移，不会发布到社区。
+- **阅读位置记录**：每本漫画保留最近 20 个停留点，跨章节或远距离跳转前保留原位置，重启后也可从详情菜单选择恢复；恢复图片加载成功后才更新续读位置。
 - **插件生效说明**：按字段查看主题、阅读、来源、导航与角色由谁提供，了解个人设置的覆盖原因。
 - **清晰的设置**：外观、阅读、漫画源、下载缓存、备份同步与更新各自独立；语言与可读性进一步分层，保留大字号选择。
 - **个性化入口**：默认书架、发现、下载、插件和设置五个入口；可添加足迹、调整顺序与启动页面。阅读可设置亮屏、双页默认值、背景及工具栏自动收起。
@@ -179,6 +191,8 @@ node --test tools/preview.test.mjs tools/plugin-sdk.test.mjs
 ## 致谢与许可
 
 视觉设计受到 [Wenku8_Flutter](https://github.com/mikufoxxx/Wenku8_Flutter) 的启发。漫匣的应用代码独立实现，未复制其应用代码。
+
+玻璃材质、控制层分组与交互设计参考 [Kototoro](https://github.com/Kototoro-app/Kototoro)、[AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) 和 [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/materials)。
 
 - 应用源码：[MIT License](LICENSE)。
 - 内置字体：[Adobe Source Han Serif](https://github.com/adobe-fonts/source-han-serif)，[SIL OFL 1.1](assets/fonts/OFL.txt)。

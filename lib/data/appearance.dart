@@ -15,7 +15,7 @@ class RoomAppearance {
             : const <String, dynamic>{},
       );
   final Map<String, dynamic> values;
-  static const defaultSeed = Color(0xff397fa9);
+  static const defaultSeed = Color(0xff007aff);
   String? get wallpaper =>
       values['wallpaper'] is String &&
           RegExp(r'^[a-f0-9]{64}$').hasMatch(values['wallpaper'])
@@ -39,8 +39,8 @@ class RoomAppearance {
     return HSLColor.fromAHSL(
       1,
       hue,
-      dark ? .18 : .20,
-      dark ? .085 : .976,
+      dark ? .10 : .08,
+      dark ? .075 : .958,
     ).toColor();
   }
 }

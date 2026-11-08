@@ -13,7 +13,13 @@ void validateBackup(Map<String, dynamic> value) {
       throw FormatException('备份字段格式错误：$key');
     }
   }
-  for (final key in ['metadata', 'options', 'tombstones', 'favoriteTimes']) {
+  for (final key in [
+    'metadata',
+    'options',
+    'tombstones',
+    'favoriteTimes',
+    'journal',
+  ]) {
     if (value[key] != null && value[key] is! Map) {
       throw FormatException('备份字段格式错误：$key');
     }

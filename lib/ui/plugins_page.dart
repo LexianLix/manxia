@@ -1,3 +1,4 @@
+import 'room_design.dart';
 import 'browse_chrome.dart';
 import 'localized_text.dart';
 import 'plugin_labels.dart';
@@ -293,8 +294,10 @@ class _PluginsPageState extends State<PluginsPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .045),
-        borderRadius: BorderRadius.circular(18),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerLowest.withValues(alpha: .86),
+        borderRadius: BorderRadius.circular(24),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -486,8 +489,9 @@ class _PluginsPageState extends State<PluginsPage> {
   Widget build(BuildContext context) => VisibleListenableBuilder(
     listenable: widget.library,
     builder: (context, _) => Scaffold(
-      appBar: AppBar(
-        title: const LocalizedText('插件商城'),
+      appBar: RoomGlassBar(
+        title: '插件商城',
+        large: true,
         actions: [
           PopupMenuButton<String>(
             tooltip: translate('插件管理', Localizations.localeOf(context)),
@@ -579,8 +583,12 @@ class _PluginsPageState extends State<PluginsPage> {
               padding: const EdgeInsets.fromLTRB(22, 20, 22, 112),
               children: [
                 const LocalizedText(
-                  '你的漫匣，\n由你定义。',
-                  style: TextStyle(fontSize: 22, height: 1.3),
+                  '你的漫匣，由你定义。',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const LocalizedText(
@@ -588,23 +596,17 @@ class _PluginsPageState extends State<PluginsPage> {
                   style: TextStyle(fontSize: 12, height: 1.7),
                 ),
                 const SizedBox(height: 24),
-                SegmentedButton<bool>(
-                  segments: [
-                    const ButtonSegment(
-                      value: false,
-                      label: LocalizedText('发现插件'),
+                RoomTabs<bool>(
+                  value: installedOnly,
+                  labels: {
+                    false: '发现插件',
+                    true: translate(
+                      '已安装 {count}',
+                      Localizations.localeOf(context),
+                      arguments: {'count': registry.installed.length},
                     ),
-                    ButtonSegment(
-                      value: true,
-                      label: LocalizedText(
-                        '已安装 {count}',
-                        arguments: {'count': registry.installed.length},
-                      ),
-                    ),
-                  ],
-                  selected: {installedOnly},
-                  onSelectionChanged: (v) =>
-                      setState(() => installedOnly = v.first),
+                  },
+                  onChanged: (v) => setState(() => installedOnly = v),
                 ),
                 const SizedBox(height: 18),
                 TextField(

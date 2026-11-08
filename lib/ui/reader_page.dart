@@ -2,6 +2,7 @@ import 'localized_text.dart';
 import 'room_motion.dart';
 import 'reader_gestures.dart';
 import '../data/reading_progress.dart';
+import '../data/reading_journal.dart';
 import '../data/chapter_links.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -104,6 +105,62 @@ class _ReaderPageState extends State<ReaderPage>
   VoidCallback? releaseDownloadPriority;
   Timer? saveTimer;
   Timer? chromeTimer;
+  final readingWatch = Stopwatch()..start();
+  Timer? readingTimer;
+  int readingTicks = 0;
+  bool readingDirty = false;
+  late final readingClock = ReadingClock(
+    elapsed: () => readingWatch.elapsedMilliseconds,
+    now: DateTime.now,
+    onSlice: (r, milliseconds, at, seen) {
+      readingDirty =
+          widget.library.journal.add(
+            r,
+            milliseconds,
+            at,
+            seen: seen,
+            visiblePages: paired && r.page > 0 ? 2 : 1,
+          ) ||
+          readingDirty;
+    },
+  );
+  void noteReading({
+    bool interaction = false,
+    bool flush = false,
+    bool? active,
+  }) {
+    final decoded =
+        scene?.presented == true &&
+        urls.isNotEmpty &&
+        firstVisiblePage < urls.length &&
+        command.decodedUrls.contains(urls[firstVisiblePage]) &&
+        command.decodedUrls.contains(urls[lastVisiblePage]);
+    final value = decoded
+        ? ReadingRecord(
+            comic: widget.comic,
+            chapterPath: chapter.path,
+            chapterTitle: chapter.title,
+            page: firstVisiblePage,
+            total: total,
+            updatedAt: DateTime.now().millisecondsSinceEpoch,
+            position: fraction,
+          )
+        : null;
+    readingClock.update(
+      value,
+      active:
+          decoded &&
+          (active ??
+              (foreground && (ModalRoute.of(context)?.isCurrent ?? true))) &&
+          profilePreview == null,
+      interaction: interaction,
+    );
+    if (flush && readingDirty) {
+      readingDirty = false;
+      unawaited(widget.library.persistFeatures(notify: false));
+    }
+  }
+
   void armChromeTimer() {
     chromeTimer?.cancel();
     final seconds =
@@ -124,6 +181,7 @@ class _ReaderPageState extends State<ReaderPage>
 
   void toggleChrome() {
     if (profilePreview != null) return;
+    noteReading(interaction: true);
     setState(() => controls = !controls);
     armChromeTimer();
   }
@@ -131,10 +189,9 @@ class _ReaderPageState extends State<ReaderPage>
   List<String> urls = [];
   String get mode => options['mode'] as String;
   bool get rtl => options['rtl'] == true;
+  double viewportWidth = 0;
   bool get paired =>
-      options['doublePage'] == true &&
-      MediaQuery.sizeOf(context).width >= 900 &&
-      mode == 'page';
+      options['doublePage'] == true && viewportWidth >= 900 && mode == 'page';
   int get firstVisiblePage =>
       paired && page > 0 ? 1 + ((page - 1) ~/ 2) * 2 : page;
   int get lastVisiblePage => total <= 0
@@ -151,6 +208,9 @@ class _ReaderPageState extends State<ReaderPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    readingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) noteReading(flush: ++readingTicks % 3 == 0);
+    });
     if (!['auto', 'left', 'right'].contains(options['hand'])) {
       options['hand'] = 'auto';
     }
@@ -198,6 +258,8 @@ class _ReaderPageState extends State<ReaderPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    viewportWidth = MediaQuery.sizeOf(context).width;
+    noteReading(flush: true);
     if (MediaQuery.disableAnimationsOf(context) && transition.isAnimating) {
       transition.value = 1;
     }
@@ -296,6 +358,9 @@ class _ReaderPageState extends State<ReaderPage>
       );
       prepared.refreshed = fresh || restart;
       ownedScenes.add(prepared);
+      prepared.control.onDecoded = () {
+        if (mounted && identical(scene, prepared)) noteReading();
+      };
       setState(() => incoming = prepared);
     } catch (e) {
       release?.call();
@@ -369,6 +434,7 @@ class _ReaderPageState extends State<ReaderPage>
     if (!mounted || !identical(incoming, value) || value.request != request) {
       return;
     }
+    noteReading();
     save();
     saveTimer?.cancel();
     final previous = scene;
@@ -402,6 +468,7 @@ class _ReaderPageState extends State<ReaderPage>
       pendingPage = null;
       chapterError = null;
     });
+    noteReading();
     if (MediaQuery.disableAnimationsOf(context) || !widget.library.motion) {
       transition.value = 1;
       finishTransition(AnimationStatus.completed);
@@ -436,6 +503,7 @@ class _ReaderPageState extends State<ReaderPage>
         value.presented = true;
       });
       save();
+      noteReading();
       preload();
       prepareOffline();
       final prior = value.previous;
@@ -470,12 +538,15 @@ class _ReaderPageState extends State<ReaderPage>
     position: fraction,
     updatedAt: DateTime.now().millisecondsSinceEpoch,
   );
-  void save() {
-    if (total > 0 && scene?.presented == true) widget.library.save(record());
+  void save({bool checkpoint = false}) {
+    if (total > 0 && scene?.presented == true) {
+      widget.library.save(record(), checkpoint: checkpoint);
+    }
   }
 
   void position(int value, double offset) {
     if (!mounted) return;
+    noteReading();
     if (seeking && (value != page || (offset - fraction).abs() > .004)) {
       setState(cancelSeek);
     }
@@ -484,6 +555,7 @@ class _ReaderPageState extends State<ReaderPage>
     scene?.position = offset;
     fraction = offset;
     if (value != page) setState(() => page = value);
+    noteReading();
     saveTimer?.cancel();
     saveTimer = Timer(const Duration(milliseconds: 350), save);
     preload();
@@ -581,6 +653,8 @@ class _ReaderPageState extends State<ReaderPage>
     if (mounted) {
       setState(() => foreground = state == AppLifecycleState.resumed);
     }
+    noteReading(flush: true);
+    if (!foreground) save(checkpoint: true);
     if (!foreground) {
       preloader.clear();
       warmGeneration++;
@@ -600,6 +674,7 @@ class _ReaderPageState extends State<ReaderPage>
       };
   void keepReturnPoint() {
     if (scene?.presented != true) return;
+    save(checkpoint: true);
     returnPoint ??= (chapter: chapter, page: page, position: fraction);
   }
 
@@ -744,6 +819,7 @@ class _ReaderPageState extends State<ReaderPage>
   }
 
   void turn(int direction) {
+    noteReading(interaction: true);
     if (seeking) setState(cancelSeek);
     if (direction > 0 &&
         total > 0 &&
@@ -1234,6 +1310,9 @@ class _ReaderPageState extends State<ReaderPage>
 
   @override
   void dispose() {
+    noteReading(active: false, flush: true);
+    readingTimer?.cancel();
+    readingWatch.stop();
     cancelSeek();
     releaseDownloadPriority?.call();
     releaseDownloadPriority = null;
@@ -1245,7 +1324,7 @@ class _ReaderPageState extends State<ReaderPage>
     if (total > 0 && scene?.presented == true) {
       final value = record();
       final library = widget.library;
-      scheduleMicrotask(() => library.save(value));
+      scheduleMicrotask(() => library.save(value, checkpoint: true));
     }
     request++;
     transition.dispose();
@@ -1276,16 +1355,16 @@ class _ReaderPageState extends State<ReaderPage>
     top: !bottomTools,
     child: MilkGlass(
       radius: 22,
+      role: GlassRole.chrome,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       high: widget.library.option<String>('quality', 'high') == 'high',
-      tintOpacity: .90,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       child: Row(
         children: [
           IconButton(
             tooltip: translate('返回目录', Localizations.localeOf(context)),
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, size: 21),
+            icon: const Icon(Icons.chevron_left, size: 26),
           ),
           Expanded(
             child: Column(
@@ -1296,7 +1375,10 @@ class _ReaderPageState extends State<ReaderPage>
                   widget.comic.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 ContentHandoff(
                   child: Text(
@@ -1343,9 +1425,9 @@ class _ReaderPageState extends State<ReaderPage>
     top: false,
     child: MilkGlass(
       radius: 22,
+      role: GlassRole.chrome,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       high: widget.library.option<String>('quality', 'high') == 'high',
-      tintOpacity: .90,
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1456,15 +1538,6 @@ class _ReaderPageState extends State<ReaderPage>
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                    LocalizedText(
-                      '轻触中间收起工具栏 · 长按图片缩放',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: readerTheme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1626,108 +1699,116 @@ class _ReaderPageState extends State<ReaderPage>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) cancelProfilePreview();
       },
-      child: Theme(
-        data: readerTheme,
-        child: Scaffold(
-          resizeToAvoidBottomInset: false,
-          backgroundColor: switch (options['background']) {
-            'theme' => Colors.transparent,
-            'paper' => const Color(0xfff3f1e9),
-            'sepia' => const Color(0xffdaceb9),
-            _ => const Color(0xff111512),
-          },
-          body: SafeArea(
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-                    turn(rtl ? -1 : 1),
-                const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-                    turn(rtl ? 1 : -1),
-                const SingleActivator(LogicalKeyboardKey.escape): () =>
-                    Navigator.maybePop(context),
-                const SingleActivator(LogicalKeyboardKey.space): () =>
-                    toggleChrome(),
-              },
-              child: Focus(
-                autofocus: true,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Positioned.fill(child: chapterSurfaces()),
-                    AnimatedPositioned(
-                      duration: RoomMotion.duration(
-                        context,
-                        RoomMotion.feedback,
+      child: Listener(
+        onPointerDown: (_) => noteReading(interaction: true),
+        onPointerSignal: (_) => noteReading(interaction: true),
+        child: Theme(
+          data: readerTheme,
+          child: Scaffold(
+            resizeToAvoidBottomInset: false,
+            backgroundColor: switch (options['background']) {
+              'theme' => Colors.transparent,
+              'paper' => const Color(0xfff3f1e9),
+              'sepia' => const Color(0xffdaceb9),
+              _ => const Color(0xff111512),
+            },
+            body: SafeArea(
+              child: CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                      turn(rtl ? -1 : 1),
+                  const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                      turn(rtl ? 1 : -1),
+                  const SingleActivator(LogicalKeyboardKey.escape): () =>
+                      Navigator.maybePop(context),
+                  const SingleActivator(LogicalKeyboardKey.space): () =>
+                      toggleChrome(),
+                },
+                child: Focus(
+                  autofocus: true,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Positioned.fill(child: chapterSurfaces()),
+                      AnimatedPositioned(
+                        duration: RoomMotion.duration(
+                          context,
+                          RoomMotion.feedback,
+                        ),
+                        curve: RoomMotion.ease,
+                        top: controls ? 74 : 12,
+                        left: 12,
+                        right: 12,
+                        child: chapterStatus(),
                       ),
-                      curve: RoomMotion.ease,
-                      top: controls ? 74 : 12,
-                      left: 12,
-                      right: 12,
-                      child: chapterStatus(),
-                    ),
-                    if (!bottomTools)
+                      if (!bottomTools)
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: headerChrome(context),
+                        ),
                       Align(
-                        alignment: Alignment.topCenter,
-                        child: headerChrome(context),
+                        alignment: Alignment.bottomCenter,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (bottomTools) headerChrome(context),
+                            footerChrome(context),
+                          ],
+                        ),
                       ),
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (bottomTools) headerChrome(context),
-                          footerChrome(context),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      right: 10,
-                      bottom: 6,
-                      child: ReaderChrome(
-                        visible: !controls && profilePreview == null,
-                        top: false,
-                        child: LocalizedText(
-                          pageLabel,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: readerTheme.colorScheme.onSurfaceVariant,
+                      Positioned(
+                        right: 10,
+                        bottom: 6,
+                        child: ReaderChrome(
+                          visible: !controls && profilePreview == null,
+                          top: false,
+                          child: LocalizedText(
+                            pageLabel,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: readerTheme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 12,
-                      child: IgnorePointer(
-                        ignoring: profilePreview == null,
-                        child: AnimatedSwitcher(
-                          duration: RoomMotion.duration(
-                            context,
-                            RoomMotion.feedback,
-                          ),
-                          transitionBuilder: (child, animation) =>
-                              FadeTransition(
-                                opacity: animation.drive(
-                                  CurveTween(curve: const _ProfileFadeCurve()),
-                                ),
-                                child: SlideTransition(
-                                  position: animation.drive(
-                                    Tween(
-                                      begin: const Offset(0, .08),
-                                      end: Offset.zero,
-                                    ).chain(CurveTween(curve: RoomMotion.ease)),
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 12,
+                        child: IgnorePointer(
+                          ignoring: profilePreview == null,
+                          child: AnimatedSwitcher(
+                            duration: RoomMotion.duration(
+                              context,
+                              RoomMotion.feedback,
+                            ),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                  opacity: animation.drive(
+                                    CurveTween(
+                                      curve: const _ProfileFadeCurve(),
+                                    ),
                                   ),
-                                  child: child,
+                                  child: SlideTransition(
+                                    position: animation.drive(
+                                      Tween(
+                                        begin: const Offset(0, .08),
+                                        end: Offset.zero,
+                                      ).chain(
+                                        CurveTween(curve: RoomMotion.ease),
+                                      ),
+                                    ),
+                                    child: child,
+                                  ),
                                 ),
-                              ),
-                          child: profilePreview == null
-                              ? const SizedBox.shrink()
-                              : profilePreviewRail(profilePreview!),
+                            child: profilePreview == null
+                                ? const SizedBox.shrink()
+                                : profilePreviewRail(profilePreview!),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1793,6 +1874,7 @@ class _ReaderPageState extends State<ReaderPage>
         isScrollControlled: true,
         showDragHandle: true,
         backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: .22),
         useSafeArea: true,
         sheetAnimationStyle: RoomMotion.sheet(context),
         builder: (c) => Padding(
@@ -1800,7 +1882,6 @@ class _ReaderPageState extends State<ReaderPage>
           child: readerContent(
             MilkGlass(
               radius: 24,
-              tintOpacity: .94,
               high: widget.library.option<String>('quality', 'high') == 'high',
               child: builder(c),
             ),

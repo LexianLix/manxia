@@ -1,3 +1,4 @@
+import 'room_design.dart';
 import 'browse_chrome.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
@@ -59,8 +60,9 @@ class _OfflinePageState extends State<OfflinePage> {
   Widget build(BuildContext c) {
     final offline = OfflineLibrary.instance;
     return Scaffold(
-      appBar: AppBar(
-        title: const LocalizedText('下载与本地书库', style: TextStyle(fontSize: 18)),
+      appBar: RoomGlassBar(
+        title: '下载与本地书库',
+        large: true,
         actions: [
           if (offline != null && offline.entries.isNotEmpty)
             IconButton(

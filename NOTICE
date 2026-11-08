@@ -2,6 +2,10 @@ Manxia / 漫匣
 
 The application code in this repository is independently implemented.
 Visual inspiration: https://github.com/mikufoxxx/Wenku8_Flutter
+Glass material and interaction design references:
+https://github.com/Kototoro-app/Kototoro
+https://github.com/Kyant0/AndroidLiquidGlass
+https://developer.apple.com/design/human-interface-guidelines/materials
 The reference application's GPL-licensed source code is not incorporated here.
 
 Bundled font: Source Han Serif CN Regular, Copyright Adobe.

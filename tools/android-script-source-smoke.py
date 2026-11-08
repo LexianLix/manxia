@@ -127,6 +127,45 @@ def main():
         else:
             raise RuntimeError('Reader did not render the example image')
         result['reader_rendered'] = True
+        time.sleep(6)
+        nav.tap('Next page')
+        time.sleep(3)
+        nav.adb('shell', 'input', 'keyevent', '4')
+        nav.wait_ui('My ratings & reviews')
+        nav.tap('My ratings & reviews')
+        nav.wait_ui('Rate 4 stars')
+        nav.tap('Rate 4 stars')
+        type_query('Release verification review')
+        nav.tap('Save')
+        nav.wait_ui('More actions')
+        nav.tap('More actions')
+        nav.wait_ui('Reading position history')
+        nav.tap('Reading position history')
+        nav.wait_ui('1 / 3')
+        nav.capture('reading-positions')
+        nav.tap('1 / 3')
+        nav.wait_ui('Next page')
+        nav.capture('restored-reader')
+        nav.adb('shell', 'input', 'keyevent', '4')
+        nav.wait_ui('More actions')
+        nav.adb('shell', 'input', 'keyevent', '4')
+        if nav.has_label(nav.read_ui(), 'Expand navigation'):
+            nav.tap('Expand navigation')
+        nav.tap('Settings')
+        nav.wait_ui('Preferences')
+        nav.tap('Reading statistics')
+        nav.wait_ui('Reading time')
+        nav.capture('reading-statistics')
+        preferences = ET.fromstring(nav.adb('shell','cat',nav.DATA+'/shared_prefs/FlutterSharedPreferences.xml'))
+        features = json.loads(next(n.text for n in preferences if n.get('name') == 'flutter.features.v2'))
+        activity = features['journal']['activity']
+        assert sum(row['milliseconds'] for row in activity.values()) >= 2000
+        assert any(any(pages for pages in row['pages'].values()) for row in activity.values())
+        assert any(meta.get('personalReview',{}).get('rating') == 4 and meta.get('personalReview',{}).get('text') == 'Release verification review' for meta in features['metadata'].values())
+        assert len(features['journal']['positions']) >= 2
+        result['reading_time_and_pages_recorded'] = True
+        result['personal_review_persisted'] = True
+        result['position_history_restored'] = True
         result['passed'] = True
     finally:
         if not result.get('passed'):

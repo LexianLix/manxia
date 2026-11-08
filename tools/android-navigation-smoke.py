@@ -8,7 +8,7 @@ import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
-from PIL import Image
+from PIL import Image, ImageDraw
 
 PACKAGE = 'io.manxia.manxia'
 DATA = f'/data/user/0/{PACKAGE}'
@@ -79,13 +79,17 @@ def main():
         adb('shell','am','start','-W','-n',PACKAGE+'/.MainActivity');time.sleep(7)
         adb('shell','am','force-stop',PACKAGE)
         owner=adb('shell','stat','-c','%u',DATA).strip();assert owner.isdigit() and int(owner)>=10000
-        image=Image.new('RGB',(40,80),(58,111,133));raw=io.BytesIO();image.save(raw,format='PNG');data=raw.getvalue();key=hashlib.sha256(data).hexdigest()
+        image=Image.new('RGB',(108,192),(58,111,133))
+        pattern=ImageDraw.Draw(image)
+        pattern.rectangle((48,0,74,192),fill=(119,156,174))
+        pattern.ellipse((64,80,128,176),fill=(192,142,163))
+        raw=io.BytesIO();image.save(raw,format='PNG');data=raw.getvalue();key=hashlib.sha256(data).hexdigest()
         wallpaper=OUT/'synthetic-wallpaper.png';wallpaper.write_bytes(data)
         directory=DATA+'/app_flutter/manxia/appearance'
         adb('shell','mkdir','-p',directory)
         for path in [DATA+'/app_flutter/manxia',directory]:adb('shell','chown',f'{owner}:{owner}',path)
         adb('push',str(wallpaper),directory+'/'+key);adb('shell','chown',f'{owner}:{owner}',directory+'/'+key);adb('shell','restorecon','-R',directory)
-        values={'options':{'startTab':3,'language':'en','quality':'standard','appearance':{'wallpaper':key,'seed':0xff3a6f85,'follow':False,'veil':.1,'blur':0}}}
+        values={'options':{'startTab':3,'language':'en','quality':'high','appearance':{'wallpaper':key,'seed':0xff3a6f85,'follow':False,'veil':.1,'blur':0}}}
         root=ET.Element('map');ET.SubElement(root,'string',name='flutter.features.v2').text=json.dumps(values)
         prefs=OUT/'synthetic-preferences.xml';prefs.write_bytes(ET.tostring(root,encoding='utf-8'))
         remote=DATA+'/shared_prefs/FlutterSharedPreferences.xml'
@@ -119,8 +123,9 @@ def main():
         process=adb('shell','pidof',PACKAGE).strip()
         try:
             adb('shell','svc','data','disable');adb('shell','svc','wifi','enable');wait_ui('Download network: Wi-Fi');capture('network-wifi')
-            adb('shell','svc','wifi','disable');wait_ui('Download network: Offline');capture('network-offline')
-            adb('shell','svc','wifi','enable');wait_ui('Download network: Wi-Fi');capture('network-restored')
+            for cycle in range(3):
+                adb('shell','svc','wifi','disable');wait_ui('Download network: Offline');capture(f'network-offline-{cycle}')
+                adb('shell','svc','wifi','enable');wait_ui('Download network: Wi-Fi');capture(f'network-restored-{cycle}')
             assert adb('shell','pidof',PACKAGE).strip()==process
         except Exception:
             capture('network-failure')

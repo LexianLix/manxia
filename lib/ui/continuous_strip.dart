@@ -534,6 +534,7 @@ class _ContinuousStripState extends State<ContinuousStrip> {
                     }
                   },
                   onReady: (extent) {
+                    widget.control.decoded(segment.urls[item.page]);
                     aspects[aspectKey(segment.urls[item.page])] =
                         box.maxWidth.clamp(0, 1000) / extent;
                     firstPageReady.add(segment.chapter.path);

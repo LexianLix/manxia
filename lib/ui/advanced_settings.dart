@@ -1,4 +1,5 @@
 import 'visible_listenable_builder.dart';
+import 'room_design.dart';
 import 'localized_text.dart';
 import 'preference_choice.dart';
 import 'dart:convert';
@@ -164,15 +165,30 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              LocalizedText(
-                title,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontSize: 13,
+              Padding(
+                padding: const EdgeInsets.only(left: 16, bottom: 9),
+                child: LocalizedText(
+                  title,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
                 ),
               ),
-              const Divider(),
-              ...children,
+              RoomGroupedSection(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );

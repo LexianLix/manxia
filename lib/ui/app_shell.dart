@@ -1,3 +1,4 @@
+import 'room_design.dart';
 import 'companion.dart';
 import 'browse_chrome.dart';
 import 'character_settings_page.dart';
@@ -676,17 +677,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       key: const ValueKey('shelf-home'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: LocalizedText(
-                archived ? '归档书架' : '书架',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+        RoomPageHeading(
+          title: archived ? '归档书架' : '书架',
+          actions: [
             IconButton(
               tooltip: translate('搜索漫画', Localizations.localeOf(context)),
               onPressed: () => Navigator.of(context).push(
@@ -878,12 +871,13 @@ class ComicGrid extends StatelessWidget {
     this.discoveryActions = false,
     this.sourceLabels = const {},
     this.onManage,
+    this.horizontal = false,
   });
   final Map<String, String> sourceLabels;
   final bool discoveryActions;
   final List<Comic> books;
   final Library? library;
-  final bool web, sliver;
+  final bool web, sliver, horizontal;
   final double minItemWidth;
   final Animation<double>? itemArrival;
   final int arrivingFrom;
@@ -897,7 +891,26 @@ class ComicGrid extends StatelessWidget {
         childAspectRatio: .56,
       );
   @override
-  Widget build(BuildContext context) => sliver
+  Widget build(BuildContext context) => horizontal
+      ? LayoutBuilder(
+          builder: (context, box) {
+            final width = (box.maxWidth * .41).clamp(124.0, 176.0);
+            final labels =
+                MediaQuery.textScalerOf(context).scale(13) * 2.8 + 25;
+            return SizedBox(
+              height: width * 1.4 + labels,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 5),
+                itemCount: books.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 16),
+                itemBuilder: (context, i) =>
+                    SizedBox(width: width, child: item(context, i)),
+              ),
+            );
+          },
+        )
+      : sliver
       ? SliverLayoutBuilder(
           builder: (context, constraints) => SliverGrid(
             delegate: SliverChildBuilderDelegate(
@@ -931,14 +944,14 @@ class ComicGrid extends StatelessWidget {
             : discoveryActions && library != null
             ? () => showDiscoveryInterest(context, library!, comic)
             : null,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: .06),
@@ -948,7 +961,7 @@ class ComicGrid extends StatelessWidget {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   child: SizedBox(width: double.infinity, child: cover),
                 ),
               ),
@@ -958,7 +971,7 @@ class ComicGrid extends StatelessWidget {
               comic.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 5),
             LocalizedText(

@@ -57,6 +57,11 @@ class Library extends ChangeNotifier with LibraryFeatures {
     } catch (_) {
       history = [];
     }
+    for (final record in history) {
+      if (journal.forComic(record.comic).isEmpty) {
+        journal.remember(record, force: true);
+      }
+    }
     notifyListeners();
   }
 
@@ -89,7 +94,16 @@ class Library extends ChangeNotifier with LibraryFeatures {
     }
   }
 
-  Future<void> save(ReadingRecord record) async {
+  Future<void> save(ReadingRecord record, {bool checkpoint = false}) async {
+    final previous = this.record(record.comic);
+    var changed = false;
+    if (previous != null &&
+        (checkpoint ||
+            previous.chapterPath != record.chapterPath ||
+            (previous.page - record.page).abs() >= 5)) {
+      changed = journal.remember(previous, force: true);
+    }
+    changed = journal.remember(record, force: checkpoint) || changed;
     history.removeWhere((h) => h.comic.path == record.comic.path);
     history.insert(0, record);
     if (history.length > 100) history.removeLast();
@@ -98,6 +112,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
       'history',
       jsonEncode(history.map((r) => r.toJson()).toList()),
     );
+    if (changed) await persistFeatures(notify: false);
   }
 
   Future<void> setting(String key, bool value) async {
@@ -124,6 +139,8 @@ class Library extends ChangeNotifier with LibraryFeatures {
   }
 
   Future<void> clearHistory() async {
+    journal.positions.clear();
+    tombstones['positions:all'] = DateTime.now().millisecondsSinceEpoch;
     for (final r in history) {
       tombstones['history:${r.comic.path}'] =
           DateTime.now().millisecondsSinceEpoch;

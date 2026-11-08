@@ -22,6 +22,8 @@ import 'room_motion.dart';
 import 'materials.dart';
 import '../data/offline_library.dart';
 import 'visible_listenable_builder.dart';
+import 'personal_review.dart';
+import 'reading_positions.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -109,6 +111,39 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   bool descriptionExpanded = false;
+  ModalRoute<dynamic>? actionMenu;
+
+  Future<void> restorePosition() async {
+    final point = await selectReadingPosition(
+      context,
+      widget.library,
+      widget.comic,
+    );
+    if (point == null || !mounted || enteringReader) return;
+    final previous = widget.library.record(widget.comic);
+    if (previous != null) await widget.library.save(previous, checkpoint: true);
+    if (!mounted) return;
+    enteringReader = true;
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => ReaderPage(
+            comic: point.comic,
+            chapter: Chapter(point.chapterPath, point.chapterTitle),
+            library: widget.library,
+            source: widget.source,
+            web: widget.web,
+            initialPage: point.page,
+            initialPosition: point.position,
+          ),
+        ),
+      );
+    } finally {
+      enteringReader = false;
+    }
+    if (mounted) setState(() {});
+  }
 
   Future<void> read(
     Comic comic,
@@ -233,9 +268,9 @@ class _DetailPageState extends State<DetailPage> {
           LocalizedText(
             comic.title,
             style: TextStyle(
-              fontSize: compact ? 25 : 36,
+              fontSize: compact ? 28 : 36,
               height: 1.3,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 10),
@@ -280,13 +315,27 @@ class _DetailPageState extends State<DetailPage> {
           MediaQuery.textScalerOf(context).scale(14) > 19;
       return Scaffold(
         appBar: AppBar(
+          flexibleSpace: const MilkGlass(
+            radius: 0,
+            role: GlassRole.chrome,
+            child: SizedBox.expand(),
+          ),
           leading: BackButton(onPressed: () => Navigator.maybePop(context)),
-          title: const LocalizedText('漫画详情', style: TextStyle(fontSize: 15)),
+          title: const LocalizedText('漫画详情'),
           actions: [
             PopupMenuButton<String>(
               tooltip: translate('更多操作', Localizations.localeOf(context)),
               popUpAnimationStyle: RoomMotion.sheet(context),
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'positions',
+                  child: Builder(
+                    builder: (c) {
+                      actionMenu = ModalRoute.of(c);
+                      return const LocalizedText('阅读位置记录');
+                    },
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'organize',
                   child: LocalizedText('分组、标签与系列'),
@@ -303,7 +352,11 @@ class _DetailPageState extends State<DetailPage> {
                   ),
               ],
               onSelected: (value) async {
-                if (value == 'organize') {
+                await actionMenu?.completed;
+                if (!mounted || !context.mounted) return;
+                if (value == 'positions') {
+                  await restorePosition();
+                } else if (value == 'organize') {
                   await editBook(context, widget.library, comic);
                 } else if (value == 'diagnostics') {
                   await copyDiagnostics(comic.path);
@@ -338,7 +391,8 @@ class _DetailPageState extends State<DetailPage> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
                 child: MilkGlass(
-                  radius: 20,
+                  radius: 28,
+                  role: GlassRole.chrome,
                   high:
                       widget.library.option<String>('quality', 'high') ==
                       'high',
@@ -432,6 +486,10 @@ class _DetailPageState extends State<DetailPage> {
                                 Expanded(child: info()),
                               ],
                             ),
+                          PersonalReviewTile(
+                            library: widget.library,
+                            comic: comic,
+                          ),
                           if (comic.description.isNotEmpty) ...[
                             const SizedBox(height: 18),
                             LayoutBuilder(
