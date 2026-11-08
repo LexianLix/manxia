@@ -156,6 +156,11 @@ def main():
         nav.capture('reading-statistics')
         preferences = ET.fromstring(nav.adb('shell','cat',nav.DATA+'/shared_prefs/FlutterSharedPreferences.xml'))
         features = json.loads(next(n.text for n in preferences if n.get('name') == 'flutter.features.v2'))
+        (nav.OUT / 'personal-reading-state.json').write_text(json.dumps({
+            'journal': features.get('journal'),
+            'reviews': [meta.get('personalReview') for meta in features.get('metadata', {}).values()
+                        if meta.get('personalReview')],
+        }, indent=2), encoding='utf-8')
         activity = features['journal']['activity']
         assert sum(row['milliseconds'] for row in activity.values()) >= 2000
         assert any(any(pages for pages in row['pages'].values()) for row in activity.values())

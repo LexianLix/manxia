@@ -132,6 +132,7 @@ class _ReaderLayoutState extends State<ReaderLayout>
       page,
       stripPage == page ? stripPosition : 0,
     );
+    next.control.onDecoded = () => publishDecoded(next);
     next.control.onTransform = () {
       if (!mounted || !identical(current, next)) return;
       widget.control.transform = Matrix4.copy(next.control.transform);
@@ -172,6 +173,13 @@ class _ReaderLayoutState extends State<ReaderLayout>
     widget.onPosition(p, layer.layout.mode == 'strip' ? f : 0);
   }
 
+  void publishDecoded(_LayoutLayer layer) {
+    if (!mounted || !identical(layer, current)) return;
+    for (final url in layer.control.decodedUrls) {
+      widget.control.decoded(url);
+    }
+  }
+
   void ready(_LayoutLayer layer) {
     if (!mounted || !identical(layer, pending) || failed) return;
     final first = current == null;
@@ -184,6 +192,7 @@ class _ReaderLayoutState extends State<ReaderLayout>
       pending = null;
       page = layer.page;
     });
+    publishDecoded(layer);
     if (first || MediaQuery.disableAnimationsOf(context)) {
       clock.value = 1;
       finished(AnimationStatus.completed);

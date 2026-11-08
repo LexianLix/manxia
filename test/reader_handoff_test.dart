@@ -11,6 +11,7 @@ import 'package:manxia/data/comic.dart';
 import 'package:manxia/data/dm5_source.dart';
 import 'package:manxia/data/library.dart';
 import 'package:manxia/data/reading_profiles.dart';
+import 'package:manxia/data/reading_journal.dart';
 import 'package:manxia/data/offline_library.dart';
 import 'package:manxia/platform/blob_store.dart';
 import 'package:manxia/ui/reader_page.dart';
@@ -29,6 +30,22 @@ const comic = Comic(
 const a = Chapter('/old/', 'Old chapter'), b = Chapter('/new/', 'New chapter');
 const c = Chapter('/third/', 'Third chapter');
 void main() {
+  for (final mode in ['page', 'strip']) {
+    testWidgets('decoded $mode layout feeds the active reading journal', (
+      tester,
+    ) async {
+      final f = await _Fixture.start(tester, mode: mode);
+      // Exercise the actual reader-to-journal path, not only the clock model.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 2200)),
+      );
+      await tester.pump(const Duration(seconds: 5));
+      final totals = ReadingTotals(f.library.journal);
+      expect(totals.milliseconds, greaterThanOrEqualTo(2000));
+      expect(totals.pages, 1);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
     'page map and scrub preview preserve progress until committed and can return',
     (tester) async {
