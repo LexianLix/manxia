@@ -373,6 +373,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                             source: source,
                                             web: widget.web,
                                           )
+                                        : page == 1
+                                        ? BrowseEdges(
+                                            child: DiscoveryPage(
+                                              key: ValueKey(
+                                                widget.library.option<String>(
+                                                  'source',
+                                                  'dm5',
+                                                ),
+                                              ),
+                                              library: widget.library,
+                                              source: source,
+                                              web: widget.web,
+                                              scrollable: true,
+                                              navigationRequest:
+                                                  discoveryRequest,
+                                              onOpen: open,
+                                              onReadUpdate: readUpdates,
+                                            ),
+                                          )
                                         : BrowseEdges(
                                             child: SingleChildScrollView(
                                               key: PageStorageKey(
@@ -397,22 +416,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                                       ),
                                                   child: switch (page) {
                                                     0 => _shelf(compact),
-                                                    1 => DiscoveryPage(
-                                                      key: ValueKey(
-                                                        widget.library
-                                                            .option<String>(
-                                                              'source',
-                                                              'dm5',
-                                                            ),
-                                                      ),
-                                                      library: widget.library,
-                                                      source: source,
-                                                      web: widget.web,
-                                                      navigationRequest:
-                                                          discoveryRequest,
-                                                      onOpen: open,
-                                                      onReadUpdate: readUpdates,
-                                                    ),
                                                     2 => _history(),
                                                     _ =>
                                                       const SizedBox.shrink(),

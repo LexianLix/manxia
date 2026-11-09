@@ -8,16 +8,33 @@ class GlassPerformanceScope extends InheritedWidget {
   const GlassPerformanceScope({
     super.key,
     required this.high,
+    this.refraction = true,
+    this.blurScale = 1,
     required super.child,
   });
   final bool high;
+  final bool refraction;
+  final double blurScale;
+  static bool refractionOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<GlassPerformanceScope>()
+          ?.refraction ??
+      true;
+  static double blurScaleOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<GlassPerformanceScope>()
+          ?.blurScale ??
+      1;
   static bool highOf(BuildContext context) =>
       context
           .dependOnInheritedWidgetOfExactType<GlassPerformanceScope>()
           ?.high ??
       true;
   @override
-  bool updateShouldNotify(GlassPerformanceScope old) => old.high != high;
+  bool updateShouldNotify(GlassPerformanceScope old) =>
+      old.high != high ||
+      old.refraction != refraction ||
+      old.blurScale != blurScale;
 }
 
 class MilkGlass extends StatefulWidget {
@@ -50,10 +67,12 @@ class _MilkGlassState extends State<MilkGlass> {
   ui.FragmentShader? shader;
   bool loadingShader = false;
   bool allowHigh = true;
+  bool allowRefraction = true;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     allowHigh = GlassPerformanceScope.highOf(context);
+    allowRefraction = GlassPerformanceScope.refractionOf(context);
     if (allowHigh) loadShader();
   }
 
@@ -66,6 +85,7 @@ class _MilkGlassState extends State<MilkGlass> {
   void loadShader() {
     if (widget.high &&
         allowHigh &&
+        allowRefraction &&
         shader == null &&
         !loadingShader &&
         ui.ImageFilter.isShaderFilterSupported) {
@@ -94,11 +114,12 @@ class _MilkGlassState extends State<MilkGlass> {
     final contrast = MediaQuery.highContrastOf(context);
     final high = widget.high && allowHigh;
     final chrome = widget.role == GlassRole.chrome;
+    final blurScale = GlassPerformanceScope.blurScaleOf(context);
     ui.ImageFilter filter = ui.ImageFilter.blur(
-      sigmaX: high ? (widget.blurSigma ?? (chrome ? 18 : 22)) : 0,
-      sigmaY: high ? (widget.blurSigma ?? (chrome ? 18 : 22)) : 0,
+      sigmaX: high ? (widget.blurSigma ?? (chrome ? 18 : 22)) * blurScale : 0,
+      sigmaY: high ? (widget.blurSigma ?? (chrome ? 18 : 22)) * blurScale : 0,
     );
-    if (high && shader != null) {
+    if (high && allowRefraction && shader != null) {
       shader!
         ..setFloat(2, chrome ? .45 : .30)
         ..setFloat(3, widget.radius * MediaQuery.devicePixelRatioOf(context))
@@ -212,6 +233,7 @@ class _GlassLensState extends State<GlassLens> {
   void load() {
     if (!widget.enabled ||
         !GlassPerformanceScope.highOf(context) ||
+        !GlassPerformanceScope.refractionOf(context) ||
         shader != null ||
         loading ||
         !ui.ImageFilter.isShaderFilterSupported) {
@@ -238,6 +260,7 @@ class _GlassLensState extends State<GlassLens> {
   Widget build(BuildContext context) {
     if (!widget.enabled ||
         !GlassPerformanceScope.highOf(context) ||
+        !GlassPerformanceScope.refractionOf(context) ||
         shader == null ||
         MediaQuery.highContrastOf(context)) {
       return const SizedBox.shrink();

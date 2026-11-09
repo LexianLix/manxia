@@ -40,14 +40,47 @@ class _SourceBrowserState extends State<SourceBrowser>
     value: 1,
   );
   int arrivingFrom = 0;
+  ScrollPosition? scroll;
+  bool autoQueued = false, visible = true, loadingNext = false;
+
+  void queueNext() {
+    if (autoQueued || !mounted) return;
+    autoQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      autoQueued = false;
+      final position = scroll;
+      if (!mounted ||
+          !visible ||
+          busy ||
+          error != null ||
+          !more ||
+          catalog?.canPaginate != true ||
+          position == null ||
+          !position.hasContentDimensions) {
+        return;
+      }
+      // Fetch ahead of the last visible row, with only one request in flight.
+      if (position.extentAfter <= position.viewportDimension * .65) next();
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (MediaQuery.disableAnimationsOf(context)) arrival.value = 1;
+    visible = TickerMode.valuesOf(context).enabled;
+    final position = Scrollable.maybeOf(context)?.position;
+    if (!identical(position, scroll)) {
+      scroll?.removeListener(queueNext);
+      scroll = position;
+      scroll?.addListener(queueNext);
+    }
+    queueNext();
   }
 
   @override
   void dispose() {
+    scroll?.removeListener(queueNext);
     arrival.dispose();
     super.dispose();
   }
@@ -91,6 +124,7 @@ class _SourceBrowserState extends State<SourceBrowser>
     final generation = ++request;
     setState(() {
       busy = true;
+      loadingNext = false;
       error = null;
       retryNext = false;
       path = selected;
@@ -124,7 +158,10 @@ class _SourceBrowserState extends State<SourceBrowser>
         });
       }
     } finally {
-      if (mounted && generation == request) setState(() => busy = false);
+      if (mounted && generation == request) {
+        setState(() => busy = false);
+        queueNext();
+      }
     }
   }
 
@@ -133,6 +170,7 @@ class _SourceBrowserState extends State<SourceBrowser>
     final generation = request;
     setState(() {
       busy = true;
+      loadingNext = true;
       error = null;
       retryNext = false;
     });
@@ -145,14 +183,15 @@ class _SourceBrowserState extends State<SourceBrowser>
         setState(() {
           final seen = books.map((b) => b.path).toSet();
           final added = result.where((c) => seen.add(c.path)).toList();
-          arrivingFrom = books.length;
+          if (added.isNotEmpty) arrivingFrom = books.length;
           books.addAll(added);
-          if (added.isNotEmpty &&
-              widget.library.motion &&
-              !MediaQuery.disableAnimationsOf(context)) {
-            arrival.forward(from: 0);
-          } else {
-            arrival.value = 1;
+          if (added.isNotEmpty) {
+            if (widget.library.motion &&
+                !MediaQuery.disableAnimationsOf(context)) {
+              arrival.forward(from: 0);
+            } else {
+              arrival.value = 1;
+            }
           }
           more = added.isNotEmpty;
           page++;
@@ -166,7 +205,13 @@ class _SourceBrowserState extends State<SourceBrowser>
         });
       }
     } finally {
-      if (mounted && generation == request) setState(() => busy = false);
+      if (mounted && generation == request) {
+        setState(() {
+          busy = false;
+          loadingNext = false;
+        });
+        queueNext();
+      }
     }
   }
 
@@ -227,7 +272,7 @@ class _SourceBrowserState extends State<SourceBrowser>
           ],
         ),
       ContentHandoff(
-        child: busy
+        child: busy && !loadingNext
             ? const Padding(
                 key: ValueKey('catalog-busy'),
                 padding: EdgeInsets.symmetric(vertical: 18),
@@ -236,7 +281,7 @@ class _SourceBrowserState extends State<SourceBrowser>
             : const SizedBox.shrink(key: ValueKey('catalog-idle')),
       ),
       ContentHandoff(
-        child: error != null
+        child: error != null && !retryNext
             ? Padding(
                 key: const ValueKey('catalog-error'),
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -264,19 +309,49 @@ class _SourceBrowserState extends State<SourceBrowser>
       ),
     ],
   );
-  Widget loadMore() => Padding(
+  Widget pagination() => Padding(
     padding: const EdgeInsets.symmetric(vertical: 24),
     child: Center(
-      child: OutlinedButton(
-        onPressed: busy ? null : next,
-        child: ContentHandoff(
-          child: LocalizedText(busy ? '正在加载…' : '加载更多', key: ValueKey(busy)),
-        ),
-      ),
+      child: retryNext
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Flexible(
+                  child: LocalizedText('加载失败', style: TextStyle(fontSize: 12)),
+                ),
+                TextButton(
+                  key: const ValueKey('source-retry'),
+                  onPressed: busy ? null : next,
+                  child: const LocalizedText('重试'),
+                ),
+              ],
+            )
+          : SizedBox(
+              height: 24,
+              child: busy
+                  ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 1.6),
+                        ),
+                        SizedBox(width: 10),
+                        LocalizedText('正在加载…', style: TextStyle(fontSize: 12)),
+                      ],
+                    )
+                  : more
+                  ? null
+                  : const LocalizedText(
+                      '已加载全部',
+                      style: TextStyle(fontSize: 12),
+                    ),
+            ),
     ),
   );
   @override
   Widget build(BuildContext context) {
+    queueNext();
     if (widget.sliver) {
       return SliverMainAxisGroup(
         slivers: [
@@ -294,8 +369,8 @@ class _SourceBrowserState extends State<SourceBrowser>
           ),
           SliverToBoxAdapter(
             child: ContentHandoff(
-              child: catalog?.canPaginate == true && more
-                  ? loadMore()
+              child: catalog?.canPaginate == true
+                  ? pagination()
                   : const SizedBox.shrink(),
             ),
           ),
@@ -317,8 +392,8 @@ class _SourceBrowserState extends State<SourceBrowser>
           arrivingFrom: arrivingFrom,
         ),
         ContentHandoff(
-          child: catalog?.canPaginate == true && more
-              ? loadMore()
+          child: catalog?.canPaginate == true
+              ? pagination()
               : const SizedBox.shrink(),
         ),
       ],

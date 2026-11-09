@@ -180,7 +180,8 @@ class BrowseNavigation extends StatelessWidget {
   );
 }
 
-/// Only scrolling content is masked; route backdrops and navigation stay clear.
+/// Small edge veils soften scroll boundaries without an offscreen texture the
+/// size of the whole page. They never intercept scrolling or navigation.
 class BrowseEdges extends StatefulWidget {
   const BrowseEdges({super.key, required this.child});
   final Widget child;
@@ -208,23 +209,45 @@ class _BrowseEdgesState extends State<BrowseEdges> {
         onNotification: (n) => n.depth == 0 ? update(n.metrics) : false,
         child: NotificationListener<ScrollNotification>(
           onNotification: (n) => n.depth == 0 ? update(n.metrics) : false,
-          child: ShaderMask(
-            blendMode: BlendMode.dstIn,
-            shaderCallback: (rect) {
-              final edge = math.min(.06, 24 / math.max(1, rect.height));
-              return LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  top ? Colors.transparent : Colors.white,
-                  Colors.white,
-                  Colors.white,
-                  bottom ? Colors.transparent : Colors.white,
-                ],
-                stops: [0, edge, 1 - edge, 1],
-              ).createShader(rect);
-            },
-            child: RepaintBoundary(child: widget.child),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              RepaintBoundary(child: widget.child),
+              for (final upper in [true, false])
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: upper ? 0 : null,
+                  bottom: upper ? null : 0,
+                  height: 24,
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: (upper ? top : bottom) ? 1 : 0,
+                      duration: RoomMotion.duration(context, RoomMotion.press),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: upper
+                                ? Alignment.topCenter
+                                : Alignment.bottomCenter,
+                            end: upper
+                                ? Alignment.bottomCenter
+                                : Alignment.topCenter,
+                            colors: [
+                              Theme.of(
+                                context,
+                              ).colorScheme.surface.withValues(alpha: .92),
+                              Theme.of(
+                                context,
+                              ).colorScheme.surface.withValues(alpha: 0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       );

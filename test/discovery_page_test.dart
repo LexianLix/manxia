@@ -199,10 +199,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(requests, ['/manhua-curated/']);
-      await tester.ensureVisible(find.text('加载更多'));
-      await tester.tap(find.text('加载更多'));
-      await tester.pumpAndSettle();
+      expect(requests.first, '/manhua-curated/');
+      expect(requests.where((r) => r.contains('pageindex=2')), hasLength(1));
       expect(
         tester.widget<ComicGrid>(find.byType(ComicGrid)).books,
         hasLength(2),
@@ -217,7 +215,7 @@ void main() {
         '/manhua-two/',
         '/manhua-three/',
       ]);
-      expect(requests.last, contains('pageindex=2'));
+      expect(requests.last, contains('pageindex=3'));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
@@ -280,6 +278,13 @@ void main() {
         );
         await capture(tester, key, 'daily-full-390');
         await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        tester
+            .widget<CustomScrollView>(
+              find.byKey(const PageStorageKey('discovery-scroll')),
+            )
+            .controller!
+            .jumpTo(0);
         await tester.pumpAndSettle();
         await tester.ensureVisible(
           find.byKey(const ValueKey('discovery-options')),

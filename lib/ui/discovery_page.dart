@@ -33,10 +33,11 @@ class DiscoveryPage extends StatefulWidget {
     required this.onOpen,
     this.navigationRequest,
     this.onReadUpdate,
+    this.scrollable = false,
   });
   final Library library;
   final Dm5Source source;
-  final bool web;
+  final bool web, scrollable;
   final ValueChanged<Comic> onOpen;
   final Future<void> Function(Comic)? onReadUpdate;
   final ValueNotifier<String?>? navigationRequest;
@@ -48,11 +49,17 @@ class _DiscoveryPageState extends State<DiscoveryPage>
     with SingleTickerProviderStateMixin {
   Discovery? shown, pending;
   bool refreshing = false, applying = false;
-  bool hasBrowsed = false;
+  bool hasBrowsed = false, catalogVisited = false;
   ScrollPosition? ancestorScroll;
+  final viewportScroll = ScrollController();
   ModalRoute<dynamic>? popupRoute;
   void noteBrowse() {
-    if ((ancestorScroll?.pixels ?? 0) > 12) hasBrowsed = true;
+    if ((widget.scrollable && viewportScroll.hasClients
+            ? viewportScroll.offset
+            : ancestorScroll?.pixels ?? 0) >
+        12) {
+      hasBrowsed = true;
+    }
   }
 
   final headingKey = GlobalKey();
@@ -66,7 +73,10 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   String? topic;
   final tabsKey = GlobalKey();
   void selectTab(String value) {
-    setState(() => tab = value == '更新' ? '收藏更新' : value);
+    setState(() {
+      tab = value == '更新' ? '收藏更新' : value;
+      if (tab == '全部漫画') catalogVisited = true;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && tabsKey.currentContext != null) {
         Scrollable.ensureVisible(
@@ -170,6 +180,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   @override
   void initState() {
     super.initState();
+    viewportScroll.addListener(noteBrowse);
     widget.navigationRequest?.addListener(receiveNavigation);
     receiveNavigation();
     initialize();
@@ -297,6 +308,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
 
   @override
   void dispose() {
+    viewportScroll.dispose();
     ancestorScroll?.removeListener(noteBrowse);
     widget.navigationRequest?.removeListener(receiveNavigation);
     reveal.dispose();
@@ -330,8 +342,66 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   @override
   Widget build(BuildContext context) => VisibleListenableBuilder(
     listenable: widget.library,
-    builder: (context, _) => ContentHandoff(child: buildContent(context)),
+    builder: (context, _) =>
+        ContentHandoff(fill: widget.scrollable, child: buildContent(context)),
   );
+
+  Widget layout(List<Widget> header, Widget section, Widget catalog) {
+    if (!widget.scrollable) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [...header, section],
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        final inset = box.maxWidth > 1172
+            ? (box.maxWidth - 1100) / 2
+            : box.maxWidth < 600
+            ? 20.0
+            : 36.0;
+        return CustomScrollView(
+          controller: viewportScroll,
+          key: const PageStorageKey('discovery-scroll'),
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                inset,
+                12,
+                inset,
+                112 + MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: header,
+                    ),
+                  ),
+                  SliverOffstage(
+                    offstage: tab == '全部漫画',
+                    sliver: SliverToBoxAdapter(
+                      child: TickerMode(enabled: tab != '全部漫画', child: section),
+                    ),
+                  ),
+                  if (catalogVisited || tab == '全部漫画')
+                    SliverOffstage(
+                      offstage: tab != '全部漫画',
+                      sliver: TickerMode(
+                        enabled: tab == '全部漫画',
+                        child: catalog,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget buildContent(BuildContext context) {
     final loaded = shown;
     if (loaded == null) {
@@ -436,9 +506,8 @@ class _DiscoveryPageState extends State<DiscoveryPage>
     return FadeTransition(
       key: const ValueKey('discovery-ready'),
       opacity: reveal,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: layout(
+        [
           KeyedSubtree(
             key: headingKey,
             child: RoomPageHeading(
@@ -574,246 +643,255 @@ class _DiscoveryPageState extends State<DiscoveryPage>
               ),
             ),
           const SizedBox(height: 22),
-          RetainedSections(
-            index: tab,
-            order: const ['逛一逛', '全部漫画', '收藏更新'],
-            animate: widget.library.motion,
-            builder: (section) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (section == '逛一逛') ...[
-                  if (topics.isNotEmpty) ...[
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const LocalizedText('全部题材'),
-                            selected: selectedTopic == null,
-                            onSelected: (_) => setState(() => topic = null),
-                          ),
-                          for (final tag in topics.take(6))
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: ChoiceChip(
-                                label: Text(tag),
-                                selected: selectedTopic == tag,
-                                onSelected: (_) => setState(() => topic = tag),
-                              ),
-                            ),
-                          if (topics.length > 6)
-                            IconButton(
-                              tooltip: translate(
-                                '更多题材',
-                                Localizations.localeOf(context),
-                              ),
-                              onPressed: () => chooseTopic(topics),
-                              icon: const Icon(Icons.more_horiz),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                  _sectionTitle(
-                    !canPersonalize ? '今天想看什么' : '为你挑选',
-                    !canPersonalize ? '从这里开始，遇见下一本' : '参考你的收藏与阅读记录',
-                    () => openCollection('为你挑选', picks),
-                  ),
-                  preview(picks),
-                  if (!canPersonalize)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () => widget.library.setOption(
-                          'dailyEdition',
-                          widget.library.option<int>('dailyEdition', 0) + 1,
-                        ),
-                        icon: const Icon(Icons.refresh, size: 16),
-                        label: const LocalizedText('换一组'),
-                      ),
-                    ),
-                  if (nichePreview.isNotEmpty) ...[
-                    const SizedBox(height: 26),
-                    _sectionTitle(
-                      '小众精选',
-                      '来自书源推荐栏目 · 当前榜单之外',
-                      () => openCollection('小众精选', nicheBooks),
-                    ),
-                    for (final book in nichePreview)
-                      nicheRow(
-                        book,
-                        niche.entries
-                            .firstWhere(
-                              (e) => e.value.any(
-                                (b) =>
-                                    b.path == book.path &&
-                                    b.sourceId == book.sourceId,
-                              ),
-                            )
-                            .key,
-                      ),
-                  ],
-                  if (freshPreview.isNotEmpty) ...[
-                    const SizedBox(height: 26),
-                    _sectionTitle(
-                      '最近值得看看',
-                      '从书源更新与当前目录继续发现',
-                      () => openCollection(
-                        '最近值得看看',
-                        fresh,
-                        path: selectedTopic == null
-                            ? snapshot.sectionPaths['万人追更']
-                            : null,
-                      ),
-                    ),
-                    preview(freshPreview),
-                  ],
-                  const SizedBox(height: 18),
-                  TextButton.icon(
-                    onPressed: () => selectTab('全部漫画'),
-                    icon: const Icon(Icons.explore_outlined, size: 18),
-                    label: LocalizedText(
-                      '继续探索 · {count} 部',
-                      arguments: {'count': explore.all.length},
-                    ),
-                  ),
-                ],
-                if (section == '全部漫画')
-                  if (widget.library.option<String>('source', 'dm5') == 'dm5')
-                    SourceBrowser(
-                      source: widget.source,
-                      library: widget.library,
-                      web: widget.web,
-                      onOpen: widget.onOpen,
-                    )
-                  else
-                    ComicGrid(
-                      discoveryActions: true,
-                      books: explore.all,
-                      library: widget.library,
-                      web: widget.web,
-                      onOpen: widget.onOpen,
-                    ),
-                if (section == '收藏更新') ...[
-                  _sectionTitle(
-                    '收藏追更',
-                    checking ? '正在检查收藏…' : '检查收藏是否出现新章节',
-                    checking || widget.library.favorites.isEmpty
-                        ? null
-                        : () => checkUpdates(),
-                    actionLabel: '检查更新',
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      for (final filter in [
-                        '未读更新',
-                        '全部收藏',
-                        if (widget.library.updates.values.any(
-                          (u) => u['checkError'] != null,
-                        ))
-                          '检查失败',
-                      ])
+        ],
+        RetainedSections(
+          index: tab,
+          order: const ['逛一逛', '全部漫画', '收藏更新'],
+          animate: widget.library.motion,
+          builder: (section) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (section == '逛一逛') ...[
+                if (topics.isNotEmpty) ...[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
                         ChoiceChip(
-                          label: LocalizedText(filter),
-                          selected: updateFilter == filter,
-                          onSelected: (_) =>
-                              setState(() => updateFilter = filter),
+                          label: const LocalizedText('全部题材'),
+                          selected: selectedTopic == null,
+                          onSelected: (_) => setState(() => topic = null),
                         ),
-                      if (widget.library.updates.values.any(
-                        (u) => u['changed'] == true,
-                      ))
-                        TextButton(
-                          onPressed: () => widget.library.markUpdatesRead(
-                            widget.library.favorites.map((b) => b.path),
+                        for (final tag in topics.take(6))
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: ChoiceChip(
+                              label: Text(tag),
+                              selected: selectedTopic == tag,
+                              onSelected: (_) => setState(() => topic = tag),
+                            ),
                           ),
-                          child: const LocalizedText('全部标为已读'),
-                        ),
+                        if (topics.length > 6)
+                          IconButton(
+                            tooltip: translate(
+                              '更多题材',
+                              Localizations.localeOf(context),
+                            ),
+                            onPressed: () => chooseTopic(topics),
+                            icon: const Icon(Icons.more_horiz),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                _sectionTitle(
+                  !canPersonalize ? '今天想看什么' : '为你挑选',
+                  !canPersonalize ? '从这里开始，遇见下一本' : '参考你的收藏与阅读记录',
+                  () => openCollection('为你挑选', picks),
+                ),
+                preview(picks),
+                if (!canPersonalize)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => widget.library.setOption(
+                        'dailyEdition',
+                        widget.library.option<int>('dailyEdition', 0) + 1,
+                      ),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const LocalizedText('换一组'),
+                    ),
+                  ),
+                if (nichePreview.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  _sectionTitle(
+                    '小众精选',
+                    '来自书源推荐栏目 · 当前榜单之外',
+                    () => openCollection('小众精选', nicheBooks),
+                  ),
+                  for (final book in nichePreview)
+                    nicheRow(
+                      book,
+                      niche.entries
+                          .firstWhere(
+                            (e) => e.value.any(
+                              (b) =>
+                                  b.path == book.path &&
+                                  b.sourceId == book.sourceId,
+                            ),
+                          )
+                          .key,
+                    ),
+                ],
+                if (freshPreview.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  _sectionTitle(
+                    '最近值得看看',
+                    '从书源更新与当前目录继续发现',
+                    () => openCollection(
+                      '最近值得看看',
+                      fresh,
+                      path: selectedTopic == null
+                          ? snapshot.sectionPaths['万人追更']
+                          : null,
+                    ),
+                  ),
+                  preview(freshPreview),
+                ],
+                const SizedBox(height: 18),
+                TextButton.icon(
+                  onPressed: () => selectTab('全部漫画'),
+                  icon: const Icon(Icons.explore_outlined, size: 18),
+                  label: LocalizedText(
+                    '继续探索 · {count} 部',
+                    arguments: {'count': explore.all.length},
+                  ),
+                ),
+              ],
+              if (section == '全部漫画' && !widget.scrollable)
+                if (widget.library.option<String>('source', 'dm5') == 'dm5')
+                  SourceBrowser(
+                    source: widget.source,
+                    library: widget.library,
+                    web: widget.web,
+                    onOpen: widget.onOpen,
+                  )
+                else
+                  ComicGrid(
+                    discoveryActions: true,
+                    books: explore.all,
+                    library: widget.library,
+                    web: widget.web,
+                    onOpen: widget.onOpen,
+                  ),
+              if (section == '收藏更新') ...[
+                _sectionTitle(
+                  '收藏追更',
+                  checking ? '正在检查收藏…' : '检查收藏是否出现新章节',
+                  checking || widget.library.favorites.isEmpty
+                      ? null
+                      : () => checkUpdates(),
+                  actionLabel: '检查更新',
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final filter in [
+                      '未读更新',
+                      '全部收藏',
                       if (widget.library.updates.values.any(
                         (u) => u['checkError'] != null,
                       ))
-                        TextButton(
-                          onPressed: checking
-                              ? null
-                              : () => checkUpdates(failedOnly: true),
-                          child: const LocalizedText('重试检查失败'),
+                        '检查失败',
+                    ])
+                      ChoiceChip(
+                        label: LocalizedText(filter),
+                        selected: updateFilter == filter,
+                        onSelected: (_) =>
+                            setState(() => updateFilter = filter),
+                      ),
+                    if (widget.library.updates.values.any(
+                      (u) => u['changed'] == true,
+                    ))
+                      TextButton(
+                        onPressed: () => widget.library.markUpdatesRead(
+                          widget.library.favorites.map((b) => b.path),
                         ),
-                    ],
+                        child: const LocalizedText('全部标为已读'),
+                      ),
+                    if (widget.library.updates.values.any(
+                      (u) => u['checkError'] != null,
+                    ))
+                      TextButton(
+                        onPressed: checking
+                            ? null
+                            : () => checkUpdates(failedOnly: true),
+                        child: const LocalizedText('重试检查失败'),
+                      ),
+                  ],
+                ),
+                if (followBooks.isEmpty && widget.library.favorites.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 18),
+                    child: LocalizedText('当前分组没有作品'),
                   ),
-                  if (followBooks.isEmpty &&
-                      widget.library.favorites.isNotEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 18),
-                      child: LocalizedText('当前分组没有作品'),
-                    ),
-                  for (final book in followBooks)
-                    BookLink(
-                      comic: book,
-                      web: widget.web,
-                      onOpen: readUpdate,
-                      builder: (cover, open) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: SizedBox(
-                          width: 38,
-                          height: 54,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: cover,
-                          ),
+                for (final book in followBooks)
+                  BookLink(
+                    comic: book,
+                    web: widget.web,
+                    onOpen: readUpdate,
+                    builder: (cover, open) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: SizedBox(
+                        width: 38,
+                        height: 54,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: cover,
                         ),
-                        title: Text(book.title),
-                        subtitle: LocalizedText(
-                          widget.library.updates[book.path]?['checkError']
-                                  as String? ??
-                              widget.library.updates[book.path]?['latest']
-                                  as String? ??
-                              '尚未检查更新',
-                        ),
-                        trailing: openingUpdate == book.path
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : IconButton(
-                                tooltip: translate(
-                                  '标为已读',
-                                  Localizations.localeOf(context),
-                                ),
-                                onPressed: () =>
-                                    widget.library.markUpdatesRead([book.path]),
-                                icon: Icon(
-                                  widget.library.updates[book
-                                              .path]?['changed'] ==
-                                          true
-                                      ? Icons.bookmark_added_outlined
-                                      : Icons.done,
-                                ),
+                      ),
+                      title: Text(book.title),
+                      subtitle: LocalizedText(
+                        widget.library.updates[book.path]?['checkError']
+                                as String? ??
+                            widget.library.updates[book.path]?['latest']
+                                as String? ??
+                            '尚未检查更新',
+                      ),
+                      trailing: openingUpdate == book.path
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : IconButton(
+                              tooltip: translate(
+                                '标为已读',
+                                Localizations.localeOf(context),
                               ),
-                        onTap: open,
-                        onLongPress: () => showDiscoveryInterest(
-                          context,
-                          widget.library,
-                          book,
-                        ),
-                      ),
+                              onPressed: () =>
+                                  widget.library.markUpdatesRead([book.path]),
+                              icon: Icon(
+                                widget.library.updates[book.path]?['changed'] ==
+                                        true
+                                    ? Icons.bookmark_added_outlined
+                                    : Icons.done,
+                              ),
+                            ),
+                      onTap: open,
+                      onLongPress: () =>
+                          showDiscoveryInterest(context, widget.library, book),
                     ),
-                  if (widget.library.favorites.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 28),
-                      child: LocalizedText(
-                        '收藏喜欢的漫画后，在这里检查新章节。',
-                        style: small(context),
-                      ),
+                  ),
+                if (widget.library.favorites.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 28),
+                    child: LocalizedText(
+                      '收藏喜欢的漫画后，在这里检查新章节。',
+                      style: small(context),
                     ),
-                ],
+                  ),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
+        widget.library.option<String>('source', 'dm5') == 'dm5'
+            ? SourceBrowser(
+                source: widget.source,
+                library: widget.library,
+                web: widget.web,
+                onOpen: widget.onOpen,
+                sliver: true,
+              )
+            : ComicGrid(
+                discoveryActions: true,
+                books: explore.all,
+                library: widget.library,
+                web: widget.web,
+                onOpen: widget.onOpen,
+                sliver: true,
+              ),
       ),
     );
   }

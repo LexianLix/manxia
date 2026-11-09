@@ -34,6 +34,12 @@ class FrameReport {
     'buildP95Ms': percentile(samples.map((s) => s.build)),
     'rasterP95Ms': percentile(samples.map((s) => s.raster)),
     'overBudgetFrames': slowFrames,
+    'over60HzBudgetFrames': samples
+        .where((s) => math.max(s.build, s.raster) > 16667)
+        .length,
+    'over30HzBudgetFrames': samples
+        .where((s) => math.max(s.build, s.raster) > 33333)
+        .length,
   };
 }
 

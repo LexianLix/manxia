@@ -384,9 +384,12 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                       ),
                                     ),
                                   ),
+                                  _refraction(scheme, dark),
+                                  // Keep glyphs above the optical layer. Sampling
+                                  // them through a moving lens displaced their
+                                  // visible pixels despite stable layout anchors.
                                   for (final entry in items.entries)
                                     _member(entry.value, scheme, compactLabels),
-                                  _refraction(scheme, dark),
                                   if (compactLabels)
                                     Positioned(
                                       left:

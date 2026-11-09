@@ -12,7 +12,7 @@ import 'ui/room_scroll.dart';
 import 'ui/startup.dart';
 import 'ui/room_backdrop.dart';
 import 'ui/companion.dart';
-import 'ui/materials.dart';
+import 'ui/adaptive_glass.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,7 +93,7 @@ class _ManxiaAppState extends State<ManxiaApp> {
         disableAnimations:
             MediaQuery.disableAnimationsOf(context) || !library.motion,
       ),
-      child: GlassPerformanceScope(
+      child: AdaptiveGlass(
         high: library.option<String>('quality', 'high') == 'high',
         child: CompanionScope(
           library: library,

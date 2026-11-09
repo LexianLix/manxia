@@ -53,14 +53,14 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
         final old = find.byWidgetPredicate(
           (w) => w is BookLink && w.comic.path == first.path,
         );
         final oldState = tester.state(old);
-        await tester.ensureVisible(find.text('加载更多'));
-        await tester.tap(find.text('加载更多'));
-        await tester.pump();
+        // This short collection automatically fills its viewport.
+        expect(source.requests, 1);
         source.pending.complete([first, second, second]);
         await tester.pump();
         final added = find.byWidgetPredicate(
@@ -94,6 +94,7 @@ void main() {
 
 class _Source extends Dm5Source {
   final pending = Completer<List<Comic>>();
+  int requests = 0;
   @override
   Future<SourceCatalog> catalog(String path) async => SourceCatalog(
     books: const [first],
@@ -102,6 +103,8 @@ class _Source extends Dm5Source {
     parameters: {'pagesize': '2'},
   );
   @override
-  Future<List<Comic>> catalogNext(Map<String, String> specs, int page) =>
-      pending.future;
+  Future<List<Comic>> catalogNext(Map<String, String> specs, int page) {
+    requests++;
+    return pending.future;
+  }
 }
