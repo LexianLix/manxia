@@ -66,7 +66,7 @@ class _LivingShelfState extends State<LivingShelf>
   Offset pointerFrom = Offset.zero, pointerTo = Offset.zero;
   double? intendedPosition;
   bool entered = false;
-  Color ambient = const Color(0xff8baf99);
+  Color ambient = const Color(0xffa9acb4);
   StreamSubscription<AccelerometerEvent>? tilt;
   double dragExtent = 130;
   Duration lastHaptic = Duration.zero;
@@ -506,7 +506,7 @@ class _LivingShelfState extends State<LivingShelf>
       context,
     ).colorScheme.onSurface.withValues(alpha: .63);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         orbit(context),
         LayoutBuilder(
@@ -524,19 +524,20 @@ class _LivingShelfState extends State<LivingShelf>
                 ),
               ),
               layoutBuilder: (current, previous) => Stack(
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.center,
                 children: [...previous, ?current],
               ),
               child: Column(
                 key: ValueKey(comic.path),
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   LocalizedText(
                     comic.title,
+                    textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 20,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -558,7 +559,8 @@ class _LivingShelfState extends State<LivingShelf>
                     },
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, color: muted),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: muted),
                   ),
                 ],
               ),
@@ -582,28 +584,14 @@ class _LivingShelfState extends State<LivingShelf>
                 ),
               ],
             );
-            return box.maxWidth < 330 ||
-                    MediaQuery.textScalerOf(context).scale(14) > 18
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      title,
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: navigation,
-                      ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: title),
-                      navigation,
-                    ],
-                  );
+            return Column(
+              children: [title, const SizedBox(height: 6), navigation],
+            );
           },
         ),
         const SizedBox(height: 12),
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Flexible(
               child: FilledButton.icon(
@@ -659,12 +647,6 @@ class _LivingShelfState extends State<LivingShelf>
                     ),
                   ),
                 ),
-              ),
-            const Spacer(),
-            if (MediaQuery.sizeOf(context).width > 700)
-              LocalizedText(
-                '惯性滑动 · 循环书架',
-                style: TextStyle(fontSize: 10, color: muted),
               ),
           ],
         ),

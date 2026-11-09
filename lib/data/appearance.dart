@@ -15,7 +15,7 @@ class RoomAppearance {
             : const <String, dynamic>{},
       );
   final Map<String, dynamic> values;
-  static const defaultSeed = Color(0xff007aff);
+  static const defaultSeed = Color(0xff565a65);
   String? get wallpaper =>
       values['wallpaper'] is String &&
           RegExp(r'^[a-f0-9]{64}$').hasMatch(values['wallpaper'])
@@ -35,13 +35,9 @@ class RoomAppearance {
       : defaultSeed;
 
   static Color surface(Color seed, bool dark) {
-    final hue = HSLColor.fromColor(seed).hue;
-    return HSLColor.fromAHSL(
-      1,
-      hue,
-      dark ? .10 : .08,
-      dark ? .075 : .958,
-    ).toColor();
+    // Artwork supplies the colour; the reading surface stays neutral even
+    // when a wallpaper's accent is green, pink or strongly saturated.
+    return dark ? const Color(0xff151518) : const Color(0xfff5f5f7);
   }
 }
 

@@ -96,12 +96,17 @@ def main():
         adb('push',str(prefs),remote);adb('shell','chown',f'{owner}:{owner}',remote);adb('shell','restorecon',remote)
         adb('shell','am','start','-W','-n',PACKAGE+'/.MainActivity');wait_ui('Preferences')
         for tab,title in [('Downloads','Downloads & local library'),('Plugins','Plugin store')]:
-            tap(tab);xml=wait_ui(title);_,png=capture(tab.lower())
+            if tab == 'Plugins':
+                tap('Settings');wait_ui('Preferences');scroll_to('Plugin store');tap('Plugin store')
+            else:
+                tap(tab)
+            xml=wait_ui(title);_,png=capture(tab.lower())
             node=next(n for n in ET.fromstring(xml).iter('node') if title in n.get('text','')+' '+n.get('content-desc',''))
             _,top,_,bottom=map(int,re.findall(r'\d+',node.get('bounds')))
             pixel=Image.open(io.BytesIO(png)).convert('RGB').getpixel((5,(top+bottom)//2))
             assert pixel[0]<150 and pixel[2]-pixel[0]>20, f'{tab} header hides wallpaper: {pixel}'
             result[tab.lower()+'_header_pixel']=pixel
+        adb('shell','input','keyevent','4');wait_ui('Preferences')
         width,height=map(int,re.findall(r'\d+',adb('shell','wm','size'))[-2:])
         adb('shell','input','swipe',str(width//2),str(height*4//5),str(width//2),str(height//3),'240')
         xml=wait_ui('Expand navigation')

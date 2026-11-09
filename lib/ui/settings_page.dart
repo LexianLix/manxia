@@ -13,6 +13,7 @@ import 'appearance_settings.dart';
 import 'smoothness_page.dart';
 import 'reading_profiles_page.dart';
 import 'reading_stats_page.dart';
+import 'plugins_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -27,7 +28,9 @@ class SettingsPage extends StatelessWidget {
   void open(BuildContext context, String section, String title) =>
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => section == 'stats'
+          builder: (_) => section == 'plugins'
+              ? PluginsPage(library: library)
+              : section == 'stats'
               ? ReadingStatsPage(library: library, source: source, web: web)
               : section == 'reviews'
               ? PersonalReviewsPage(library: library)
@@ -53,14 +56,14 @@ class SettingsPage extends StatelessWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(9),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .05),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Icon(icon, size: 19, color: Colors.white),
+      child: Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary),
     ),
     title: LocalizedText(
       title,
-      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
     ),
     trailing: Icon(
       CupertinoIcons.chevron_right,
@@ -115,6 +118,13 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 22),
             RoomGroupedSection(
               children: [
+                entry(
+                  context,
+                  'plugins',
+                  '插件商城',
+                  CupertinoIcons.square_grid_2x2,
+                  const Color(0xff535964),
+                ),
                 entry(
                   context,
                   'sources',

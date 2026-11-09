@@ -19,7 +19,7 @@ List<int> navigationIds(Library library) {
       raw.toSet().length == raw.length) {
     return List<int>.from(raw);
   }
-  return [0, 1, 4, 5, 3];
+  return [0, 1, 4, 3];
 }
 
 class PersonalizationSettings extends StatelessWidget {

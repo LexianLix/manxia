@@ -119,13 +119,18 @@ class _ManxiaAppState extends State<ManxiaApp> {
         ? appearance.seed
         : color('seed', RoomAppearance.defaultSeed);
     final scheme = ColorScheme.fromSeed(
+      dynamicSchemeVariant:
+          (appearance.wallpaper == null || !appearance.follow) &&
+              theme['seed'] == null
+          ? DynamicSchemeVariant.monochrome
+          : DynamicSchemeVariant.tonalSpot,
       contrastLevel: library.option<bool>('highContrast', false) ? 1 : 0,
       seedColor: seed,
       primary:
           (appearance.wallpaper == null || !appearance.follow) &&
               theme['seed'] == null &&
               !library.option<bool>('highContrast', false)
-          ? (dark ? const Color(0xff7db4ff) : const Color(0xff006ee6))
+          ? (dark ? const Color(0xffd3d5dd) : const Color(0xff303238))
           : null,
       brightness: dark ? Brightness.dark : Brightness.light,
       surface: appearance.wallpaper != null && appearance.follow
@@ -151,14 +156,14 @@ class _ManxiaAppState extends State<ManxiaApp> {
       colorScheme: scheme,
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.w700,
+          fontSize: 28,
+          fontWeight: FontWeight.w600,
           height: 1.2,
           letterSpacing: -.8,
         ),
         headlineMedium: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
+          fontSize: 25,
+          fontWeight: FontWeight.w600,
           height: 1.25,
           letterSpacing: -.6,
         ),

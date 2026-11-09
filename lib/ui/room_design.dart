@@ -44,11 +44,7 @@ class RoomGroupedSection extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: Material(
-        color:
-            (scheme.brightness == Brightness.dark
-                    ? scheme.surfaceContainerHigh
-                    : scheme.surfaceContainerLowest)
-                .withValues(alpha: .86),
+        color: scheme.surfaceContainerLowest.withValues(alpha: .38),
         child: Column(
           children: [
             for (var i = 0; i < children.length; i++) ...[

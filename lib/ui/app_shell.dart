@@ -34,7 +34,7 @@ import 'collection_target.dart';
 import 'content_handoff.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-const green = Color(0xff47775e);
+const green = Color(0xff535964);
 Color quiet(BuildContext c) =>
     Theme.of(c).colorScheme.onSurface.withValues(alpha: .65);
 TextStyle small(BuildContext c) =>
@@ -118,7 +118,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   (String, Rect)? openingOrigin;
   final discoveryRequest = ValueNotifier<String?>(null);
-  final atmosphere = ValueNotifier<Color>(const Color(0xff8baf99));
+  final atmosphere = ValueNotifier<Color>(const Color(0xffa9acb4));
   late final source = SourceHub(
     widget.library,
     gateway: widget.web ? Uri.base : null,
@@ -318,11 +318,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         final wide = box.maxWidth >= 1000;
         final compact = box.maxWidth < 600;
         final ids = navigationIds(widget.library);
-        if (!wide && !ids.contains(tab)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) navigate(ids.first);
-          });
-        }
+        // Retain legacy/plugin start destinations without changing saved
+        // navigation preferences. They leave the dock when the user switches.
+        if (!ids.contains(tab)) ids.add(tab);
         return Scaffold(
           extendBody: true,
           body: Stack(
@@ -710,6 +708,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     widget.library.setOption('showArchived', !archived);
                   case 'updates':
                     showUpdates();
+                  case 'history':
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          appBar: const RoomGlassBar(title: '阅读足迹'),
+                          body: BrowseEdges(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
+                              child: _history(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
                   case 'companion':
                     companionActions();
                 }

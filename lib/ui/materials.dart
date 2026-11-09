@@ -124,7 +124,7 @@ class _MilkGlassState extends State<MilkGlass> {
                   : widget.tintOpacity ??
                         (high
                             ? (chrome ? (dark ? .28 : .20) : (dark ? .38 : .30))
-                            : (dark ? .88 : .84)),
+                            : .94),
             ),
             border: Border.all(
               color: scheme.onSurface.withValues(alpha: dark ? .12 : .07),
