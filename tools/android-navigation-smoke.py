@@ -115,11 +115,13 @@ def main():
         assert right < width*.3, f'Compact navigation did not settle on the left: {left},{right}'
         capture('compact-navigation');tap('Expand navigation');wait_ui('Library');capture('expanded-navigation')
         result['glass_navigation_folds_and_expands']=True
-        tap('Settings');wait_ui('Preferences')
+        # The settings tab retains its scroll position. Its title can be above
+        # the viewport after folding the dock; verify a visible root action.
+        tap('Settings');wait_ui('Reading preferences')
         for i in range(5):
             tap('Reading preferences');wait_ui('Reading defaults')
             adb('shell','input','swipe','540','1450','540','600','220')
-            adb('shell','input','keyevent','4');wait_ui('Preferences')
+            adb('shell','input','keyevent','4');wait_ui('Reading preferences')
         result['repeated_route_return']=True;capture('returned-settings')
         tap('Library');xml=wait_ui('Library')
         assert 'Follow calendar' not in xml
