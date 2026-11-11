@@ -130,6 +130,99 @@
       }
     },
     {
+      "apiVersion": 2,
+      "id": "manxia.source-kanman",
+      "name": "看漫（公开章节）",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "locales": {
+        "en": {
+          "name": "Kanman Public Source"
+        }
+      },
+      "description": "浏览和搜索看漫公开目录，读取免费公开章节；付费或登录内容按原站限制显示。",
+      "contributes": {
+        "source": {
+          "id": "kanman",
+          "pagination": true,
+          "name": "看漫（公开章节）",
+          "baseUrl": "https://www.kanman.com/",
+          "requestHosts": [
+            "www.kanman.com"
+          ],
+          "imageHosts": [
+            "image.yqmh.com",
+            "cms.samanlehua.com",
+            "hw-chapter2.kaimanhua.com",
+            "hw-chapter1.kaimanhua.com",
+            "mhpic.samanlehua.com",
+            "chapter2.kaimanhua.com"
+          ],
+          "script": "(() => {\n  function listing(ctx) {\n    if (!ctx.responses.length) return {request: '/api/getsortlist/?page='+Math.max(1,ctx.page||1)+'&pagesize=40&search_key=' + encodeURIComponent(ctx.query || '')};\n    const data = JSON.parse(ctx.responses[0]);\n    if (data.status !== 0 || !Array.isArray(data.data)) throw Error('看漫目录暂不可用');\n    return {result: data.data.slice(0, 100).map(b => ({path: '/' + b.comic_id + '/', title: b.comic_name,\n      cover: String(b.cover_img || 'https://image.yqmh.com/mh/' + b.comic_id + '.jpg').replace(/^http:/, 'https:'),\n      author: b.comic_author || '', latest: b.last_chapter_name || ''}))};\n  }\n  return {\n    search: listing, discover: listing,\n    detail(ctx) {\n      const id=/\\/(\\d+)\\/?$/.exec(ctx.url)?.[1];\n      if(!id)throw Error('作品编号无效');\n      if (!ctx.responses.length) return {request: '/api/getchapterlist/?comic_id='+id};\n      const data=JSON.parse(ctx.responses[0]);\n      if(data.status!==0||!Array.isArray(data.data))throw Error('看漫未返回公开章节目录');\n      const seen = new Set(), chapters = [];\n      for (const row of [...data.data].sort((a,b)=>Number(b.order_num||0)-Number(a.order_num||0))) {\n        if(Number(row.price||0)!==0)continue;\n        const slug=String(row.chapter_newid||'');\n        if(!/^[a-z0-9_-]+$/i.test(slug))continue;\n        const path='/'+id+'/'+slug+'.html', title=String(row.chapter_name||'').trim();\n        if(title&&!seen.has(path)){seen.add(path);chapters.push({path,title});}\n      }\n      return {result: {description: '此来源提供原站公开章节，完整作品信息请查看原站。', chapters}};\n    },\n    pages(ctx) {\n      if (!ctx.responses.length) return {request: ctx.url};\n      // Read the public image array only; never evaluate the site's scripts.\n      const match = /\\bchapter_img_list\\s*:\\s*(\\[(?:\"(?:\\\\.|[^\"\\\\])*\"\\s*,?\\s*)*\\])/i.exec(ctx.responses[0]);\n      if (!match) throw Error('该章未公开图片，可能需要在原站登录或购买');\n      const pages = JSON.parse(match[1]);\n      if (!pages.length) throw Error('该章暂无公开可读图片');\n      return {result: pages.map(p => p.replace(/^http:/, 'https:'))};\n    },\n  };\n})()\n"
+        }
+      }
+    },
+    {
+      "apiVersion": 2,
+      "id": "manxia.source-manhuagui",
+      "name": "漫画柜",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "locales": {
+        "en": {
+          "name": "Manhuagui Source"
+        }
+      },
+      "description": "漫画柜公开目录与章节。独立解析图片数据，不执行原站脚本。原站验证、移除或地区限制仍可能影响访问。",
+      "contributes": {
+        "source": {
+          "id": "manhuagui",
+          "pagination": true,
+          "name": "漫画柜",
+          "baseUrl": "https://www.manhuagui.com/",
+          "requestHosts": [
+            "www.manhuagui.com"
+          ],
+          "imageHosts": [
+            "cf.mhgui.com",
+            "i.hamreus.com",
+            "cf.hamreus.com"
+          ],
+          "script": "(() => {\n/* lz-string 1.5.0, https://github.com/pieroxy/lz-string\nMIT License\n\nCopyright (c) 2013 pieroxy\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n\n*/\nvar LZString=function(){var r=String.fromCharCode,o=\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\",n=\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$\",e={};function t(r,o){if(!e[r]){e[r]={};for(var n=0;n<r.length;n++)e[r][r.charAt(n)]=n}return e[r][o]}var i={compressToBase64:function(r){if(null==r)return\"\";var n=i._compress(r,6,function(r){return o.charAt(r)});switch(n.length%4){default:case 0:return n;case 1:return n+\"===\";case 2:return n+\"==\";case 3:return n+\"=\"}},decompressFromBase64:function(r){return null==r?\"\":\"\"==r?null:i._decompress(r.length,32,function(n){return t(o,r.charAt(n))})},compressToUTF16:function(o){return null==o?\"\":i._compress(o,15,function(o){return r(o+32)})+\" \"},decompressFromUTF16:function(r){return null==r?\"\":\"\"==r?null:i._decompress(r.length,16384,function(o){return r.charCodeAt(o)-32})},compressToUint8Array:function(r){for(var o=i.compress(r),n=new Uint8Array(2*o.length),e=0,t=o.length;e<t;e++){var s=o.charCodeAt(e);n[2*e]=s>>>8,n[2*e+1]=s%256}return n},decompressFromUint8Array:function(o){if(null==o)return i.decompress(o);for(var n=new Array(o.length/2),e=0,t=n.length;e<t;e++)n[e]=256*o[2*e]+o[2*e+1];var s=[];return n.forEach(function(o){s.push(r(o))}),i.decompress(s.join(\"\"))},compressToEncodedURIComponent:function(r){return null==r?\"\":i._compress(r,6,function(r){return n.charAt(r)})},decompressFromEncodedURIComponent:function(r){return null==r?\"\":\"\"==r?null:(r=r.replace(/ /g,\"+\"),i._decompress(r.length,32,function(o){return t(n,r.charAt(o))}))},compress:function(o){return i._compress(o,16,function(o){return r(o)})},_compress:function(r,o,n){if(null==r)return\"\";var e,t,i,s={},u={},a=\"\",p=\"\",c=\"\",l=2,f=3,h=2,d=[],m=0,v=0;for(i=0;i<r.length;i+=1)if(a=r.charAt(i),Object.prototype.hasOwnProperty.call(s,a)||(s[a]=f++,u[a]=!0),p=c+a,Object.prototype.hasOwnProperty.call(s,p))c=p;else{if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++),s[p]=f++,c=String(a)}if(\"\"!==c){if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++)}for(t=2,e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;for(;;){if(m<<=1,v==o-1){d.push(n(m));break}v++}return d.join(\"\")},decompress:function(r){return null==r?\"\":\"\"==r?null:i._decompress(r.length,32768,function(o){return r.charCodeAt(o)})},_decompress:function(o,n,e){var t,i,s,u,a,p,c,l=[],f=4,h=4,d=3,m=\"\",v=[],g={val:e(0),position:n,index:1};for(t=0;t<3;t+=1)l[t]=t;for(s=0,a=Math.pow(2,2),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 2:return\"\"}for(l[3]=c,i=c,v.push(c);;){if(g.index>o)return\"\";for(s=0,a=Math.pow(2,d),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(c=s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 2:return v.join(\"\")}if(0==f&&(f=Math.pow(2,d),d++),l[c])m=l[c];else{if(c!==h)return null;m=i+i.charAt(0)}v.push(m),l[h++]=i+m.charAt(0),i=m,0==--f&&(f=Math.pow(2,d),d++)}}};return i}();\"function\"==typeof define&&define.amd?define(function(){return LZString}):\"undefined\"!=typeof module&&null!=module?module.exports=LZString:\"undefined\"!=typeof angular&&null!=angular&&angular.module(\"LZString\",[]).factory(\"LZString\",function(){return LZString});\n  const text = s => String(s || '').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'\"').replace(/&#39;/g,\"'\").trim();\n  const attr = (tag,key) => (new RegExp('\\\\b'+key+'=[\"\\']([^\"\\']*)[\"\\']','i').exec(tag)||[])[1]||'';\n  const image = s => s.startsWith('//') ? 'https:'+s : s;\n  function listing(ctx) {\n    const page=Math.max(1,ctx.page||1);\n    if (!ctx.responses.length) return {request:ctx.query ? '/s/'+encodeURIComponent(ctx.query)+'_p'+page+'.html' : '/list/view_p'+page+'.html'};\n    const books=[], seen=new Set();\n    for (const m of ctx.responses[0].matchAll(/<li\\b[^>]*>([\\s\\S]*?)<\\/li>/gi)) {\n      const a=/<a\\b([^>]*href=[\"']\\/comic\\/\\d+\\/[\"'][^>]*)>/i.exec(m[1]);\n      const img=/<img\\b([^>]*)>/i.exec(m[1]);\n      if (!a || !img) continue;\n      const path=attr(a[1],'href'), title=text(attr(a[1],'title') || attr(img[1],'alt'));\n      const cover=image(attr(img[1],'data-src') || attr(img[1],'src'));\n      if (title && cover && !seen.has(path)) {seen.add(path);books.push({path,title,cover});}\n    }\n    return {result:books.slice(0,100)};\n  }\n  function pages(body) {\n    // Decode only the packed string/dictionary data. No eval or site code runs.\n    const m=/\\}\\s*\\(\\s*'((?:\\\\.|[^'\\\\])*)'\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*'([^']*)'/.exec(body);\n    if (!m) throw Error('漫画柜未返回公开图片列表，可能已移除或需要验证');\n    const payload=m[1].replace(/\\\\'/g,\"'\").replace(/\\\\\\\\/g,'\\\\');\n    const dictionary=LZString.decompressFromBase64(m[4]);\n    if (!dictionary || dictionary.length>300000) throw Error('漫画柜图片字典无效');\n    const words=dictionary.split('|'), base=Number(m[2]);\n    if(base<2 || base>62 || Number(m[3])>10000) throw Error('漫画柜图片编码无效');\n    const digits='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';\n    const unpacked=payload.replace(/\\b[0-9a-zA-Z]+\\b/g, token=>{\n      let index=0;for(const ch of token){const n=digits.indexOf(ch);if(n<0||n>=base)return token;index=index*base+n;if(index>10000)return token;}\n      return words[index] || token;\n    });\n    const start=unpacked.indexOf('{'), end=unpacked.lastIndexOf('}');\n    const data=JSON.parse(unpacked.slice(start,end+1));\n    if(!Array.isArray(data.files)||!data.path||!data.sl)throw Error('漫画柜图片字段不完整');\n    return data.files.map(f=>'https://i.hamreus.com'+data.path+f+'?e='+encodeURIComponent(data.sl.e)+'&m='+encodeURIComponent(data.sl.m));\n  }\n  return {\n    search:listing, discover:listing,\n    detail(ctx) {\n      if(!ctx.responses.length)return {request:ctx.url};\n      const body=ctx.responses[0], chapters=[],seen=new Set();\n      const bookId=/\\/comic\\/(\\d+)/.exec(ctx.url)?.[1];\n      const groups=[...body.matchAll(/<div[^>]+id=[\"']chapter-list-\\d+[\"'][^>]*>([\\s\\S]*?)<\\/div>/gi)];\n      for(let g=0;g<groups.length;g++){\n        const lists=[...groups[g][1].matchAll(/<ul\\b[^>]*>([\\s\\S]*?)<\\/ul>/gi)].reverse();\n        for(const ul of lists)for(const a of ul[1].matchAll(/<a\\b([^>]*)>([\\s\\S]*?)<\\/a>/gi)){\n          const path=attr(a[1],'href'), title=text(attr(a[1],'title')||a[2]);\n          if(path.startsWith('/comic/'+bookId+'/')&&/\\.html$/.test(path)&&title&&!seen.has(path)){\n            seen.add(path);chapters.push({path,title,group:groups.length>1?(g===0?'单话':'单行本'):'连载'});\n          }\n        }\n      }\n      const intro=/<div[^>]+id=[\"']intro-all[\"'][^>]*>([\\s\\S]*?)<\\/div>/i.exec(body);\n      return {result:{description:text(intro?.[1]),chapters}};\n    },\n    pages(ctx){return !ctx.responses.length?{request:ctx.url}:{result:pages(ctx.responses[0])};},\n  };\n\n})()\n"
+        }
+      }
+    },
+    {
+      "apiVersion": 2,
+      "id": "manxia.source-peppercarrot",
+      "name": "小辣椒与萝卜头（中文）",
+      "version": "1.0.0",
+      "author": "Manxia",
+      "license": "MIT",
+      "locales": {
+        "en": {
+          "name": "Pepper Carrot Chinese Source"
+        }
+      },
+      "description": "David Revoy 官方中文漫画，包含完整已公布章节。这是单部作品的官方来源，不是综合漫画站；作品权利和许可见原站。",
+      "contributes": {
+        "source": {
+          "id": "peppercarrot",
+          "name": "小辣椒与萝卜头（中文）",
+          "baseUrl": "https://www.peppercarrot.com/",
+          "requestHosts": [
+            "www.peppercarrot.com"
+          ],
+          "imageHosts": [
+            "www.peppercarrot.com"
+          ],
+          "script": "(() => {\n  const root = 'https://www.peppercarrot.com';\n  const books = [\n    {path:'/cn/webcomics/peppercarrot.html', title:'小辣椒与萝卜头', author:'David Revoy',\n      cover:root+'/0_sources/ep01_Potion-of-Flight/low-res/cn_Pepper-and-Carrot_by-David-Revoy_E01P01.jpg'},\n  ];\n  const clean = s => s.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&#039;/g,\"'\").trim();\n  return {\n    discover: () => ({result: [books[0]]}),\n    search: ctx => ({result: [books[0]].filter(b => [b.title,'Pepper Carrot','小辣椒','萝卜头','蘿蔔頭','David Revoy'].some(s=>s.toLowerCase().includes(ctx.query.trim().toLowerCase())))}),\n    detail(ctx) {\n      if (!ctx.responses.length) return {request: ctx.url};\n      const chapters = [], seen = new Set();\n      for (const m of ctx.responses[0].matchAll(/<figcaption[^>]*>\\s*<a[^>]+href=[\"']([^\"']+\\/cn\\/webcomic\\/[^\"']+)[\"'][^>]*>([\\s\\S]*?)<\\/a>/gi)) {\n        if (!seen.has(m[1])) {seen.add(m[1]); chapters.push({path:m[1],title:clean(m[2])});}\n      }\n      return {result: {description:'年轻女巫小辣椒与猫萝卜头的奇幻冒险。漫画由 David Revoy 创作，中文翻译来自原站社区。作品权利与许可见原站。',chapters}};\n    },\n    pages(ctx) {\n      if (!ctx.responses.length) return {request: ctx.url};\n      const pages=[], seen=new Set();\n      for (const m of ctx.responses[0].matchAll(/<img[^>]+src=[\"']([^\"']+\\/0_sources\\/[^\"']+\\/low-res\\/cn_[^\"']+_E\\d+P\\d+\\.(?:jpg|png))[\"']/gi)) {\n        if (!/_E\\d+P00\\./.test(m[1]) && !seen.has(m[1])) {seen.add(m[1]); pages.push(m[1]);}\n      }\n      return {result: pages};\n    },\n  };\n})()\n"
+        }
+      }
+    },
+    {
       "apiVersion": 1,
       "id": "manxia.warm-paper",
       "name": "暖纸书房",

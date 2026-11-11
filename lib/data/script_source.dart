@@ -121,7 +121,7 @@ class ScriptSourceRuntime {
         try {
           final data = await fetch(
             url,
-            maxBytes: 48 * 1024,
+            maxBytes: 256 * 1024,
             abort: Future.any([abort.future, _closed.future]),
           ).timeout(requestTime);
           responses.add(utf8.decode(data, allowMalformed: true));
@@ -166,6 +166,7 @@ class ScriptSourceRuntime {
         '图片域名未获许可：${url.host}',
       );
     }
+    Dm5Source.imageOrigins[url.host] = source.base.toString();
     return '$scriptImagePrefix${Uri.encodeComponent(url.toString())}';
   }
 
@@ -184,9 +185,14 @@ class ScriptSourceRuntime {
     return raw;
   }
 
-  Future<List<Comic>> catalog(SourceProfile source, {String? query}) async {
+  Future<List<Comic>> catalog(
+    SourceProfile source, {
+    String? query,
+    int page = 1,
+  }) async {
     final raw = await _call(source, query == null ? 'discover' : 'search', {
       'query': query ?? '',
+      'page': page,
     });
     final books = <String, Comic>{};
     for (final row in _items(raw, 100)) {

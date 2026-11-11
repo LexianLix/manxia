@@ -1,0 +1,29 @@
+{
+  "apiVersion": 2,
+  "id": "manxia.source-kanman",
+  "name": "看漫（公开章节）",
+  "version": "1.0.0",
+  "author": "Manxia",
+  "license": "MIT",
+  "locales": {"en":{"name":"Kanman Public Source"}},
+  "description": "浏览和搜索看漫公开目录，读取免费公开章节；付费或登录内容按原站限制显示。",
+  "contributes": {
+    "source": {
+      "id": "kanman",
+      "pagination": true,
+      "name": "看漫（公开章节）",
+      "baseUrl": "https://www.kanman.com/",
+      "requestHosts": [
+        "www.kanman.com"
+      ],
+      "imageHosts": [
+        "image.yqmh.com",
+        "cms.samanlehua.com",
+        "hw-chapter2.kaimanhua.com",
+        "hw-chapter1.kaimanhua.com",
+        "mhpic.samanlehua.com",
+        "chapter2.kaimanhua.com"
+      ]
+    }
+  }
+}

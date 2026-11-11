@@ -11,6 +11,9 @@ class SourceProfile {
   }
   SourceProfile.scripted(this.json) {
     _validateIdentity();
+    if (json['pagination'] != null && json['pagination'] is! bool) {
+      throw const FormatException('分页标记需为布尔值');
+    }
     checkedScriptUrl(base);
     if (!validSourceScript(json['script']) ||
         !requestHosts.contains(base.host) ||

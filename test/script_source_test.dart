@@ -24,6 +24,42 @@ void main() {
   });
 
   test(
+    'paginated script catalogs keep the source identity across selection changes',
+    () async {
+      final runtime = ScriptSourceRuntime(
+        evaluate: (code) async {
+          if (code.contains('every(key =>')) return 'true';
+          return jsonEncode({
+            'result': [
+              {
+                'path': code.contains('"page":2') ? '/comic/2/' : '/comic/1/',
+                'title': 'Page',
+              },
+            ],
+          });
+        },
+      );
+      final registry = PluginRegistry(library, scripts: runtime);
+      final plugin = PluginPackage.decode(
+        File('plugins/packages/manxia.source-manhuagui.json').readAsBytesSync(),
+      );
+      await registry.install(plugin);
+      await library.setOption('source', 'manhuagui');
+      final hub = SourceHub(library, scripts: runtime);
+      addTearDown(hub.close);
+      expect((await hub.categories()).values, ['/']);
+      final first = await hub.catalog('/');
+      expect(first.canPaginate, true);
+      expect(first.books.single.sourceId, 'manhuagui');
+      await library.setOption('source', 'dm5');
+      final next = await hub.catalogNext(first.parameters, 2);
+      expect(next.single.sourceId, 'manhuagui');
+      expect(next.single.path, contains('2%2F'));
+      await registry.enable(plugin.id, false);
+      await expectLater(hub.catalogNext(first.parameters, 3), throwsException);
+    },
+  );
+  test(
     'enabled script source reaches the normal catalog, detail and reader paths',
     () async {
       final body = File('assets/characters/index.json').readAsStringSync();

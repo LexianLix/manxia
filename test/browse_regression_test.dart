@@ -25,6 +25,9 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues({});
       final source = _Catalog(count: 240);
+      final navigation = ValueNotifier<String?>(null);
+      addTearDown(navigation.dispose);
+      final navigator = GlobalKey<NavigatorState>();
       addTearDown(source.close);
       final library = (await tester.runAsync(() async {
         final l = Library(await SharedPreferences.getInstance());
@@ -37,13 +40,20 @@ void main() {
       }))!;
       await tester.pumpWidget(
         MaterialApp(
+          navigatorKey: navigator,
           home: Scaffold(
             body: DiscoveryPage(
               library: library,
               source: source,
               web: false,
               scrollable: true,
-              onOpen: (_) {},
+              onOpen: (_) => navigator.currentState!.push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      const Scaffold(body: Text('Book detail fixture')),
+                ),
+              ),
+              navigationRequest: navigation,
             ),
           ),
         ),
@@ -70,6 +80,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(mountedBooks(), lessThan(45));
       expect(source.requests, isEmpty);
+      final opened = tester.widgetList<BookLink>(find.byType(BookLink)).first;
+      opened.onOpen(opened.comic);
+      await tester.pumpAndSettle();
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(viewport.offset, closeTo(1600, 1));
+      navigation.value = '逛一逛';
+      await tester.pumpAndSettle();
+      navigation.value = '全部漫画';
+      await tester.pumpAndSettle();
+      expect(viewport.offset, closeTo(1600, 1));
       viewport.jumpTo(0);
       await tester.pumpAndSettle();
       await tester.tap(label('逛一逛'));

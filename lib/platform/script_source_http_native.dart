@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import '../data/script_source_policy.dart';
+import '../data/dm5_source.dart';
 
 bool _publicAddress(InternetAddress address) {
   final b = address.rawAddress;
@@ -31,6 +32,8 @@ Future<Uint8List> fetchScriptResource(
 }) async {
   checkedScriptUrl(url);
   final client = HttpClient()
+    ..userAgent =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
     ..connectionTimeout = const Duration(seconds: 6)
     ..findProxy = (_) => 'DIRECT';
   var closed = false;
@@ -64,6 +67,13 @@ Future<Uint8List> fetchScriptResource(
 
   Future<Uint8List> read() async {
     final request = await client.getUrl(url);
+    request.headers.set(
+      HttpHeaders.refererHeader,
+      image
+          ? Dm5Source.headersForImage(url.toString())['Referer'] ??
+                '${url.origin}/'
+          : '${url.origin}/',
+    );
     request.followRedirects = false;
     final response = await request.close();
     if (response.statusCode != 200) {

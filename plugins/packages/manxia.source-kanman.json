@@ -1,0 +1,34 @@
+{
+  "apiVersion": 2,
+  "id": "manxia.source-kanman",
+  "name": "看漫（公开章节）",
+  "version": "1.0.0",
+  "author": "Manxia",
+  "license": "MIT",
+  "locales": {
+    "en": {
+      "name": "Kanman Public Source"
+    }
+  },
+  "description": "浏览和搜索看漫公开目录，读取免费公开章节；付费或登录内容按原站限制显示。",
+  "contributes": {
+    "source": {
+      "id": "kanman",
+      "pagination": true,
+      "name": "看漫（公开章节）",
+      "baseUrl": "https://www.kanman.com/",
+      "requestHosts": [
+        "www.kanman.com"
+      ],
+      "imageHosts": [
+        "image.yqmh.com",
+        "cms.samanlehua.com",
+        "hw-chapter2.kaimanhua.com",
+        "hw-chapter1.kaimanhua.com",
+        "mhpic.samanlehua.com",
+        "chapter2.kaimanhua.com"
+      ],
+      "script": "(() => {\n  function listing(ctx) {\n    if (!ctx.responses.length) return {request: '/api/getsortlist/?page='+Math.max(1,ctx.page||1)+'&pagesize=40&search_key=' + encodeURIComponent(ctx.query || '')};\n    const data = JSON.parse(ctx.responses[0]);\n    if (data.status !== 0 || !Array.isArray(data.data)) throw Error('看漫目录暂不可用');\n    return {result: data.data.slice(0, 100).map(b => ({path: '/' + b.comic_id + '/', title: b.comic_name,\n      cover: String(b.cover_img || 'https://image.yqmh.com/mh/' + b.comic_id + '.jpg').replace(/^http:/, 'https:'),\n      author: b.comic_author || '', latest: b.last_chapter_name || ''}))};\n  }\n  return {\n    search: listing, discover: listing,\n    detail(ctx) {\n      const id=/\\/(\\d+)\\/?$/.exec(ctx.url)?.[1];\n      if(!id)throw Error('作品编号无效');\n      if (!ctx.responses.length) return {request: '/api/getchapterlist/?comic_id='+id};\n      const data=JSON.parse(ctx.responses[0]);\n      if(data.status!==0||!Array.isArray(data.data))throw Error('看漫未返回公开章节目录');\n      const seen = new Set(), chapters = [];\n      for (const row of [...data.data].sort((a,b)=>Number(b.order_num||0)-Number(a.order_num||0))) {\n        if(Number(row.price||0)!==0)continue;\n        const slug=String(row.chapter_newid||'');\n        if(!/^[a-z0-9_-]+$/i.test(slug))continue;\n        const path='/'+id+'/'+slug+'.html', title=String(row.chapter_name||'').trim();\n        if(title&&!seen.has(path)){seen.add(path);chapters.push({path,title});}\n      }\n      return {result: {description: '此来源提供原站公开章节，完整作品信息请查看原站。', chapters}};\n    },\n    pages(ctx) {\n      if (!ctx.responses.length) return {request: ctx.url};\n      // Read the public image array only; never evaluate the site's scripts.\n      const match = /\\bchapter_img_list\\s*:\\s*(\\[(?:\"(?:\\\\.|[^\"\\\\])*\"\\s*,?\\s*)*\\])/i.exec(ctx.responses[0]);\n      if (!match) throw Error('该章未公开图片，可能需要在原站登录或购买');\n      const pages = JSON.parse(match[1]);\n      if (!pages.length) throw Error('该章暂无公开可读图片');\n      return {result: pages.map(p => p.replace(/^http:/, 'https:'))};\n    },\n  };\n})()\n"
+    }
+  }
+}

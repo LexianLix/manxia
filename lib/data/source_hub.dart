@@ -7,6 +7,7 @@ import 'library.dart';
 import 'source_profile.dart';
 import 'plugin.dart';
 import 'script_source.dart';
+import 'source_catalog.dart';
 export 'source_profile.dart';
 
 typedef SourceSearchResult = ({
@@ -119,7 +120,6 @@ class SourceHub extends Dm5Source {
   void refreshImageOrigins() {
     for (final json in profiles) {
       final p = SourceProfile.enabled(json);
-      if (p.script != null) continue;
       for (final host in p.imageHosts) {
         Dm5Source.imageOrigins[host] = p.base.toString();
       }
@@ -212,6 +212,36 @@ class SourceHub extends Dm5Source {
       ranks: const {},
       capturedAt: DateTime.now().toUtc().toIso8601String(),
     );
+  }
+
+  @override
+  Future<Map<String, String>> categories() async =>
+      selected == null ? super.categories() : {'全部漫画': '/'};
+
+  @override
+  Future<SourceCatalog> catalog(String path) async {
+    final p = selected;
+    if (p == null) return super.catalog(path);
+    final books = p.script == null
+        ? p.catalog(await customPage(p, p.url(path)))
+        : await scripts.catalog(p);
+    return SourceCatalog(
+      books: books,
+      sorts: const {},
+      statuses: const {},
+      parameters: p.script != null && p.json['pagination'] == true
+          ? {'sourceId': p.id, 'pagesize': '40'}
+          : const {},
+    );
+  }
+
+  @override
+  Future<List<Comic>> catalogNext(Map<String, String> specs, int page) async {
+    final id = specs['sourceId'];
+    if (id == null) return super.catalogNext(specs, page);
+    final json = profiles.where((p) => p['id'] == id).firstOrNull;
+    if (json == null) throw SourceException('这个漫画源已停用或被移除，请重新选择。');
+    return scripts.catalog(SourceProfile.scripted(json), page: page);
   }
 
   @override

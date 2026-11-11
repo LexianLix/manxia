@@ -114,7 +114,8 @@ class _ContinuousStripState extends State<ContinuousStrip> {
   bool restored = false, scrolling = false, anchoring = false;
   int reserve = 0;
   double height = 600;
-  List<_Item> get items => [
+  List<_Item>? itemCache;
+  List<_Item> get items => itemCache ??= [
     for (final s in segments) ...[
       (segment: s, page: -1),
       for (var i = 0; i < s.urls.length; i++) (segment: s, page: i),
@@ -236,12 +237,16 @@ class _ContinuousStripState extends State<ContinuousStrip> {
       );
       if (!mounted || !widget.active) return;
       final segment = _Segment(next, List.unmodifiable(urls));
-      if (decoded) firstPageReady.add(next.path);
+      if (!decoded) throw SourceException('邻章首屏加载失败，请重试。');
+      firstPageReady.add(next.path);
       if (direction < 0) {
         pendingBefore = segment;
         await commitBefore();
       } else {
-        setState(() => segments.add(segment));
+        setState(() {
+          segments.add(segment);
+          itemCache = null;
+        });
       }
     } catch (error) {
       if (mounted) setState(() => failures[direction] = error);
@@ -267,6 +272,7 @@ class _ContinuousStripState extends State<ContinuousStrip> {
     }
     setState(() {
       segments.insert(0, incoming);
+      itemCache = null;
       pendingBefore = null;
       reserve = 0;
     });
@@ -295,11 +301,12 @@ class _ContinuousStripState extends State<ContinuousStrip> {
     final live = kept.expand((s) => s.urls).map(aspectKey).toSet();
     aspects.removeWhere((key, _) => !live.contains(key));
     anchoring = true;
-    setState(
-      () => segments
+    setState(() {
+      segments
         ..clear()
-        ..addAll(kept),
-    );
+        ..addAll(kept);
+      itemCache = null;
+    });
     if (removed > 0) {
       scroll.jumpTo(
         index: anchor.index - removed,
@@ -376,6 +383,7 @@ class _ContinuousStripState extends State<ContinuousStrip> {
       if (!mounted || !segments.contains(segment)) return;
       setState(() {
         segment.urls = List.unmodifiable(fresh);
+        itemCache = null;
         segment.error = null;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {

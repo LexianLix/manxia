@@ -26,7 +26,7 @@ internal class ScriptSourceHost(private val context: Context, messenger: BinaryM
                 return@setMethodCallHandler
             }
             val code = call.arguments as? String
-            if (code.isNullOrBlank() || code.toByteArray(Charsets.UTF_8).size > 192 * 1024) {
+            if (code.isNullOrBlank() || code.toByteArray(Charsets.UTF_8).size > 1024 * 1024) {
                 result.error("size", "脚本执行输入超过大小限制", null)
                 return@setMethodCallHandler
             }

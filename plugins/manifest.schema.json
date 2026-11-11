@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/manifest.schema.json",
-  "title": "Manxia Plugin API 1",
+  "title": "Manxia Plugin API 1 / 2",
   "type": "object",
   "required": [
     "apiVersion",
@@ -18,7 +18,7 @@
       "type": "string"
     },
     "apiVersion": {
-      "const": 1
+      "enum": [1, 2]
     },
     "id": {
       "type": "string",
@@ -147,15 +147,16 @@
           "required": [
             "id",
             "name",
-            "baseUrl",
-            "cards",
-            "title",
-            "link",
-            "cover",
-            "chapters",
-            "pages"
+            "baseUrl"
+          ],
+          "oneOf": [
+            {"required": ["cards", "title", "link", "cover", "chapters", "pages"], "not": {"required": ["script"]}},
+            {"required": ["script"]}
           ],
           "properties": {
+            "script": {"type": "string", "minLength": 1, "maxLength": 24576},
+            "pagination": {"type": "boolean"},
+            "requestHosts": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string"}},
             "baseUrl": {
               "type": "string",
               "pattern": "^https://"

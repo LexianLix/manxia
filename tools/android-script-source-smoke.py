@@ -169,6 +169,21 @@ def main():
         result['reading_time_and_pages_recorded'] = True
         result['personal_review_persisted'] = True
         result['position_history_restored'] = True
+        result['bundled_sources'] = {}
+        for label in ['Kanman Public Source', 'Manhuagui Source', 'Pepper Carrot Chinese Source']:
+            open_plugins()
+            type_query(label)
+            nav.wait_ui(label)
+            nav.tap('Install')
+            nav.wait_ui('Script request domains')
+            nav.tap('Install & enable')
+            nav.scroll_to('Test script source')
+            nav.tap('Test script source')
+            nav.wait_ui('Run source test')
+            nav.tap('Run source test')
+            nav.wait_ui('First image decoded', timeout=60)
+            nav.capture('bundled-' + label.split()[0].lower())
+            result['bundled_sources'][label] = {'discovery_directory_first_image_decoded': True}
         result['passed'] = True
     finally:
         (nav.OUT / 'flow-logcat.txt').write_text(

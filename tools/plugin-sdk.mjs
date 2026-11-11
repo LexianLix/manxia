@@ -63,6 +63,7 @@ export function validatePlugin(p) {
     const s = resolved.source, url = new URL(s.baseUrl);
     if (url.protocol !== 'https:' || url.username || url.password || !/^[a-z0-9_-]{1,40}$/.test(s.id) || ['dm5','local'].includes(s.id)) fail('Invalid source address/id');
     if (p.apiVersion === 2) {
+      if (s.pagination != null && typeof s.pagination !== 'boolean') fail('pagination must be boolean');
       const domain = host => typeof host === 'string' && host.length <= 253 &&
         /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/.test(host);
       if (url.port || url.hash || !domain(url.hostname) || s.baseUrl.length > 2048 ||
@@ -101,6 +102,10 @@ async function main() {
   } else if (command === 'build') {
     const folder = resolve(root, 'plugins/packages');
     await writeFile(resolve(folder, 'manxia.script-demo.json'), await packSource(resolve(root, 'plugins/examples/script-source')));
+    for (const name of ['kanman', 'manhuagui', 'peppercarrot']) {
+      const sourceFolder = resolve(root, 'plugins/sources', name);
+      await writeFile(resolve(folder, `manxia.source-${name}.json`), await packSource(sourceFolder));
+    }
     const manifests = [], entries = [], ids = new Set();
     for (const name of (await readdir(folder)).filter(n => n.endsWith('.json')).sort()) {
       const original = await readFile(resolve(folder,name));

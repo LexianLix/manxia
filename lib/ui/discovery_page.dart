@@ -51,7 +51,9 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   bool refreshing = false, applying = false;
   bool hasBrowsed = false, catalogVisited = false;
   ScrollPosition? ancestorScroll;
-  final viewportScroll = ScrollController();
+  final viewportScroll = ScrollController(keepScrollOffset: false);
+  final sectionOffsets = <String, double>{};
+  int sectionRequest = 0;
   ModalRoute<dynamic>? popupRoute;
   void noteBrowse() {
     if ((widget.scrollable && viewportScroll.hasClients
@@ -73,11 +75,25 @@ class _DiscoveryPageState extends State<DiscoveryPage>
   String? topic;
   final tabsKey = GlobalKey();
   void selectTab(String value) {
+    final next = value == '更新' ? '收藏更新' : value;
+    if (next == tab) return;
+    if (widget.scrollable && viewportScroll.hasClients) {
+      sectionOffsets[tab] = viewportScroll.offset;
+    }
+    final generation = ++sectionRequest;
     setState(() {
-      tab = value == '更新' ? '收藏更新' : value;
+      tab = next;
       if (tab == '全部漫画') catalogVisited = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != sectionRequest) return;
+      final saved = sectionOffsets[next];
+      if (widget.scrollable && saved != null && viewportScroll.hasClients) {
+        viewportScroll.jumpTo(
+          saved.clamp(0, viewportScroll.position.maxScrollExtent),
+        );
+        return;
+      }
       if (mounted && tabsKey.currentContext != null) {
         Scrollable.ensureVisible(
           tabsKey.currentContext!,
@@ -876,7 +892,10 @@ class _DiscoveryPageState extends State<DiscoveryPage>
             ],
           ),
         ),
-        widget.library.option<String>('source', 'dm5') == 'dm5'
+        (widget.library.option<String>('source', 'dm5') == 'dm5' ||
+                widget.source is SourceHub &&
+                    (widget.source as SourceHub).selected?.json['pagination'] ==
+                        true)
             ? SourceBrowser(
                 source: widget.source,
                 library: widget.library,

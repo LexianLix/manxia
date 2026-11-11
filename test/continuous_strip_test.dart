@@ -220,4 +220,40 @@ void main() {
       control.dispose();
     },
   );
+  testWidgets('a neighbor with an undecodable first image is not appended', (
+    tester,
+  ) async {
+    final urls = await prepare(tester), control = ReaderControl();
+    final source = _Source(['offline:missing-first-image']);
+    addTearDown(source.close);
+    String chapter = '';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ContinuousStrip(
+          chapter: const Chapter('/c0/', 'Zero'),
+          urls: urls,
+          catalog: const [Chapter('/c0/', 'Zero'), Chapter('/c1/', 'One')],
+          source: source,
+          control: control,
+          startPage: 3,
+          position: 0,
+          web: false,
+          onPosition: (c, _, _, _) => chapter = c.path,
+          onReady: () {},
+          onInitialError: (e) => fail('$e'),
+          onRestart: (_) {},
+          active: true,
+        ),
+      ),
+    );
+    await settle(tester);
+    expect(chapter, '/c0/');
+    expect(source.calls, ['/c1/']);
+    final dynamic state = tester.state(find.byType(ContinuousStrip));
+    expect(state.items.length, urls.length + 1);
+    await settle(tester);
+    expect(source.calls, ['/c1/']);
+    await tester.pumpWidget(const SizedBox());
+    control.dispose();
+  });
 }

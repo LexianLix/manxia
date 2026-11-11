@@ -24,7 +24,7 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
   Uint8List? preview;
 
   Future<void> run() async {
-    if (runtime != null || query.text.trim().isEmpty) return;
+    if (runtime != null) return;
     FocusScope.of(context).unfocus();
     final probe = ScriptSourceRuntime();
     setState(() {
@@ -38,7 +38,11 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
     bool current() => mounted && identical(runtime, probe);
     var loadingImage = false;
     try {
-      final books = await probe.catalog(source, query: query.text.trim());
+      final keyword = query.text.trim();
+      final books = await probe.catalog(
+        source,
+        query: keyword.isEmpty ? null : keyword,
+      );
       if (!current()) return;
       if (books.isEmpty) {
         throw ScriptSourceFailure(ScriptFailureKind.empty, '搜索未找到作品');
@@ -49,7 +53,7 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
       });
       final detail = await probe.detail(source, books.first);
       if (!current()) return;
-      final first = detail.chapters.first;
+      final first = detail.chapters.last;
       setState(() {
         passed = 2;
         chapter = first.title;
@@ -121,7 +125,7 @@ class _ScriptSourceCheckPageState extends State<ScriptSourceCheckPage> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              const LocalizedText('搜索后试读首个结果的第一章，并实际解码第一张图片。'),
+              const LocalizedText('留空检查发现目录，或输入关键词搜索。试读首个结果最早一章，并实际解码首图。'),
               const SizedBox(height: 16),
               TextField(
                 controller: query,

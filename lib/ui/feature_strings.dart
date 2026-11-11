@@ -1,4 +1,7 @@
 const featureEnglish = <String, String>{
+  '留空检查发现目录，或输入关键词搜索。试读首个结果最早一章，并实际解码首图。':
+      'Leave empty to check discovery, or search a keyword. Decode the first image of the earliest chapter.',
+  '邻章首屏加载失败，请重试。': 'The next chapter image could not load. Please retry.',
   '你的漫匣，由你定义。': 'Your Manxia. Your way.',
   '小时': 'hr',
   '分钟': 'min',
@@ -264,6 +267,9 @@ const featureEnglish = <String, String>{
 };
 
 const featureTraditional = <String, String>{
+  '留空检查发现目录，或输入关键词搜索。试读首个结果最早一章，并实际解码首图。':
+      '留空檢查探索目錄，或輸入關鍵字搜尋。試讀首個結果最早一章，並解碼首圖。',
+  '邻章首屏加载失败，请重试。': '鄰章首屏載入失敗，請重試。',
   '你的漫匣，由你定义。': '你的漫匣，由你定義。',
   '小时': '小時',
   '分钟': '分鐘',

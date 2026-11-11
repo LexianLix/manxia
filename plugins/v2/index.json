@@ -26,6 +26,24 @@
       "sha256": "9ade51ac1c45b4df822eb08ae7544b0bc9737213e64b187ce800569debcd87fb"
     },
     {
+      "id": "manxia.source-kanman",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.source-kanman.json",
+      "sha256": "8ba4b08e7027dd0e10a2c0f2169470ea0ecc98b10ceb149a1e342d4bfd6e29cb"
+    },
+    {
+      "id": "manxia.source-manhuagui",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.source-manhuagui.json",
+      "sha256": "70180118cb6edebeb9a02b5e3083d69a14f7a5f929803cd919b41ede16476da7"
+    },
+    {
+      "id": "manxia.source-peppercarrot",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.source-peppercarrot.json",
+      "sha256": "2f5e05cb137528c5ba2178dc73dbe97410d7f7ccf5a98140a77d2c5f0e37f6ee"
+    },
+    {
       "id": "manxia.warm-paper",
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/LexianLix/manxia/main/plugins/packages/manxia.warm-paper.json",

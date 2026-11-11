@@ -8,6 +8,13 @@ https://github.com/Kyant0/AndroidLiquidGlass
 https://developer.apple.com/design/human-interface-guidelines/materials
 The reference application's GPL-licensed source code is not incorporated here.
 
+The Manhuagui source plugin bundles lz-string 1.5.0 (MIT), Copyright (c) 2013
+pieroxy. Full license retained in plugins/sources/manhuagui/LICENSE-lz-string.txt
+and in the bundled plugin script. https://github.com/pieroxy/lz-string
+Source adapters are independently implemented against public page/API data.
+Kanman, Manhuagui and Pepper&Carrot content belongs to its respective creators
+and rights holders; the application's MIT license does not cover that content.
+
 Bundled font: Source Han Serif CN Regular, Copyright Adobe.
 Licensed under SIL Open Font License 1.1, retained in assets/fonts/OFL.txt.
 Upstream: https://github.com/adobe-fonts/source-han-serif
