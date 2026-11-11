@@ -37,6 +37,13 @@ test('Manhuagui decodes data without evaluating a packed function',async()=>{
   assert.throws(()=>api.pages(ctx(['<title>Just a moment...</title>'])),/未返回公开图片/);
 });
 
+test('Manhuagui keeps real volume and side-story groups even with repeated DOM ids',async()=>{
+  const api=await source('manhuagui');
+  const html='<h4><span>番外篇</span></h4><div id="chapter-list-0"><ul><li><a href="/comic/12/2.html" title="Extra">Extra</a></li></ul></div><h4><span>单行本</span></h4><div id="chapter-list-0"><ul><li><a href="/comic/12/1.html" title="第01卷">第01卷</a></li></ul></div>';
+  const rows=api.detail(ctx([html],{url:'https://www.manhuagui.com/comic/12/'})).result.chapters;
+  assert.equal(rows[0].group,'番外篇');assert.equal(rows[1].group,'单行本');
+});
+
 test('Pepper Carrot preserves Chinese pages and excludes header and other-language images',async()=>{
   const api=await source('peppercarrot');
   assert.equal(api.search(ctx([], {query:'萝卜头'})).result.length,1);

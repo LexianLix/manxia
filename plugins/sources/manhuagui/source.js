@@ -68,11 +68,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       const bookId=/\/comic\/(\d+)/.exec(ctx.url)?.[1];
       const groups=[...body.matchAll(/<div[^>]+id=["']chapter-list-\d+["'][^>]*>([\s\S]*?)<\/div>/gi)];
       for(let g=0;g<groups.length;g++){
+        const heading=[...body.slice(0,groups[g].index).matchAll(/<h4\b[^>]*>([\s\S]*?)<\/h4>/gi)].pop();
+        const group=text(heading?.[1])||'连载';
         const lists=[...groups[g][1].matchAll(/<ul\b[^>]*>([\s\S]*?)<\/ul>/gi)].reverse();
         for(const ul of lists)for(const a of ul[1].matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)){
           const path=attr(a[1],'href'), title=text(attr(a[1],'title')||a[2]);
           if(path.startsWith('/comic/'+bookId+'/')&&/\.html$/.test(path)&&title&&!seen.has(path)){
-            seen.add(path);chapters.push({path,title,group:groups.length>1?(g===0?'单话':'单行本'):'连载'});
+            seen.add(path);chapters.push({path,title,group});
           }
         }
       }
