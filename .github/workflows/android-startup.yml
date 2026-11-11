@@ -38,6 +38,11 @@ on:
         type: boolean
         default: false
         required: false
+      bundled_sources_only:
+        description: Limit script source smoke to bundled public providers
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -125,7 +130,7 @@ jobs:
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third
             python3 tools/android-icon-smoke.py --output startup-evidence/launcher
             if [ '${{ inputs.browse_flow }}' = 'true' ]; then python3 tools/android-navigation-smoke.py startup.apk || touch navigation-failed; fi
-            if [ '${{ inputs.script_sources }}' = 'true' ] && [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py || touch script-source-failed; fi
+            if [ '${{ inputs.script_sources }}' = 'true' ] && [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py ${{ inputs.bundled_sources_only && '--bundled-only' || '' }} || touch script-source-failed; fi
             test ! -f navigation-failed && test ! -f script-source-failed
       - uses: actions/upload-artifact@v4
         if: always()
