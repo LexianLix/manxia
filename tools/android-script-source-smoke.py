@@ -48,12 +48,17 @@ def tap_node(node):
 
 
 def hide_keyboard():
+    time.sleep(.35)
     ime = nav.adb('shell', 'dumpsys', 'input_method')
-    if re.search(r'\bm(?:InputShown|IsInputViewShown)=true\b', ime):
+    window = nav.adb('shell', 'dumpsys', 'window')
+    visible = re.search(r'\bm(?:InputShown|IsInputViewShown)=true\b', ime)
+    visible = visible or any('type=ime' in line and 'visible=true' in line for line in window.splitlines())
+    if visible:
         nav.adb('shell', 'input', 'keyevent', '4')
+        time.sleep(.35)
 
 
-def type_query(text):
+def type_query(text, submit=False):
     fields = [node for node in ET.fromstring(nav.read_ui()).iter('node')
               if node.get('class') == 'android.widget.EditText']
     if len(fields) != 1:
@@ -61,6 +66,11 @@ def type_query(text):
     tap_node(fields[0])
     time.sleep(.5)
     nav.adb('shell', 'input', 'text', text.replace(' ', '%s'))
+    if submit:
+        # Complete the single-line plugin filter before a permission dialog.
+        # Otherwise Android restores its focus/IME after the dialog closes.
+        nav.adb('shell', 'input', 'keyevent', '66')
+        time.sleep(.5)
     hide_keyboard()
 
 
@@ -81,7 +91,7 @@ def main():
     try:
         (nav.OUT / 'webview.txt').write_text(nav.adb('shell', 'dumpsys', 'webviewupdate'), encoding='utf-8')
         open_plugins()
-        type_query('Xiaxia Demo')
+        type_query('Xiaxia Demo', submit=True)
         nav.wait_ui('Xiaxia Demo Source')
         nav.tap('Install')
         nav.wait_ui('Script request domains')
@@ -172,11 +182,13 @@ def main():
         result['bundled_sources'] = {}
         for label in ['Kanman Public Source', 'Manhuagui Source', 'Pepper Carrot Chinese Source']:
             open_plugins()
-            type_query(label)
+            type_query(label, submit=True)
             nav.wait_ui(label)
             nav.tap('Install')
             nav.wait_ui('Script request domains')
             nav.tap('Install & enable')
+            nav.wait_ui('Uninstall')
+            hide_keyboard()
             nav.scroll_to('Test script source')
             nav.tap('Test script source')
             nav.wait_ui('Run source test')
@@ -191,6 +203,8 @@ def main():
         if not result.get('passed'):
             try:
                 nav.capture('failure')
+                (nav.OUT / 'failure-ime.txt').write_text(nav.adb('shell', 'dumpsys', 'input_method'), encoding='utf-8')
+                (nav.OUT / 'failure-window.txt').write_text(nav.adb('shell', 'dumpsys', 'window'), encoding='utf-8')
             except Exception:
                 pass
         (nav.OUT / 'script-source-verdict.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
