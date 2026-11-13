@@ -203,11 +203,7 @@ class _DetailPageState extends State<DetailPage> {
           : comic.sourceId == 'dm5'
           ? '动漫屋'
           : widget.source is SourceHub
-          ? (widget.source as SourceHub).profiles
-                    .where((p) => p['id'] == comic.sourceId)
-                    .map((p) => p['name'] as String)
-                    .firstOrNull ??
-                '自定义书源'
+          ? (widget.source as SourceHub).sourceNames[comic.sourceId] ?? '自定义书源'
           : '自定义书源';
       final chapters = snapshot.data?.chapters ?? <Chapter>[];
       final groups = chapters.map((c) => c.group).toSet().toList();
