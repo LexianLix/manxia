@@ -182,6 +182,7 @@ void main() {
         profile('broken'),
       ]);
       final hub = SourceHub(
+        adapters: const {},
         library,
         transport: MockClient((request) async {
           return switch (request.url.host) {
@@ -224,6 +225,7 @@ void main() {
       final delayed = Completer<http.Response>();
       final requests = <Uri>[];
       final hub = SourceHub(
+        adapters: const {},
         library,
         transport: MockClient((r) async {
           requests.add(r.url);
@@ -375,7 +377,7 @@ void main() {
       await tester.runAsync(() async {
         library = await state();
       });
-      final hub = SourceHub(library);
+      final hub = SourceHub(library, adapters: const {});
       addTearDown(hub.close);
       await tester.pumpWidget(
         _app(
@@ -480,7 +482,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 class _UnavailableHub extends SourceHub {
-  _UnavailableHub(super.library, {super.transport});
+  _UnavailableHub(super.library, {super.transport}) : super(adapters: const {});
   @override
   Future<ComicDetail> detail(Comic c) async {
     if (c.sourceId == 'dm5') throw SourceException('应版权方要求，原站已移除本作品章节链接。');
@@ -495,7 +497,7 @@ class _UnavailableHub extends SourceHub {
 }
 
 class _GroupedHub extends SourceHub {
-  _GroupedHub(super.library);
+  _GroupedHub(super.library) : super(adapters: const {});
 
   @override
   Future<List<Comic>> searchIn(String sourceId, String query) async {

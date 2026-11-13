@@ -184,7 +184,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
       }
     }
     if (widget.source is SourceHub &&
-        (widget.source as SourceHub).selected != null) {
+        (widget.source as SourceHub).selectedId != 'dm5') {
       return null;
     }
     return Discovery.fromJson(
@@ -894,8 +894,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
         ),
         (widget.library.option<String>('source', 'dm5') == 'dm5' ||
                 widget.source is SourceHub &&
-                    (widget.source as SourceHub).selected?.json['pagination'] ==
-                        true)
+                    (widget.source as SourceHub).hasCatalogBrowser)
             ? SourceBrowser(
                 source: widget.source,
                 library: widget.library,

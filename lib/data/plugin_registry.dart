@@ -9,6 +9,7 @@ import 'character_assets.dart';
 import 'character_definition.dart';
 import 'script_source.dart';
 import 'source_profile.dart';
+import 'retired_sources.dart';
 export 'plugin.dart';
 
 class PluginRegistry {
@@ -61,6 +62,9 @@ class PluginRegistry {
     Map<String, dynamic>? restoredConfig,
     bool enabled = true,
   }) async {
+    if (retiredSourcePlugins.contains(plugin.id)) {
+      throw const FormatException('此漫画源插件已撤下，请在设置中选择内置漫画源。');
+    }
     final list = installed;
     final old = entry(plugin.id);
     if (restoredConfig == null &&
@@ -294,6 +298,7 @@ class PluginCatalog {
         jsonDecode(await rootBundle.loadString('assets/plugins/catalog.json'))
             as Map;
     return (root['plugins'] as List)
+        .where((e) => !retiredSourcePlugins.contains(e['id']))
         .map((e) => ManxiaPlugin(Map<String, dynamic>.from(e)))
         .toList();
   }
@@ -312,6 +317,7 @@ class PluginCatalog {
     }
     final plugins = <ManxiaPlugin>[];
     for (final e in root['plugins'] as List) {
+      if (retiredSourcePlugins.contains(e['id'])) continue;
       final bytes = await download(e['url'], transport: transport);
       if (e['sha256'] != sha256.convert(bytes).toString()) {
         throw const FormatException('插件内容与 SHA-256 不一致');

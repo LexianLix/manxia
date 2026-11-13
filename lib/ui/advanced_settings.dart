@@ -14,6 +14,7 @@ import '../data/library.dart';
 import '../data/dm5_source.dart';
 import '../data/file_actions.dart';
 import '../data/source_hub.dart';
+import '../data/builtin_source.dart';
 import '../data/sync_service.dart';
 import '../data/offline_library.dart';
 import '../data/plugin.dart';
@@ -799,6 +800,7 @@ class _AdvancedSettingsState extends State<AdvancedSettings> {
     ),
     choice('source', '默认发现源', {
       'dm5': '动漫屋',
+      ...BuiltinSource.names,
       for (final p in [
         ...library.sourceProfiles,
         ...PluginSnapshot(library.options).sources,

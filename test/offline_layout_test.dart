@@ -18,7 +18,7 @@ void main() {
       await tester.runAsync(
         () => (FontLoader(
           'RoomSans',
-        )..addFont(rootBundle.load('assets/fonts/NotoSansSC.ttf'))).load(),
+        )..addFont(rootBundle.load('assets/fonts/ManxiaSansSC-Regular.ttf'))).load(),
       );
       final library = await fixtures.library();
       final source = Dm5Source();

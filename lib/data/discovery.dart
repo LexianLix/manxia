@@ -47,12 +47,15 @@ class Discovery {
   }
   List<Comic> daily(DateTime day, {int edition = 0, int count = 12}) {
     final date = day.toIso8601String().substring(0, 10);
+    // Hash once per book, rather than twice for every sort comparison.
+    final scores = {
+      for (final book in books)
+        book.path: sha256
+            .convert(utf8.encode('$date/$edition/${book.path}'))
+            .toString(),
+    };
     final sorted = {for (final book in books) book.path: book}.values.toList()
-      ..sort((a, b) {
-        String score(Comic c) =>
-            sha256.convert(utf8.encode('$date/$edition/${c.path}')).toString();
-        return score(a).compareTo(score(b));
-      });
+      ..sort((a, b) => scores[a.path]!.compareTo(scores[b.path]!));
     return sorted.take(count).toList();
   }
 

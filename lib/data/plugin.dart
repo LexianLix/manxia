@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'source_profile.dart';
 import 'character_definition.dart';
+import 'retired_sources.dart';
 
 /// Manifest validation for declarative extensions and script sources.
 class ManxiaPlugin {
@@ -258,6 +259,9 @@ class PluginSnapshot {
       try {
         final entry = Map<String, dynamic>.from(raw);
         if (entry['enabled'] != true) continue;
+        if (retiredSourcePlugins.contains((entry['manifest'] as Map?)?['id'])) {
+          continue;
+        }
         final plugin = ManxiaPlugin(
           Map<String, dynamic>.from(entry['manifest']),
         );

@@ -8,6 +8,7 @@ import 'backup_preview.dart';
 import 'reading_profile.dart';
 import 'library_notice.dart';
 import 'reading_journal.dart';
+import 'retired_sources.dart';
 
 mixin LibraryFeatures on ChangeNotifier {
   final notices = ValueNotifier<LibraryNotice?>(null);
@@ -418,6 +419,7 @@ mixin LibraryFeatures on ChangeNotifier {
     journal.merge(j['journal'], tombstones);
     // Device addresses, passwords and appearance remain local. Reader preferences
     // live with each comic's timestamped metadata and are merged above.
+    retireSourcePlugins(options);
     await persistFeatures();
   }
 }

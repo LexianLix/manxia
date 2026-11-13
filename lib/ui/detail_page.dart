@@ -362,12 +362,8 @@ class _DetailPageState extends State<DetailPage> {
                   await copyDiagnostics(comic.path);
                 } else {
                   try {
-                    final url =
-                        comic.path.startsWith('custom:') &&
-                            widget.source is SourceHub
-                        ? (widget.source as SourceHub)
-                              .profile(comic.path)
-                              .decode(comic.path)
+                    final url = widget.source is SourceHub
+                        ? (widget.source as SourceHub).originalUrl(comic.path)
                         : Uri.parse('${Dm5Source.origin}${comic.path}');
                     await launchUrl(url, mode: LaunchMode.externalApplication);
                   } catch (error) {

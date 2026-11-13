@@ -40,20 +40,23 @@ void main() {
         },
       );
       final registry = PluginRegistry(library, scripts: runtime);
+      final sourceManifest =
+          jsonDecode(jsonEncode(manifest)) as Map<String, dynamic>;
+      sourceManifest['contributes']['source']['pagination'] = true;
       final plugin = PluginPackage.decode(
-        File('plugins/packages/manxia.source-manhuagui.json').readAsBytesSync(),
+        utf8.encode(jsonEncode(sourceManifest)),
       );
       await registry.install(plugin);
-      await library.setOption('source', 'manhuagui');
+      await library.setOption('source', 'xiaxia-demo');
       final hub = SourceHub(library, scripts: runtime);
       addTearDown(hub.close);
       expect((await hub.categories()).values, ['/']);
       final first = await hub.catalog('/');
       expect(first.canPaginate, true);
-      expect(first.books.single.sourceId, 'manhuagui');
+      expect(first.books.single.sourceId, 'xiaxia-demo');
       await library.setOption('source', 'dm5');
       final next = await hub.catalogNext(first.parameters, 2);
-      expect(next.single.sourceId, 'manhuagui');
+      expect(next.single.sourceId, 'xiaxia-demo');
       expect(next.single.path, contains('2%2F'));
       await registry.enable(plugin.id, false);
       await expectLater(hub.catalogNext(first.parameters, 3), throwsException);

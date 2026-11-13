@@ -72,7 +72,7 @@ class SourceProfile {
   void _validateIdentity() {
     if (!RegExp(r'^[a-z0-9_-]{1,40}$').hasMatch(json['id'] as String? ?? '') ||
         json['id'] == 'dm5' ||
-        json['id'] == 'local') {
+        {'local', 'mangabz', 'dongman'}.contains(json['id'])) {
       throw const FormatException('源 id 需为 1–40 位小写字母、数字、下划线或短横线。');
     }
     if (base.scheme != 'https' ||

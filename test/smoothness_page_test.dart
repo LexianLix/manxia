@@ -14,7 +14,7 @@ void main() {
     if (Platform.environment['MANXIA_CAPTURE_DIR'] == null) return;
     await (FontLoader(
       'RoomSans',
-    )..addFont(rootBundle.load('assets/fonts/NotoSansSC.ttf'))).load();
+    )..addFont(rootBundle.load('assets/fonts/ManxiaSansSC-Regular.ttf'))).load();
     await (FontLoader(
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();

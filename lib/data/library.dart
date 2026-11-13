@@ -6,6 +6,7 @@ import 'comic.dart';
 import 'library_features.dart';
 import 'metadata_backups.dart';
 import 'library_notice.dart';
+import 'retired_sources.dart';
 
 class Library extends ChangeNotifier with LibraryFeatures {
   Library(this.prefs);
@@ -38,6 +39,7 @@ class Library extends ChangeNotifier with LibraryFeatures {
 
   Future<void> load() async {
     loadFeatures();
+    if (retireSourcePlugins(options)) await persistFeatures(notify: false);
     samples = Comic.decode(await rootBundle.loadString('assets/catalog.json'));
     // Old demo preferences must never populate the user's collection.
     dark = prefs.getBool('dark') ?? false;

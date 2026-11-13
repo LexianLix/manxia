@@ -8,11 +8,8 @@ https://github.com/Kyant0/AndroidLiquidGlass
 https://developer.apple.com/design/human-interface-guidelines/materials
 The reference application's GPL-licensed source code is not incorporated here.
 
-The Manhuagui source plugin bundles lz-string 1.5.0 (MIT), Copyright (c) 2013
-pieroxy. Full license retained in plugins/sources/manhuagui/LICENSE-lz-string.txt
-and in the bundled plugin script. https://github.com/pieroxy/lz-string
 Source adapters are independently implemented against public page/API data.
-Kanman, Manhuagui and Pepper&Carrot content belongs to its respective creators
+DM5, Mangabz and Dongman Manhua content belongs to its respective creators
 and rights holders; the application's MIT license does not cover that content.
 
 Bundled font: Source Han Serif CN Regular, Copyright Adobe.
@@ -20,20 +17,22 @@ Licensed under SIL Open Font License 1.1, retained in assets/fonts/OFL.txt.
 Upstream: https://github.com/adobe-fonts/source-han-serif
 Font file obtained from the reference repository's unmodified font assets.
 
-Bundled UI font: Noto Sans SC, Copyright Adobe.
+Bundled UI font: Manxia Sans SC Regular, derived from Noto Sans SC, Copyright Adobe.
 Licensed under SIL Open Font License 1.1, retained in assets/fonts/NotoSansSC-OFL.txt.
-Unmodified variable font from https://github.com/google/fonts/tree/main/ofl/notosanssc
+Upstream variable font: https://github.com/google/fonts/tree/main/ofl/notosanssc
+Locally instantiated at weight 400 and renamed; all upstream characters retained.
+Reproduction: tools/prepare-ui-font.py. Heavier UI weights use platform synthesis.
 
 assets/catalog.json contains a small public DM5 metadata snapshot for the
 development and compatibility fixtures. The personal shelf displays actual favorites only. The repository does not bundle comic cover
 or chapter image files as reading resources. Project UI screenshots may show
-public covers for interface illustration. Images displayed by the client are fetched from DM5's
-CDN and remain the property of their respective rights holders. These images
+public covers for interface illustration. Images displayed by the client are fetched from the
+selected source's CDN and remain the property of their respective rights holders. These images
 and source metadata are not covered by the application's MIT license.
 
 The DM5 adapter reads public pages and decodes embedded image-list data through
 string substitution. It does not execute remote JavaScript or include account
 credentials. Login-gated or otherwise unavailable chapters may require the
-original website. This project is not affiliated with DM5.
+original website. This project is not affiliated with DM5, Mangabz or Dongman Manhua.
 
 Browser PDF rendering uses PDF.js (Apache-2.0); its upstream LICENSE is copied into the built pdfjs directory by tools/prepare-web.mjs. PDF.js source: https://github.com/mozilla/pdf.js

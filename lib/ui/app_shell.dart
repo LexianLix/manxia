@@ -599,7 +599,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         ),
       ),
       Semantics(
-        label: '默认漫画源 ${source.selected?.name ?? '动漫屋'}',
+        label: '默认漫画源 ${source.sourceNames[source.selectedId] ?? '动漫屋'}',
         child: Container(
           constraints: const BoxConstraints(maxWidth: 100),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -614,7 +614,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               const SizedBox(width: 6),
               Flexible(
                 child: LocalizedText(
-                  source.selected?.name ?? '动漫屋',
+                  source.sourceNames[source.selectedId] ?? '动漫屋',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 11, color: quiet(context)),

@@ -1195,11 +1195,8 @@ class _ReaderPageState extends State<ReaderPage>
   Future<void> openChapterOriginal() async {
     final target = pendingChapter ?? chapter;
     try {
-      final url =
-          target.path.startsWith('custom:') && widget.source is SourceHub
-          ? (widget.source as SourceHub)
-                .profile(target.path)
-                .decode(target.path)
+      final url = widget.source is SourceHub
+          ? (widget.source as SourceHub).originalUrl(target.path)
           : Uri.parse('${Dm5Source.origin}${target.path}');
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } catch (e) {

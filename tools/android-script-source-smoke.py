@@ -92,9 +92,7 @@ def main():
     try:
         (nav.OUT / 'webview.txt').write_text(nav.adb('shell', 'dumpsys', 'webviewupdate'), encoding='utf-8')
         if '--bundled-only' in sys.argv:
-            result['bundled_sources'] = check_bundled_sources()
-            result['passed'] = True
-            return
+            raise RuntimeError('Bundled source plugins were withdrawn; run android-builtin-source-smoke.py instead')
         open_plugins()
         type_query('Xiaxia Demo', submit=True)
         nav.wait_ui('Xiaxia Demo Source')
@@ -184,7 +182,6 @@ def main():
         result['reading_time_and_pages_recorded'] = True
         result['personal_review_persisted'] = True
         result['position_history_restored'] = True
-        result['bundled_sources'] = check_bundled_sources()
         result['passed'] = True
     finally:
         (nav.OUT / 'flow-logcat.txt').write_text(
@@ -197,27 +194,6 @@ def main():
             except Exception:
                 pass
         (nav.OUT / 'script-source-verdict.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
-
-
-def check_bundled_sources():
-    result = {}
-    for label in ['Kanman Public Source', 'Manhuagui Source', 'Pepper Carrot Chinese Source']:
-        open_plugins()
-        type_query(label, submit=True)
-        nav.wait_ui(label)
-        nav.tap('Install')
-        nav.wait_ui('Script request domains')
-        nav.tap('Install & enable')
-        nav.wait_ui('Uninstall')
-        hide_keyboard()
-        nav.scroll_to('Test script source')
-        nav.tap('Test script source')
-        nav.wait_ui('Run source test')
-        nav.tap('Run source test')
-        nav.wait_ui('First image decoded', timeout=60)
-        nav.capture('bundled-' + label.split()[0].lower())
-        result[label] = {'discovery_directory_first_image_decoded': True}
-    return result
 
 
 if __name__ == '__main__':

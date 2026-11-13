@@ -25,12 +25,26 @@ export function sourceAllowed(path) {
     /^\/(?:$|search(?:\?|\/)|manhua-[a-zA-Z0-9-]+\/(?:\?.*)?$|m\d+\/(?:\?.*)?$)/.test(path);
 }
 
+const builtinOrigins = {mangabz:'https://www.mangabz.com',dongman:'https://www.dongmanmanhua.cn'};
+export function builtinAllowed(id, path) {
+  if (!Object.hasOwn(builtinOrigins,id) || typeof path !== 'string' ||
+      !path.startsWith('/') || path.startsWith('//') || /[\\\r\n#]/.test(path) || path.includes('..')) return false;
+  if (id === 'mangabz') return /^\/(?:manga-list-p\d+\/|search\?|\d+bz\/|m\d+\/(?:chapterimage\.ashx\?)?)/.test(path);
+  return /^\/(?:dailySchedule(?:\?|$)|search\?|episodeList\?|[A-Za-z_]+\/[^/?]+\/(?:list\?|[^/]+\/viewer\?))/.test(path);
+}
+function builtinImageOrigin(url) {
+  if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
+  if (/(^|\.)mangabz\.com$/.test(url.hostname)) return builtinOrigins.mangabz;
+  if (/(^|\.)dongmanmanhua\.cn$/.test(url.hostname)) return builtinOrigins.dongman;
+  return null;
+}
+
 async function upstream(url, referer = 'https://m.dm5.com/', timeout = 18000, options = {}) {
   const response = await fetch(url, {
     ...options, redirect: 'manual', signal: AbortSignal.timeout(timeout),
     headers: { 'User-Agent':'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36', Referer: referer, Connection:'close', ...options.headers }
   });
-  if (!response.ok) throw Object.assign(new Error(`动漫屋返回 HTTP ${response.status}`), {status:response.status});
+  if (!response.ok) throw Object.assign(new Error(`来源返回 HTTP ${response.status}`), {status:response.status,location:response.headers.get('location')});
   return response;
 }
 
@@ -163,6 +177,31 @@ export function createServer({load = upstream, dav = fetch, updateRequest = fetc
         }
         return res.end();
       }
+      if (url.pathname === '/api/builtin') {
+        const id=url.searchParams.get('id'), path=url.searchParams.get('path');
+        if (req.method !== 'GET' || !builtinAllowed(id,path)) {res.writeHead(400);return res.end('Unsupported builtin request');}
+        const origin=builtinOrigins[id];
+        let target=`${origin}${path}`, response;
+        for(let hop=0;hop<4;hop++) {
+          let location;
+          try {
+            response=await load(target,`${origin}/`,18000,{
+              headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36'}
+            });
+            if(response.status>=300 && response.status<400)location=response.headers.get('location');
+            else break;
+          } catch(error) {
+            if(error.status>=300 && error.status<400)location=error.location;
+            else throw error;
+          }
+          const next=new URL(location,target);
+          if(!location || next.origin!==origin || !builtinAllowed(id,next.pathname+next.search) || hop===3)throw new Error('Unsupported builtin redirect');
+          target=next.toString();
+        }
+        res.setHeader('Content-Type','text/html; charset=utf-8');
+        res.setHeader('Cache-Control','no-store');
+        return res.end(await response.text());
+      }
       if (url.pathname === '/api/source') {
         const path = url.searchParams.get('path');
         if (!sourceAllowed(path)) { res.writeHead(400); return res.end('Unsupported source path'); }
@@ -189,14 +228,15 @@ export function createServer({load = upstream, dav = fetch, updateRequest = fetc
       if (url.pathname === '/api/image') {
         const target = url.searchParams.get('url');
         const parsed = new URL(target);
+        const builtin = builtinImageOrigin(parsed);
         const custom = [...profiles.values()].find(p => p.hosts.includes(parsed.hostname));
-        if (!imageAllowed(target) && !(custom && parsed.protocol === 'https:' && !parsed.username && !parsed.password)) { res.writeHead(400); return res.end('Unsupported image host'); }
+        if (!imageAllowed(target) && !builtin && !(custom && parsed.protocol === 'https:' && !parsed.username && !parsed.password)) { res.writeHead(400); return res.end('Unsupported image host'); }
         const key = createHash('sha256').update(target).digest('hex');
         const file = resolve(cacheRoot, key);
         let bytes;
         try { bytes = await readFile(file); }
         catch {
-          const response = await load(target,custom?.base.toString());
+          const response = await load(target,builtin ? `${builtin}/` : custom?.base.toString());
           if (!response.headers.get('content-type')?.startsWith('image/')) throw new Error('图片地址未返回图片');
           bytes = Buffer.from(await response.arrayBuffer());
           if (bytes.length > 20 * 1024 * 1024) throw new Error('图片超过预览大小限制');

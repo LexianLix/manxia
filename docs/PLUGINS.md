@@ -88,7 +88,7 @@ API 2 的官方仓库为 `plugins/v2/index.json`。旧版仍使用各自的 API 
 
 ## 漫画源插件
 
-完整模板见 [`plugins/examples/source-template.json`](../plugins/examples/source-template.json)。替换真实站点地址、允许的图片域名及 CSS 选择器后导入，再到「设置 → 默认发现源」选择它。`source.id` 不能是 `dm5` 或 `local`，也不能与手动添加或其他已安装插件的源重复。
+完整模板见 [`plugins/examples/source-template.json`](../plugins/examples/source-template.json)。替换真实站点地址、允许的图片域名及 CSS 选择器后导入，再到「设置 → 默认发现源」选择它。`source.id` 不能是内置保留值 `dm5`、`mangabz`、`dongman` 或 `local`，也不能与手动添加或其他已安装插件的源重复。
 
 解析参数与 [漫画源说明](SOURCES.md) 一致。支持静态 HTML 页面；API 1 不执行站点 JavaScript，不支持第三方脚本运行、任意原生调用或替换阅读器渲染内核。需要新宿主能力时应扩展接口版本，不能在 manifest 中夹带代码来绕过接口。
 
