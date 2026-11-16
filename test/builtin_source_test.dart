@@ -91,8 +91,9 @@ void main() {
     'image batches may change size between cached and uncached responses',
     () async {
       final client = MockClient((request) async {
-        if (!request.url.path.endsWith('.ashx'))
+        if (!request.url.path.endsWith('.ashx')) {
           return http.Response('var MANGABZ_IMAGE_COUNT=10;', 200);
+        }
         final page = int.parse(request.url.queryParameters['page']!);
         final count = page == 1 ? 3 : (page == 10 ? 1 : 2);
         final paths = jsonEncode([
