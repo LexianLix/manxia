@@ -404,12 +404,14 @@ class BuiltinSource {
     }
 
     final first = await batch(1);
-    final result = <String>[...first];
+    final result = first.take(count).toList();
     // The public endpoint normally returns two pages (occasionally a cached
     // larger batch). Fetch bounded batches concurrently, preserving page order.
     // At most three new requests per 800 ms; avoid serial waits on long volumes.
-    final stride = first.length;
-    for (var start = stride + 1; start <= count; start += stride * 3) {
+    // A cached first response can contain more images than later responses.
+    // Only the public two-image minimum is safe for parallel range boundaries.
+    const stride = 2;
+    for (var start = result.length + 1; start <= count; start += stride * 3) {
       final watch = Stopwatch()..start();
       final groups = await Future.wait([
         for (var p = start; p < start + stride * 3 && p <= count; p += stride)

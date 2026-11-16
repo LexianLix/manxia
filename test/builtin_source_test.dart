@@ -88,6 +88,32 @@ void main() {
     expect(calls, 2);
   });
   test(
+    'image batches may change size between cached and uncached responses',
+    () async {
+      final client = MockClient((request) async {
+        if (!request.url.path.endsWith('.ashx'))
+          return http.Response('var MANGABZ_IMAGE_COUNT=10;', 200);
+        final page = int.parse(request.url.queryParameters['page']!);
+        final count = page == 1 ? 3 : (page == 10 ? 1 : 2);
+        final paths = jsonEncode([
+          for (var n = page; n < page + count; n++) '/$n.jpg',
+        ]);
+        return http.Response(
+          'var pix="https://image.mangabz.com/a";var pvalue=$paths;var key=\'token\';',
+          200,
+        );
+      });
+      addTearDown(client.close);
+      final pages = await BuiltinSource(
+        'mangabz',
+        client,
+      ).pages(BuiltinSource.encode('mangabz', '/m11/'));
+      expect(pages.map((url) => Uri.parse(url).path), [
+        for (var n = 1; n <= 10; n++) '/a/$n.jpg',
+      ]);
+    },
+  );
+  test(
     'Dongman traverses public catalog pages and ignores selected pagination anchors',
     () async {
       final client = MockClient((r) async {
