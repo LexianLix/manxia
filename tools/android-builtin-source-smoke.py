@@ -59,7 +59,14 @@ def main():
             nav.tap(query)
             nav.wait_ui(search_book, timeout=75)
             nav.capture(source + '-search')
-            nav.tap(search_book)
+            candidates = [node for node in ET.fromstring(nav.read_ui()).iter('node')
+                          if node.get('clickable') == 'true' and
+                          (node.get('text') or node.get('content-desc') or '').split('\n')[0] == search_book]
+            if len(candidates) != 1:
+                raise RuntimeError(f'Expected one exact comic result: {search_book}; got {len(candidates)}')
+            flow.tap_node(candidates[0])
+            nav.wait_ui('Comic details')
+            nav.wait_ui(search_book)
             flow.open_reader()
             deadline = time.monotonic() + 150
             while time.monotonic() < deadline:
