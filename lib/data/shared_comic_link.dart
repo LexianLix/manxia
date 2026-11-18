@@ -35,8 +35,9 @@ Comic? comicFromSharedText(String text) {
       case 'www.dongmanmanhua.cn':
       case 'm.dongmanmanhua.cn':
         if (path != '/episodeList/' &&
-            !RegExp(r'^/[A-Za-z_]+/[^/]+/list/$').hasMatch(path))
+            !RegExp(r'^/[A-Za-z_]+/[^/]+/list/$').hasMatch(path)) {
           continue;
+        }
         final ids = [
           ...?uri.queryParametersAll['title_no'],
           ...?uri.queryParametersAll['titleNo'],
