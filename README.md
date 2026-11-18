@@ -78,6 +78,7 @@
 - **个性化入口**：默认书架、发现、下载、插件和设置五个入口；可添加足迹、调整顺序与启动页面。阅读可设置亮屏、双页默认值、背景及工具栏自动收起。
 - **漫画发现**：搜索、逛一逛、全部漫画与收藏更新；参考收藏题材挑选作品，源站推荐栏目中的榜外作品单独呈现。完整榜单、分类、连载状态、排序与翻页通过二级入口浏览。全源搜索可合并书名与作者一致的结果，展开查看各来源的最新章节；收藏追更可查看未读与检查失败作品，并批量标为已读。
 - **内置漫画源**：动漫屋、Mangabz 与咚漫漫画，直接选择即可发现、搜索与阅读公开章节；支持跨源查找，更多静态站点可按[漫画来源说明](docs/SOURCES.md)添加。在线可用性受原站与网络影响，受限章节保留原站阅读入口。
+- **分享到漫匣**：在 Android 浏览器打开支持的漫画详情，点系统分享并选择漫匣，即可进入对应作品。已收藏或读过的作品沿用同源条目和阅读进度。
 - **收藏追更**：回到应用时异步检查收藏，书架直接显示新章节；发现页可查看全部更新、标为已读或重试失败的检查。追更入口可从最早未读新章节接着读，查看详情会保留提示，章节已读和撤销同步反映到追更状态。
 - **沉浸阅读**：连续条漫可选自动衔接相邻章节，横向或竖向分页、左右阅读方向与宽屏双页；支持曲面翻页、双击局部放大、裁白边、自动滚动、图片内位置续读和逐本偏好。
 - **阅读工具**：进度拖动缩略图预览、页面缩略图导航、临时跳转后返回原位置、章节搜索与当前章节定位、多书签、笔记、页面收藏、图片预载，以及亮度、暖色和背景调整；接近章末预备下一章首屏，章末可标为已读并继续，切章后可返回原位置。左右手预设、点击分区与底部集中工具栏可按漫画调整。
@@ -101,14 +102,14 @@
 
 ## 下载与更新
 
-当前发行版：**[v0.5.4](https://github.com/LexianLix/manxia/releases/tag/v0.5.4)**，支持 **Android 7.0+**。提供使用固定项目密钥签名的 **Release 模式 APK**，按设备架构分包。
+当前发行版为 **[v0.5.6](https://github.com/LexianLix/manxia/releases/tag/v0.5.6)**，支持 **Android 7.0+**。应用使用固定项目密钥签名，按设备架构提供 APK。
 
 | 设备 | 安装包 |
 | --- | --- |
-| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.5.4/Manxia-0.5.4-arm64-v8a.apk) |
-| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.5.4/Manxia-0.5.4-armeabi-v7a.apk) |
-| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.5.4/Manxia-0.5.4-x86_64.apk) |
-| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.5.4/SHA256SUMS.txt) |
+| 常见 Android 手机、平板（推荐） | [ARM64 · arm64-v8a](https://github.com/LexianLix/manxia/releases/download/v0.5.6/Manxia-0.5.6-arm64-v8a.apk) |
+| 旧款 32 位 ARM 设备 | [ARMv7 · armeabi-v7a](https://github.com/LexianLix/manxia/releases/download/v0.5.6/Manxia-0.5.6-armeabi-v7a.apk) |
+| x86_64 设备或模拟器 | [x86_64](https://github.com/LexianLix/manxia/releases/download/v0.5.6/Manxia-0.5.6-x86_64.apk) |
+| 下载完整性校验 | [SHA256SUMS.txt](https://github.com/LexianLix/manxia/releases/download/v0.5.6/SHA256SUMS.txt) |
 
 下载对应 APK 后安装即可。同签名、同架构的新版 APK 可以直接覆盖安装，无需卸载。安装 v0.4.0 后，可从“设置 → 关于与更新 → 检查 GitHub 更新”下载后续版本；应用匹配设备架构并校验安装包，随后交给 Android 系统确认安装。首次使用可能需要允许漫匣安装应用。浏览器版提供发行页入口。历史版本、源码归档和发行说明见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
