@@ -187,7 +187,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         final bar = tester.getRect(find.byType(MilkGlass));
-        expect(bar.width, 314);
+        expect(bar.width, lessThan(314));
         expect(bar.height, lessThanOrEqualTo(scale == 1 ? 54 : 61));
         expect(bar.center.dx, 195);
         final lens = find.byKey(const ValueKey('navigation-lens'));

@@ -733,6 +733,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         .where((b) => widget.library.archived(b) == archived)
         .toList();
     final resume = archived ? null : continueRecord;
+    final updates = books
+        .where((book) => widget.library.updates[book.path]?['changed'] == true)
+        .length;
     return Column(
       key: const ValueKey('shelf-home'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -841,13 +844,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                if (books.any(
-                  (book) =>
-                      widget.library.updates[book.path]?['changed'] == true,
-                ))
+                if (updates > 0)
                   TextButton(
                     onPressed: showUpdates,
-                    child: const LocalizedText('查看更新'),
+                    child: LocalizedText(
+                      '有更新 {count}',
+                      arguments: {'count': updates},
+                    ),
                   ),
               ],
             ),
