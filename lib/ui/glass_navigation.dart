@@ -50,6 +50,7 @@ class FrostedNavigation extends StatefulWidget {
     this.haptics = true,
     this.liquid = true,
     this.embedded = false,
+    this.motion = true,
     this.anchors = const {},
     this.destinations = const [
       RoomDestination(0, '书架', Icons.auto_stories_outlined, Icons.auto_stories),
@@ -60,7 +61,10 @@ class FrostedNavigation extends StatefulWidget {
   });
   final int selectedIndex;
   final ValueChanged<int> onSelected;
-  final bool highQuality, haptics, liquid, embedded;
+  final bool highQuality, haptics, liquid, embedded, motion;
+  static const double slotWidth = 57;
+  static double heightOf(BuildContext context) =>
+      math.max(48, 31 + MediaQuery.textScalerOf(context).scale(10.5) * 1.5);
   final List<RoomDestination> destinations;
   final Map<int, GlobalKey> anchors;
   @override
@@ -87,8 +91,8 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   final starts = <int, _Slot>{}, ends = <int, _Slot>{};
   final items = <int, RoomDestination>{};
   double widthFrom = 0, widthTo = 0, innerWidth = 1;
-  double barHeight = 52;
-  static const iconY = 18.0;
+  double barHeight = 48;
+  static const iconY = 17.0;
   int? preview;
   bool cancelled = false, reduced = false;
   double get lensWidth =>
@@ -122,7 +126,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    reduced = MediaQuery.disableAnimationsOf(context);
+    reduced = !widget.motion || MediaQuery.disableAnimationsOf(context);
     if (reduced) {
       members.value = 1;
       contact.value = 0;
@@ -199,6 +203,12 @@ class _FrostedNavigationState extends State<FrostedNavigation>
   @override
   void didUpdateWidget(FrostedNavigation old) {
     super.didUpdateWidget(old);
+    reduced = !widget.motion || MediaQuery.disableAnimationsOf(context);
+    if (reduced) {
+      members.value = 1;
+      contact.value = 0;
+      settle(target);
+    }
     final changed = !listEquals(
       old.destinations.map((d) => d.id).toList(),
       widget.destinations.map((d) => d.id).toList(),
@@ -269,15 +279,13 @@ class _FrostedNavigationState extends State<FrostedNavigation>
           heightFactor: 1,
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: widget.destinations.length * 60 + 14,
+              maxWidth:
+                  widget.destinations.length * FrostedNavigation.slotWidth + 14,
             ),
             child: LayoutBuilder(
               builder: (context, box) {
                 innerWidth = box.maxWidth - 14;
-                barHeight = math.max(
-                  52,
-                  36 + MediaQuery.textScalerOf(context).scale(11) * 1.35,
-                );
+                barHeight = FrostedNavigation.heightOf(context);
                 final labels = widget.destinations
                     .map(
                       (item) => translate(
@@ -288,7 +296,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                     .toList();
                 final style = DefaultTextStyle.of(
                   context,
-                ).style.copyWith(fontSize: 11);
+                ).style.copyWith(fontSize: 10.5);
                 double measure(String text) {
                   final painter = TextPainter(
                     text: TextSpan(text: text, style: style),
@@ -401,7 +409,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                                 innerWidth - labelWidth,
                                               ),
                                       width: labelWidth,
-                                      top: 32,
+                                      top: 29,
                                       bottom: 0,
                                       child: IgnorePointer(
                                         child: ExcludeSemantics(
@@ -416,7 +424,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                                               maxLines: 1,
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
-                                                fontSize: 11,
+                                                fontSize: 10.5,
                                                 height: 1.25,
                                                 color: scheme.primary,
                                               ),
@@ -533,7 +541,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                         ),
                         if (!compactLabels)
                           Positioned(
-                            top: 34,
+                            top: 30,
                             left: 0,
                             right: 0,
                             child: Text(
@@ -542,7 +550,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.fade,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 10.5,
                                 height: 1.25,
                                 color: Color.lerp(
                                   scheme.onSurface.withValues(alpha: .60),

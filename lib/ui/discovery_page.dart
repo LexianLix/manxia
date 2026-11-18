@@ -1,5 +1,4 @@
 import 'room_design.dart';
-import 'materials.dart';
 import 'visible_listenable_builder.dart';
 import 'localized_text.dart';
 import 'dart:convert';
@@ -600,11 +599,14 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                 ),
               ),
             ),
-            child: MilkGlass(
-              role: GlassRole.control,
-              radius: 26,
-              high: widget.library.option<String>('quality', 'high') == 'high',
-              padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
+            child: Ink(
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHigh.withValues(alpha: .70),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
               child: Row(
                 children: [
                   Icon(Icons.search, size: 20, color: quiet(context)),
@@ -612,10 +614,9 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                   Expanded(
                     child: LocalizedText(
                       '搜索漫画、作者或关键词',
-                      style: TextStyle(fontSize: 13, color: quiet(context)),
+                      style: TextStyle(fontSize: 14, color: quiet(context)),
                     ),
                   ),
-                  Icon(Icons.arrow_forward, size: 16, color: quiet(context)),
                 ],
               ),
             ),
@@ -766,7 +767,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
                 ),
               ],
               if (section == '全部漫画' && !widget.scrollable)
-                if (widget.library.option<String>('source', 'dm5') == 'dm5')
+                if (usesSourceBrowser)
                   SourceBrowser(
                     source: widget.source,
                     library: widget.library,
@@ -892,9 +893,7 @@ class _DiscoveryPageState extends State<DiscoveryPage>
             ],
           ),
         ),
-        (widget.library.option<String>('source', 'dm5') == 'dm5' ||
-                widget.source is SourceHub &&
-                    (widget.source as SourceHub).hasCatalogBrowser)
+        usesSourceBrowser
             ? SourceBrowser(
                 source: widget.source,
                 library: widget.library,
@@ -913,6 +912,11 @@ class _DiscoveryPageState extends State<DiscoveryPage>
       ),
     );
   }
+
+  bool get usesSourceBrowser =>
+      widget.library.option<String>('source', 'dm5') == 'dm5' ||
+      widget.source is SourceHub &&
+          (widget.source as SourceHub).hasCatalogBrowser;
 
   void showRankings(Discovery snapshot) {
     if (snapshot.ranks.length == 1) {

@@ -164,7 +164,9 @@ class _ComicImageState extends State<ComicImage> {
     errorBuilder: (_, _, _) => fallback(),
   );
   @override
-  Widget build(BuildContext c) => immediate != null
+  Widget build(BuildContext c) => widget.url.isEmpty
+      ? fallback()
+      : immediate != null
       ? picture(c, immediate!)
       : FutureBuilder<ImageProvider>(
           key: ValueKey(widget.url),

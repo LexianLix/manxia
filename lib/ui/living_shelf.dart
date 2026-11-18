@@ -28,6 +28,7 @@ class LivingShelf extends StatefulWidget {
     this.onContinue,
     this.onManage,
     this.showCollectionAction = true,
+    this.compactOrbit = false,
   });
   final List<Comic> books;
   final Library library;
@@ -37,7 +38,7 @@ class LivingShelf extends StatefulWidget {
   final void Function(Comic, Rect)? onBookOrigin;
   final ValueChanged<Color>? onAmbientColor;
   final ValueChanged<Comic>? onContinue, onManage;
-  final bool showCollectionAction;
+  final bool showCollectionAction, compactOrbit;
   @override
   State<LivingShelf> createState() => _LivingShelfState();
 }
@@ -260,9 +261,14 @@ class _LivingShelfState extends State<LivingShelf>
 
   Widget orbit(BuildContext context) => SizedBox(
     key: const ValueKey('shelf-orbit'),
-    height: MediaQuery.sizeOf(context).width < 1000
-        ? (MediaQuery.sizeOf(context).height - 530).clamp(184.0, 286.0)
-        : 310,
+    height: switch (MediaQuery.sizeOf(context)) {
+      Size(width: >= 1000) => 310,
+      Size(:final height) when widget.compactOrbit => (height - 560).clamp(
+        158.0,
+        240.0,
+      ),
+      Size(:final height) => (height - 530).clamp(184.0, 286.0),
+    },
     child: LayoutBuilder(
       builder: (context, box) {
         final count = widget.books.length;

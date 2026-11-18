@@ -24,7 +24,7 @@ class _DestinationMotionIconState extends State<DestinationMotionIcon>
     with SingleTickerProviderStateMixin {
   late final clock = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 440),
+    duration: const Duration(milliseconds: 240),
     value: 1,
   );
   @override

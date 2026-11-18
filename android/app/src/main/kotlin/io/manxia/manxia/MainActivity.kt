@@ -6,7 +6,9 @@ import io.flutter.embedding.engine.FlutterShellArgs
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
 import android.view.KeyEvent
+import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 
 class MainActivity : FlutterActivity() {
     @Suppress("DEPRECATION")
@@ -29,8 +31,45 @@ class MainActivity : FlutterActivity() {
     private var updates: AppUpdateInstaller? = null
     private var networkMonitor: NetworkMonitor? = null
     private var scriptSourceHost: ScriptSourceHost? = null
+    private var sharedLinks: MethodChannel? = null
+    private var pendingSharedText: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        pendingSharedText = savedInstanceState?.getString("pendingComicShare")
+        if (savedInstanceState == null) receiveShare(intent)
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("pendingComicShare", pendingSharedText)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        receiveShare(intent)
+    }
+
+    private fun receiveShare(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT) ?: return
+        if (text.length !in 1..8192) return
+        pendingSharedText = text.toString()
+        sharedLinks?.invokeMethod("available", null)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        sharedLinks = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/shared-comic")
+        sharedLinks?.setMethodCallHandler { call, result ->
+            if (call.method == "take") {
+                val text = pendingSharedText
+                pendingSharedText = null
+                result.success(text)
+            } else {
+                result.notImplemented()
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             scriptSourceHost = ScriptSourceHost(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         }
@@ -82,6 +121,8 @@ class MainActivity : FlutterActivity() {
         return super.onKeyDown(keyCode, event)
     }
     override fun onDestroy() {
+        sharedLinks?.setMethodCallHandler(null)
+        sharedLinks = null
         scriptSourceHost?.close()
         networkMonitor?.close()
         updates?.close()

@@ -7,10 +7,13 @@ import 'localized_text.dart';
 import 'room_motion.dart';
 import 'dart:math' as math;
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../data/comic.dart';
 import '../data/dm5_source.dart';
 import '../data/source_hub.dart';
+import '../data/shared_comic_link.dart';
 import 'settings_page.dart';
 import 'search_page.dart';
 import 'scroll_arrival.dart';
@@ -29,7 +32,9 @@ import 'library_manager.dart';
 import 'plugins_page.dart';
 import 'personalization_settings.dart';
 import 'book_link.dart';
+import 'book_object.dart' show ComicCover;
 import 'book_navigation.dart';
+import 'detail_page.dart';
 import 'collection_target.dart';
 import 'content_handoff.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -56,10 +61,61 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   ModalRoute<dynamic>? shelfPopupRoute;
   Timer? followTimer;
   bool foreground = true;
+  static const sharedComics = MethodChannel('io.manxia/shared-comic');
+  bool get receivesShares =>
+      !widget.web && !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  Route<void>? sharedRoute;
+  String? sharedPath;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (receivesShares) {
+      sharedComics.setMethodCallHandler((call) async {
+        if (call.method == 'available') await openSharedComic();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(openSharedComic());
+      });
+    }
+  }
+
+  Future<void> openSharedComic() async {
+    String? text;
+    try {
+      text = await sharedComics.invokeMethod<String>('take');
+    } on MissingPluginException {
+      return;
+    } on PlatformException {
+      return;
+    }
+    if (!mounted || text == null) return;
+    final link = comicFromSharedText(text);
+    if (link == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedText('请分享动漫屋、Mangabz 或咚漫的漫画详情链接。')),
+      );
+      return;
+    }
+    if (sharedPath == link.path && sharedRoute?.isCurrent == true) return;
+    final comic =
+        widget.library.favorites
+            .where((book) => book.path == link.path)
+            .firstOrNull ??
+        widget.library.record(link)?.comic ??
+        link;
+    final route = MaterialPageRoute<void>(
+      builder: (_) => DetailPage(
+        comic: comic,
+        library: widget.library,
+        source: source,
+        web: widget.web,
+      ),
+    );
+    sharedPath = comic.path;
+    sharedRoute = route;
+    updateRequest++;
+    unawaited(Navigator.of(context).push<void>(route));
   }
 
   bool get canCheckUpdates =>
@@ -125,6 +181,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   );
   @override
   void dispose() {
+    if (receivesShares) sharedComics.setMethodCallHandler(null);
     followTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     browseChrome.dispose();
@@ -466,6 +523,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       widget.library.option<String>('quality', 'high') ==
                       'high',
                   haptics: widget.library.option<bool>('haptics', true),
+                  motion: widget.library.motion,
                 ),
         );
       },
@@ -674,6 +732,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final books = widget.library.books
         .where((b) => widget.library.archived(b) == archived)
         .toList();
+    final resume = archived ? null : continueRecord;
     return Column(
       key: const ValueKey('shelf-home'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -766,7 +825,35 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        if (resume != null) ...[
+          const SizedBox(height: 12),
+          _resumeCard(resume),
+        ],
+        if (books.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: LocalizedText(
+                    '{count} 册收藏',
+                    arguments: {'count': books.length},
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (books.any(
+                  (book) =>
+                      widget.library.updates[book.path]?['changed'] == true,
+                ))
+                  TextButton(
+                    onPressed: showUpdates,
+                    child: const LocalizedText('查看更新'),
+                  ),
+              ],
+            ),
+          )
+        else
+          const SizedBox(height: 16),
         ContentHandoff(
           child: books.isEmpty
               ? Padding(
@@ -811,6 +898,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   onContinue: continueBook,
                   onManage: manageShelf,
                   showCollectionAction: false,
+                  compactOrbit: compact && resume != null,
                   onAmbientColor: (color) {
                     if (mounted) atmosphere.value = color;
                   },
@@ -818,41 +906,72 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       openingOrigin = (comic.path, rect),
                 ),
         ),
-        if (books.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: LocalizedText(
-                    '{count} 册收藏 · 长按书本整理',
-                    arguments: {'count': books.length},
-                    style: small(context),
+      ],
+    );
+  }
+
+  Widget _resumeCard(ReadingRecord record) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.brightness == Brightness.dark
+          ? scheme.surfaceContainerHigh
+          : const Color(0xffeee9e1),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => continueBook(record.comic),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 44,
+                height: 60,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: ComicCover(
+                    record.comic,
+                    web: widget.web,
+                    cacheWidth: 160,
                   ),
                 ),
-                if (books.any(
-                  (b) => widget.library.updates[b.path]?['changed'] == true,
-                ))
-                  TextButton(
-                    onPressed: showUpdates,
-                    child: LocalizedText(
-                      '有更新 {count}',
-                      arguments: {
-                        'count': books
-                            .where(
-                              (b) =>
-                                  widget.library.updates[b.path]?['changed'] ==
-                                  true,
-                            )
-                            .length,
-                      },
-                      style: const TextStyle(fontSize: 11),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    LocalizedText('继续阅读', style: small(context)),
+                    Text(
+                      record.comic.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                  ),
-              ],
-            ),
+                    LocalizedText(
+                      record.total > 0
+                          ? '{chapter} · 第 {page} / {total} 页'
+                          : record.chapterTitle,
+                      arguments: {
+                        'chapter': record.chapterTitle,
+                        'page': record.page + 1,
+                        'total': record.total,
+                      },
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: small(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.arrow_forward, size: 19),
+              ),
+            ],
           ),
-      ],
+        ),
+      ),
     );
   }
 
@@ -898,22 +1017,29 @@ class ComicGrid extends StatelessWidget {
   final int arrivingFrom;
   final ValueChanged<Comic> onOpen;
   final ValueChanged<Comic>? onManage;
-  SliverGridDelegateWithFixedCrossAxisCount delegate(double width) =>
-      SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: math.max(2, (width / minItemWidth).floor()),
-        mainAxisSpacing: 18,
-        crossAxisSpacing: 12,
-        childAspectRatio: .56,
-      );
+  SliverGridDelegateWithFixedCrossAxisCount delegate(
+    BuildContext context,
+    double width,
+  ) {
+    final columns = math.max(2, (width / minItemWidth).floor());
+    final itemWidth = (width - 12 * (columns - 1)) / columns;
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: columns,
+      mainAxisSpacing: 18,
+      crossAxisSpacing: 12,
+      mainAxisExtent: itemWidth * 1.4 + labelHeight(context),
+    );
+  }
+
+  double labelHeight(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(13) * 2.8 + 16;
   @override
   Widget build(BuildContext context) => horizontal
       ? LayoutBuilder(
           builder: (context, box) {
-            final width = (box.maxWidth * .41).clamp(124.0, 176.0);
-            final labels =
-                MediaQuery.textScalerOf(context).scale(13) * 2.8 + 25;
+            final width = (box.maxWidth * .36).clamp(116.0, 158.0);
             return SizedBox(
-              height: width * 1.4 + labels,
+              height: width * 1.4 + labelHeight(context) + 5,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.only(bottom: 5),
@@ -932,7 +1058,7 @@ class ComicGrid extends StatelessWidget {
               item,
               childCount: books.length,
             ),
-            gridDelegate: delegate(constraints.crossAxisExtent),
+            gridDelegate: delegate(context, constraints.crossAxisExtent),
           ),
         )
       : LayoutBuilder(
@@ -941,7 +1067,7 @@ class ComicGrid extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: books.length,
-            gridDelegate: delegate(box.maxWidth),
+            gridDelegate: delegate(context, box.maxWidth),
             itemBuilder: item,
           ),
         );

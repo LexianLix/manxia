@@ -74,6 +74,9 @@ String translate(
 }
 
 const english = <String, String>{
+  '请分享动漫屋、Mangabz 或咚漫的漫画详情链接。':
+      'Share a comic details link from DM5, Mangabz, or Dongman.',
+  '{count} 册收藏': '{count} collected',
   ...featureEnglish,
   '有更新 {count}': 'Updates {count}',
   '有更新 · {chapter}': 'New · {chapter}',
@@ -691,6 +694,8 @@ const english = <String, String>{
   '8 秒': '8 seconds',
 };
 const traditional = <String, String>{
+  '请分享动漫屋、Mangabz 或咚漫的漫画详情链接。': '請分享動漫屋、Mangabz 或咚漫的漫畫詳情連結。',
+  '{count} 册收藏': '{count} 冊收藏',
   ...featureTraditional,
   '有更新 {count}': '有更新 {count}',
   '有更新 · {chapter}': '有更新 · {chapter}',

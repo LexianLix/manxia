@@ -26,7 +26,7 @@ class _RetainedPagesState extends State<RetainedPages>
     with SingleTickerProviderStateMixin {
   late final clock = AnimationController(
     vsync: this,
-    duration: RoomMotion.scene,
+    duration: RoomMotion.feedback,
     value: 1,
   );
   late final visited = <int>{widget.index};
@@ -39,13 +39,14 @@ class _RetainedPagesState extends State<RetainedPages>
   int? dragTarget;
   double dragDistance = 0, dragFraction = 0, width = 390, direction = 1;
   final dragStarts = <int, (double, double)>{};
+  static const travel = 10.0;
 
   (double, double) pose(int index) {
     if (dragging) {
-      final start = dragStarts[index] ?? (0.0, direction * 20);
+      final start = dragStarts[index] ?? (0.0, direction * travel);
       final end = index == dragTarget
           ? (1.0, 0.0)
-          : (0.0, index == dragFrom ? -direction * 20 : start.$2);
+          : (0.0, index == dragFrom ? -direction * travel : start.$2);
       return (
         start.$1 + (end.$1 - start.$1) * dragFraction,
         start.$2 + (end.$2 - start.$2) * dragFraction,
@@ -89,7 +90,7 @@ class _RetainedPagesState extends State<RetainedPages>
       dragTarget = target;
       visited.add(dragTarget!);
       if ((dragStarts[dragTarget]?.$1 ?? 0) < .001) {
-        dragStarts[dragTarget!] = (0, direction * 20);
+        dragStarts[dragTarget!] = (0, direction * travel);
       }
       dragFraction = (dragDistance.abs() / width).clamp(0.0, 1.0);
     });
@@ -159,12 +160,12 @@ class _RetainedPagesState extends State<RetainedPages>
         final snapshot = snapshots[index];
         final start =
             index == widget.index && (snapshot == null || snapshot.$1 < .001)
-            ? (0.0, 20 * direction)
-            : snapshot ?? (0.0, 20 * direction);
+            ? (0.0, travel * direction)
+            : snapshot ?? (0.0, travel * direction);
         starts[index] = start;
         ends[index] = index == widget.index
             ? (1.0, 0.0)
-            : (0.0, index == old.index ? -20 * direction : start.$2);
+            : (0.0, index == old.index ? -travel * direction : start.$2);
       }
       if (widget.animate && !MediaQuery.disableAnimationsOf(context)) {
         clock.forward(from: 0);

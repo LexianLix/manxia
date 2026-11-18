@@ -5,6 +5,7 @@ image or source response is injected. Physical-phone acceptance is separate.
 """
 import importlib.util
 import json
+import shlex
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -38,6 +39,23 @@ def select_source(source, query):
     nav.adb('shell', 'chown', f'{owner}:{owner}', remote)
     nav.adb('shell', 'restorecon', remote)
     nav.adb('shell', 'am', 'start', '-W', '-n', nav.PACKAGE + '/.MainActivity')
+
+
+def share_comic(url, title, label, *, cold=False):
+    if cold:
+        nav.adb('shell', 'am', 'force-stop', nav.PACKAGE)
+    # Package-scoped implicit ACTION_SEND also checks the manifest filter.
+    nav.adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.SEND',
+            '-t', 'text/plain', '--es', 'android.intent.extra.TEXT', shlex.quote(url),
+            '-p', nav.PACKAGE)
+    deadline = time.monotonic() + 80
+    while time.monotonic() < deadline:
+        xml = nav.read_ui()
+        if nav.has_label(xml, 'Comic details') and nav.has_label(xml, title):
+            nav.capture(label)
+            return
+        time.sleep(1)
+    raise RuntimeError('Shared comic did not open: ' + title)
 
 
 def main():
@@ -84,6 +102,10 @@ def main():
                 time.sleep(1)
             else:
                 raise RuntimeError(source + ': reader never committed a decoded chapter')
+        share_comic('https://www.mangabz.com/142bz/', '火影忍者', 'share-cold', cold=True)
+        share_comic('https://www.dongmanmanhua.cn/episodeList?titleNo=1954',
+                    '如出一辙的女儿', 'share-warm')
+        results['android_share'] = {'cold': True, 'warm': True}
         results['passed'] = True
     finally:
         if not results.get('passed'):

@@ -308,7 +308,7 @@ class BuiltinSource {
     );
     final cover = id == 'mangabz'
         ? doc.querySelector('img.detail-info-cover')?.attributes['src']
-        : null;
+        : doc.querySelector('.detail_header .thmb img')?.attributes['src'];
     final result = chapters.values.toList();
     if (id == 'dongman') {
       result.sort(

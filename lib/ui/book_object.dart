@@ -319,7 +319,7 @@ class ComicCover extends StatelessWidget {
     cacheWidth: cacheWidth,
     animate: animate,
     fallback: ColoredBox(
-      color: const Color(0xffe1e5dc),
+      color: const Color(0xffeae5dc),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(10),
@@ -327,7 +327,7 @@ class ComicCover extends StatelessWidget {
             comic.title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xff3b4d40),
+              color: Color(0xff433d35),
               fontFamily: 'ArchiveSerif',
               fontSize: 20,
             ),

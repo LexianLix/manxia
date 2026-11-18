@@ -53,20 +53,23 @@ class BrowseNavigation extends StatelessWidget {
     this.highQuality = true,
     this.haptics = true,
     this.liquid = true,
+    this.motion = true,
   });
   final BrowseChrome chrome;
   final int selectedIndex;
   final List<RoomDestination> destinations;
   final ValueChanged<int> onSelected;
   final Map<int, GlobalKey> anchors;
-  final bool highQuality, haptics, liquid;
+  final bool highQuality, haptics, liquid, motion;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<bool>(
     valueListenable: chrome,
     builder: (context, compact, _) => TweenAnimationBuilder<double>(
       tween: Tween(end: compact ? 1 : 0),
-      duration: RoomMotion.duration(context, RoomMotion.scene),
+      duration: motion
+          ? RoomMotion.duration(context, RoomMotion.feedback)
+          : Duration.zero,
       curve: RoomMotion.ease,
       child: FrostedNavigation(
         embedded: true,
@@ -76,6 +79,7 @@ class BrowseNavigation extends StatelessWidget {
         highQuality: highQuality,
         haptics: haptics,
         liquid: liquid,
+        motion: motion,
         onSelected: (index) {
           chrome.expand();
           onSelected(index);
@@ -89,12 +93,9 @@ class BrowseNavigation extends StatelessWidget {
             builder: (context, box) {
               final width = math.min(
                 box.maxWidth,
-                destinations.length * 60 + 14.0,
+                destinations.length * FrostedNavigation.slotWidth + 14,
               );
-              final height = math.max(
-                52.0,
-                36 + MediaQuery.textScalerOf(context).scale(11) * 1.35,
-              );
+              final height = FrostedNavigation.heightOf(context);
               final current = destinations[selectedIndex];
               final dark = Theme.of(context).brightness == Brightness.dark;
               final x = (box.maxWidth - width) / 2 * (1 - t);
@@ -110,11 +111,11 @@ class BrowseNavigation extends StatelessWidget {
                     width: width + (52 - width) * t,
                     height: height,
                     child: MilkGlass(
-                      radius: 28,
+                      radius: 24,
                       role: GlassRole.chrome,
                       high: highQuality,
-                      tintOpacity: dark ? .28 : .20,
-                      blurSigma: 18,
+                      tintOpacity: highQuality ? (dark ? .32 : .27) : .90,
+                      blurSigma: 14,
                       shadow: true,
                       child: ClipRect(
                         child: Stack(
@@ -152,6 +153,7 @@ class BrowseNavigation extends StatelessWidget {
                                           destination: current,
                                           selected: true,
                                           reduced:
+                                              !motion ||
                                               MediaQuery.disableAnimationsOf(
                                                 context,
                                               ),
