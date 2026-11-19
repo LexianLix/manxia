@@ -120,6 +120,7 @@ jobs:
             python3 tools/android-startup-smoke.py startup.apk
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
             python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third
+            python3 tools/android-widget-smoke.py
             if [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py; fi
             python3 tools/android-builtin-source-smoke.py
       - uses: actions/upload-artifact@v4

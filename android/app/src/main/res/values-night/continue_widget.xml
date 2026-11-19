@@ -1,0 +1,7 @@
+<resources>
+    <color name="widget_surface">#242326</color>
+    <color name="widget_text">#F2EEE9</color>
+    <color name="widget_muted">#CAC3BA</color>
+    <color name="widget_track">#413D3C</color>
+    <color name="widget_accent">#CBB7A4</color>
+</resources>

@@ -1,0 +1,12 @@
+<resources>
+    <string name="continue_widget_label">Continue reading</string>
+    <string name="continue_widget_description">Open your latest reading position in Manxia</string>
+    <string name="continue_widget_empty">No recent reading</string>
+    <string name="continue_widget_open">Tap to open Manxia</string>
+    <string name="continue_widget_pages">%1$d/%2$d</string>
+    <color name="widget_surface">#F0ECE5</color>
+    <color name="widget_text">#202023</color>
+    <color name="widget_muted">#54504D</color>
+    <color name="widget_track">#DAD3CC</color>
+    <color name="widget_accent">#63554A</color>
+</resources>

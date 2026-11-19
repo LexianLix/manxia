@@ -1,0 +1,6 @@
+<resources>
+    <string name="continue_widget_label">繼續閱讀</string>
+    <string name="continue_widget_description">開啟漫匣最近的閱讀位置</string>
+    <string name="continue_widget_empty">暫無閱讀記錄</string>
+    <string name="continue_widget_open">點擊開啟漫匣</string>
+</resources>

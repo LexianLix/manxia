@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.manxia.widgetsmoke">
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30" />
+    <queries><package android:name="io.manxia.manxia" /></queries>
+    <application android:label="Manxia widget test" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".WidgetHostActivity" android:exported="true" />
+    </application>
+</manifest>

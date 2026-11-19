@@ -2,6 +2,12 @@
 
 版本号与 `pubspec.yaml` 保持一致。可安装 APK、签名信息及校验文件见 [GitHub Releases](https://github.com/LexianLix/manxia/releases)。
 
+## [0.5.7] - 测试中，未发行
+
+### 改进
+
+- 新增 Android 桌面「继续阅读」小组件，显示最近读过的漫画和页码。点击可续读，已下载章节可离线打开。
+
 ## [0.5.6] - 2026-11-18
 
 本次发行也包含下方 0.5.5 测试版的改动。

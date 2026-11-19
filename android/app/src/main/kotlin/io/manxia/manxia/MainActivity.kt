@@ -33,21 +33,32 @@ class MainActivity : FlutterActivity() {
     private var scriptSourceHost: ScriptSourceHost? = null
     private var sharedLinks: MethodChannel? = null
     private var pendingSharedText: String? = null
+    private var readingWidget: MethodChannel? = null
+    private var pendingWidgetBook: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         pendingSharedText = savedInstanceState?.getString("pendingComicShare")
-        if (savedInstanceState == null) receiveShare(intent)
+        pendingWidgetBook = savedInstanceState?.getString("pendingWidgetBook")
+        if (savedInstanceState == null) {
+            receiveShare(intent)
+            pendingWidgetBook = ContinueReadingWidget.selectedBook(this, intent)
+        }
         super.onCreate(savedInstanceState)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("pendingComicShare", pendingSharedText)
+        outState.putString("pendingWidgetBook", pendingWidgetBook)
         super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         receiveShare(intent)
+        ContinueReadingWidget.selectedBook(this, intent)?.let { book ->
+            pendingWidgetBook = book
+            readingWidget?.invokeMethod("available", null)
+        }
     }
 
     private fun receiveShare(intent: Intent?) {
@@ -60,6 +71,22 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        readingWidget = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/reading-widget")
+        readingWidget?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "take" -> {
+                    val book = pendingWidgetBook
+                    pendingWidgetBook = null
+                    result.success(book)
+                }
+                "publish" -> result.success(ContinueReadingWidget.publish(this, call.arguments as? Map<*, *>))
+                "setCover" -> {
+                    ContinueReadingWidget.setCover(this, call.argument<String>("cover"), call.argument<ByteArray>("bytes"))
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         sharedLinks = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.manxia/shared-comic")
         sharedLinks?.setMethodCallHandler { call, result ->
             if (call.method == "take") {
@@ -121,6 +148,8 @@ class MainActivity : FlutterActivity() {
         return super.onKeyDown(keyCode, event)
     }
     override fun onDestroy() {
+        readingWidget?.setMethodCallHandler(null)
+        readingWidget = null
         sharedLinks?.setMethodCallHandler(null)
         sharedLinks = null
         scriptSourceHost?.close()

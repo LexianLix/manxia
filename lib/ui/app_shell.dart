@@ -37,6 +37,7 @@ import 'book_navigation.dart';
 import 'detail_page.dart';
 import 'collection_target.dart';
 import 'content_handoff.dart';
+import 'android_reading_widget.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 const green = Color(0xff535964);
@@ -66,16 +67,27 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       !widget.web && !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   Route<void>? sharedRoute;
   String? sharedPath;
+  AndroidReadingWidget? readingWidget;
+  Route<void>? continueRoute;
+  String? continuingPath;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (receivesShares) {
+      readingWidget = AndroidReadingWidget(
+        widget.library,
+        () => continueRecord,
+        resumeFromWidget,
+      );
       sharedComics.setMethodCallHandler((call) async {
         if (call.method == 'available') await openSharedComic();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(openSharedComic());
+        if (mounted) {
+          readingWidget?.start();
+          unawaited(openSharedComic());
+        }
       });
     }
   }
@@ -148,6 +160,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     foreground = state == AppLifecycleState.resumed;
+    if (foreground) readingWidget?.refresh();
     queueUpdates();
   }
 
@@ -181,6 +194,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   );
   @override
   void dispose() {
+    readingWidget?.dispose();
     if (receivesShares) sharedComics.setMethodCallHandler(null);
     followTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -311,19 +325,44 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (record == null) return open(comic);
     opening = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => ReaderPage(
-            comic: comic,
-            chapter: Chapter(record.chapterPath, record.chapterTitle),
-            library: widget.library,
-            source: source,
-            web: widget.web,
-          ),
-        ),
-      );
+      await openReadingRecord(record);
     } finally {
       opening = false;
+    }
+  }
+
+  void resumeFromWidget(String key) {
+    final record = resumableRecords
+        .where((entry) => AndroidReadingWidget.bookKey(entry.comic) == key)
+        .firstOrNull;
+    if (record == null ||
+        (continuingPath == record.comic.path &&
+            continueRoute?.isCurrent == true)) {
+      return;
+    }
+    updateRequest++;
+    unawaited(openReadingRecord(record));
+  }
+
+  Future<void> openReadingRecord(ReadingRecord record) async {
+    final route = MaterialPageRoute<void>(
+      builder: (_) => ReaderPage(
+        comic: record.comic,
+        chapter: Chapter(record.chapterPath, record.chapterTitle),
+        library: widget.library,
+        source: source,
+        web: widget.web,
+      ),
+    );
+    continueRoute = route;
+    continuingPath = record.comic.path;
+    try {
+      await Navigator.of(context).push<void>(route);
+    } finally {
+      if (identical(route, continueRoute)) {
+        continueRoute = null;
+        continuingPath = null;
+      }
     }
   }
 
@@ -978,13 +1017,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
-  ReadingRecord? get continueRecord => widget.library.history
-      .where(
-        (r) =>
-            !widget.library.archived(r.comic) &&
-            widget.library.meta(r.comic)['status'] != '已读',
-      )
-      .firstOrNull;
+  Iterable<ReadingRecord> get resumableRecords => widget.library.history.where(
+    (r) =>
+        !widget.library.archived(r.comic) &&
+        widget.library.meta(r.comic)['status'] != '已读',
+  );
+  ReadingRecord? get continueRecord => resumableRecords.firstOrNull;
   Widget _history() =>
       HistoryPage(library: widget.library, source: source, web: widget.web);
 }
