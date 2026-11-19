@@ -136,7 +136,7 @@ def main():
         nav.wait_ui('3 / 3')
         result['warm_resume_updated_page'] = 3
         nav.adb('shell', 'input', 'keyevent', '4')
-        assert not nav.has_label(nav.wait_ui('Library'), CHAPTER)
+        assert not nav.has_label(nav.wait_ui('Library'), 'Next page')
         result['offline'] = True
         result['passed'] = True
     finally:
