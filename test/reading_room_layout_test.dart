@@ -29,7 +29,9 @@ void main() {
       });
       await tester.pumpWidget(ManxiaApp(library: library));
       await tester.pumpAndSettle();
-      final action = find.byKey(const ValueKey('shelf-read'));
+      final action = find.byKey(const ValueKey('shelf-resume'));
+      expect(find.byKey(const ValueKey('shelf-read')), findsNothing);
+      expect(find.text('待读队列').hitTestable(), findsOneWidget);
       if (size.width == 411) {
         expect(
           tester.getRect(action).bottom,

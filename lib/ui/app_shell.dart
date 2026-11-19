@@ -994,6 +994,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Widget _resumeCard(ReadingRecord record) {
     return InkWell(
+      key: const ValueKey('shelf-resume'),
       borderRadius: BorderRadius.circular(18),
       onTap: () => continueBook(record.comic),
       child: Padding(
