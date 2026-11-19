@@ -115,14 +115,17 @@ jobs:
           profile: pixel_2
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            if [ -f previous.apk ]; then python3 tools/android-upgrade-smoke.py previous.apk startup.apk; fi
-            python3 tools/android-startup-smoke.py startup.apk
-            python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch
-            python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third
-            python3 tools/android-widget-smoke.py
-            if [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py; fi
-            python3 tools/android-builtin-source-smoke.py
+          # The emulator action runs each input line in its own shell.
+          script: >-
+            if [ -f previous.apk ]; then python3 tools/android-upgrade-smoke.py previous.apk startup.apk || exit $?; fi;
+            python3 tools/android-startup-smoke.py startup.apk &&
+            python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/relaunch &&
+            python3 tools/android-startup-smoke.py startup.apk --output startup-evidence/third &&
+            (source_status=0;
+            if [ '${{ matrix.api }}' = '35' ]; then python3 tools/android-script-source-smoke.py || source_status=1; fi;
+            python3 tools/android-builtin-source-smoke.py || source_status=1;
+            python3 tools/android-widget-smoke.py || exit $?;
+            exit "$source_status")
       - uses: actions/upload-artifact@v4
         if: always()
         with:
