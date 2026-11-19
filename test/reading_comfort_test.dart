@@ -104,6 +104,8 @@ void main() {
       await tester.tap(find.text(label('本章读完')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(label('读完并继续下一章')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       await settleFirstFrame(tester);
       expect(library.chapterRead(comic, '/one/'), true);
       expect(library.record(comic)!.chapterPath, '/two/');

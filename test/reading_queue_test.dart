@@ -113,7 +113,7 @@ void main() {
     await tester.tap(find.text('Move up'));
     await tester.pumpAndSettle();
     expect(library.readingQueue.books.first.path, first.path);
-    await tester.tap(find.widgetWithText(ListTile, first.title));
+    await tester.tap(find.text(first.title).last);
     expect(opened?.path, first.path);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
