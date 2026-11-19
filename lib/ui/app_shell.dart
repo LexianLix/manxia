@@ -934,8 +934,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   library: widget.library,
                   web: widget.web,
                   onOpen: open,
-                  onContinue: continueBook,
                   onManage: manageShelf,
+                  showOpenAction: false,
                   showCollectionAction: false,
                   compactOrbit: compact && resume != null,
                   onAmbientColor: (color) {

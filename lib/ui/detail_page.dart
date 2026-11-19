@@ -181,6 +181,7 @@ class _DetailPageState extends State<DetailPage> {
           : null;
       final comic =
           snapshot.data?.comic ?? copyrightFailure?.comic ?? widget.comic;
+      final coverComic = widget.comic.cover.isEmpty ? comic : widget.comic;
       final attempts = widget.source.detailDiagnostics[comic.path]?['attempts'];
       if (snapshot.connectionState == ConnectionState.done &&
           attempts is List) {
@@ -222,7 +223,7 @@ class _DetailPageState extends State<DetailPage> {
       void start() {
         if (history != null) {
           read(
-            comic,
+            coverComic,
             Chapter(history.chapterPath, history.chapterTitle),
             mainChapters,
           );

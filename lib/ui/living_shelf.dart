@@ -27,6 +27,7 @@ class LivingShelf extends StatefulWidget {
     this.onAmbientColor,
     this.onContinue,
     this.onManage,
+    this.showOpenAction = true,
     this.showCollectionAction = true,
     this.compactOrbit = false,
   });
@@ -38,7 +39,7 @@ class LivingShelf extends StatefulWidget {
   final void Function(Comic, Rect)? onBookOrigin;
   final ValueChanged<Color>? onAmbientColor;
   final ValueChanged<Comic>? onContinue, onManage;
-  final bool showCollectionAction, compactOrbit;
+  final bool showOpenAction, showCollectionAction, compactOrbit;
   @override
   State<LivingShelf> createState() => _LivingShelfState();
 }
@@ -597,67 +598,75 @@ class _LivingShelfState extends State<LivingShelf>
             );
           },
         ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: FilledButton.icon(
-                key: const ValueKey('shelf-read'),
-                onPressed: () {
-                  if (widget.library.record(comic) != null &&
-                      widget.onContinue != null) {
-                    widget.onContinue!(comic);
-                  } else {
-                    openBook(comic);
-                  }
-                },
-                icon: const Icon(Icons.menu_book_outlined, size: 17),
-                label: LocalizedText(
-                  widget.library.record(comic) != null &&
-                          widget.onContinue != null
-                      ? '继续阅读'
-                      : '翻开这本漫画',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
-            ),
-            if (widget.showCollectionAction) const SizedBox(width: 12),
-            if (widget.showCollectionAction)
-              MilkGlass(
-                radius: 8,
-                high:
-                    widget.library.option<String>('quality', 'high') == 'high',
-                child: IconButton(
-                  tooltip: widget.library.contains(comic) ? '移出收藏' : '加入收藏',
-                  onPressed: () => collectWithMotion(
-                    context,
-                    comic,
-                    widget.library,
-                    widget.web,
-                    origin: bookBounds(),
+        if (widget.showOpenAction || widget.showCollectionAction) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.showOpenAction)
+                Flexible(
+                  child: FilledButton.icon(
+                    key: const ValueKey('shelf-read'),
+                    onPressed: () {
+                      if (widget.library.record(comic) != null &&
+                          widget.onContinue != null) {
+                        widget.onContinue!(comic);
+                      } else {
+                        openBook(comic);
+                      }
+                    },
+                    icon: const Icon(Icons.menu_book_outlined, size: 17),
+                    label: LocalizedText(
+                      widget.library.record(comic) != null &&
+                              widget.onContinue != null
+                          ? '继续阅读'
+                          : '翻开这本漫画',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
-                  icon: AnimatedSwitcher(
-                    duration: RoomMotion.duration(context, RoomMotion.feedback),
-                    transitionBuilder: (child, a) => ScaleTransition(
-                      scale: CurvedAnimation(
-                        parent: a,
-                        curve: Curves.easeOutBack,
+                ),
+              if (widget.showOpenAction && widget.showCollectionAction)
+                const SizedBox(width: 12),
+              if (widget.showCollectionAction)
+                MilkGlass(
+                  radius: 8,
+                  high:
+                      widget.library.option<String>('quality', 'high') ==
+                      'high',
+                  child: IconButton(
+                    tooltip: widget.library.contains(comic) ? '移出收藏' : '加入收藏',
+                    onPressed: () => collectWithMotion(
+                      context,
+                      comic,
+                      widget.library,
+                      widget.web,
+                      origin: bookBounds(),
+                    ),
+                    icon: AnimatedSwitcher(
+                      duration: RoomMotion.duration(
+                        context,
+                        RoomMotion.feedback,
                       ),
-                      child: child,
-                    ),
-                    child: Icon(
-                      widget.library.contains(comic)
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      key: ValueKey(widget.library.contains(comic)),
-                      size: 20,
+                      transitionBuilder: (child, a) => ScaleTransition(
+                        scale: CurvedAnimation(
+                          parent: a,
+                          curve: Curves.easeOutBack,
+                        ),
+                        child: child,
+                      ),
+                      child: Icon(
+                        widget.library.contains(comic)
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                        key: ValueKey(widget.library.contains(comic)),
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
