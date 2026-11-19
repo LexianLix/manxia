@@ -116,7 +116,7 @@ class _ManxiaAppState extends State<ManxiaApp> {
           )
         : fallback;
     final seed = appearance.wallpaper != null && appearance.follow
-        ? appearance.seed
+        ? Color.lerp(RoomAppearance.defaultSeed, appearance.seed, .32)!
         : color('seed', RoomAppearance.defaultSeed);
     final scheme = ColorScheme.fromSeed(
       dynamicSchemeVariant:

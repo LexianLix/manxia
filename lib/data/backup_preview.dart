@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'comic.dart';
+import 'reading_queue.dart';
 import 'source_profile.dart';
 
 void validateBackup(Map<String, dynamic> value) {
@@ -33,6 +34,7 @@ void validateBackup(Map<String, dynamic> value) {
   for (final p in value['sources'] as List? ?? []) {
     SourceProfile(Map<String, dynamic>.from(p));
   }
+  ReadingQueue().merge(value['readingQueue']);
   for (final e in (value['metadata'] as Map? ?? {}).entries) {
     if (e.key is! String || e.value is! Map) {
       throw const FormatException('逐本资料格式错误');
@@ -112,6 +114,10 @@ class BackupPreview {
     final result = Map<String, dynamic>.from(jsonDecode(jsonEncode(incoming)));
     if (!applyDeletions) result['tombstones'] = <String, int>{};
     if (keepLocal) {
+      final localQueue = current['readingQueue'] as Map?;
+      if ((localQueue?['updatedAt'] as int? ?? 0) > 0) {
+        result.remove('readingQueue');
+      }
       final local = records('history', '');
       result['history'] = (result['history'] as List? ?? [])
           .where((e) => !local.containsKey(e['comic']['path']))

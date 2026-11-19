@@ -19,6 +19,7 @@ nav.OUT = Path('startup-evidence/reading-widget')
 HOST = 'io.manxia.widgetsmoke'
 TITLE = 'Widget Offline Comic'
 CHAPTER = 'Widget offline chapter'
+NEXT_TITLE = 'Queued Offline Comic'
 
 
 def build_host(work):
@@ -70,8 +71,14 @@ def seed_library(work):
              'page':1, 'total':3, 'updatedAt':int(time.time()*1000), 'position':0}
     offline = {'id':'widget-fixture', 'comic':comic, 'chapter':chapter,
                'status':'complete', 'keys':paths, 'urls':[], 'bytes':0}
-    values = {'favorites':[comic], 'history':[event], 'offline.v1':[offline],
-              'features.v2':{'options':{'language':'en','startTab':0}, 'metadata':{}}}
+    queued = {**comic, 'path':'local:queued-test', 'title':NEXT_TITLE}
+    queued_chapter = {'path':'local:queued-chapter', 'title':'Queued offline chapter'}
+    queued_offline = {**offline, 'id':'queued-fixture', 'comic':queued,
+                      'chapter':queued_chapter}
+    values = {'favorites':[comic], 'history':[event], 'offline.v1':[offline, queued_offline],
+              'features.v2':{'options':{'language':'en','startTab':0}, 'metadata':{},
+                             'readingQueue':{'updatedAt':event['updatedAt'],
+                                             'books':[comic, queued]}}}
     for name, value in values.items():
         key = 'flutter.' + name
         for node in list(root):
@@ -137,6 +144,25 @@ def main():
         result['warm_resume_updated_page'] = 3
         nav.adb('shell', 'input', 'keyevent', '4')
         assert not nav.has_label(nav.wait_ui('Library'), 'Next page')
+        nav.wait_ui('Up next')
+        nav.capture('shelf-with-queue')
+        nav.tap('Up next')
+        nav.wait_ui(NEXT_TITLE)
+        nav.capture('queue-before-finish')
+        nav.adb('shell', 'input', 'keyevent', '4')
+        host()
+        nav.tap(TITLE)
+        nav.wait_ui('3 / 3')
+        nav.tap('Finish chapter')
+        nav.tap('Finish and read the next book')
+        nav.wait_ui('1 / 3')
+        nav.capture('queue-next-offline')
+        nav.adb('shell', 'input', 'keyevent', '4')
+        nav.wait_ui('Library')
+        nav.tap('Up next')
+        queue_xml = nav.wait_ui(NEXT_TITLE)
+        assert not nav.has_label(queue_xml, TITLE)
+        result['queue_completed_then_resumed_offline'] = True
         result['offline'] = True
         result['passed'] = True
     finally:

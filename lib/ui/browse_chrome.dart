@@ -10,6 +10,7 @@ import 'room_motion.dart';
 /// Scroll distance, rather than direction changes, controls the compact dock.
 class BrowseChrome extends ValueNotifier<bool> {
   BrowseChrome() : super(false);
+  final scrolling = ValueNotifier(false);
   double distance = 0;
   bool dragging = false;
 
@@ -19,24 +20,41 @@ class BrowseChrome extends ValueNotifier<bool> {
     value = false;
   }
 
+  @override
+  void dispose() {
+    scrolling.dispose();
+    super.dispose();
+  }
+
   bool observe(ScrollNotification notice) {
     if (notice.depth != 0 || notice.metrics.axis != Axis.vertical) return false;
     if (notice is ScrollStartNotification && notice.dragDetails != null) {
       dragging = true;
       distance = 0;
+      scrolling.value = true;
     }
     if (notice is UserScrollNotification &&
         notice.direction != ScrollDirection.idle) {
       dragging = true;
+      scrolling.value = true;
     }
     if (notice.metrics.extentBefore <= 3) {
       distance = 0;
       value = false;
     } else if (notice is ScrollUpdateNotification && dragging) {
-      distance += (notice.scrollDelta ?? 0).abs();
-      if (distance >= 40) value = true;
+      final delta = notice.scrollDelta ?? 0;
+      distance = value
+          ? math.min(0, distance + delta)
+          : math.max(0, distance + delta);
+      if (distance.abs() >= 40) {
+        value = distance > 0;
+        distance = 0;
+      }
     }
-    if (notice is ScrollEndNotification) dragging = false;
+    if (notice is ScrollEndNotification) {
+      dragging = false;
+      scrolling.value = false;
+    }
     return false;
   }
 }
@@ -63,122 +81,137 @@ class BrowseNavigation extends StatelessWidget {
   final bool highQuality, haptics, liquid, motion;
 
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: chrome,
-    builder: (context, compact, _) => TweenAnimationBuilder<double>(
-      tween: Tween(end: compact ? 1 : 0),
-      duration: motion
-          ? RoomMotion.duration(context, RoomMotion.feedback)
-          : Duration.zero,
-      curve: RoomMotion.ease,
-      child: FrostedNavigation(
-        embedded: true,
-        anchors: compact ? const {} : anchors,
-        selectedIndex: selectedIndex,
-        destinations: destinations,
-        highQuality: highQuality,
-        haptics: haptics,
-        liquid: liquid,
-        motion: motion,
-        onSelected: (index) {
-          chrome.expand();
-          onSelected(index);
-        },
-      ),
-      builder: (context, t, navigation) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: LayoutBuilder(
-            builder: (context, box) {
-              final width = math.min(
-                box.maxWidth,
-                destinations.length * FrostedNavigation.slotWidth + 14,
-              );
-              final height = FrostedNavigation.heightOf(context);
-              final current = destinations[selectedIndex];
-              final dark = Theme.of(context).brightness == Brightness.dark;
-              final x = (box.maxWidth - width) / 2 * (1 - t);
-              final iconX =
-                  7 + (selectedIndex + .5) / destinations.length * (width - 14);
-              return Align(
-                alignment: Alignment.centerLeft,
-                heightFactor: 1,
-                child: Transform.translate(
-                  offset: Offset(x, 0),
-                  child: SizedBox(
-                    key: const ValueKey('browse-dock'),
-                    width: width + (52 - width) * t,
-                    height: height,
-                    child: MilkGlass(
-                      radius: 24,
-                      role: GlassRole.chrome,
-                      high: highQuality,
-                      tintOpacity: highQuality ? (dark ? .32 : .27) : .90,
-                      blurSigma: 14,
-                      shadow: true,
-                      child: ClipRect(
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: (26 - iconX) * t,
-                              top: 0,
-                              width: width,
-                              height: height,
-                              child: IgnorePointer(
-                                ignoring: compact,
-                                child: ExcludeSemantics(
-                                  excluding: compact,
-                                  child: Opacity(
-                                    opacity: (1 - t * 1.7).clamp(0, 1),
-                                    child: navigation,
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([chrome, chrome.scrolling]),
+    builder: (context, _) {
+      final compact = chrome.value;
+      final scrolling = chrome.scrolling.value;
+      return TweenAnimationBuilder<double>(
+        tween: Tween(end: compact ? 1 : 0),
+        duration: motion
+            ? RoomMotion.duration(context, RoomMotion.feedback)
+            : Duration.zero,
+        curve: RoomMotion.ease,
+        child: FrostedNavigation(
+          embedded: true,
+          anchors: compact ? const {} : anchors,
+          selectedIndex: selectedIndex,
+          destinations: destinations,
+          highQuality: highQuality,
+          haptics: haptics,
+          liquid: liquid,
+          motion: motion,
+          onSelected: (index) {
+            chrome.expand();
+            onSelected(index);
+          },
+        ),
+        builder: (context, t, navigation) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final width = math.min(
+                  box.maxWidth,
+                  destinations.length * FrostedNavigation.slotWidth + 14,
+                );
+                final height = FrostedNavigation.heightOf(context);
+                final current = destinations[selectedIndex];
+                final dark = Theme.of(context).brightness == Brightness.dark;
+                final x = (box.maxWidth - width) / 2 * (1 - t);
+                final iconX =
+                    7 +
+                    (selectedIndex + .5) / destinations.length * (width - 14);
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  heightFactor: 1,
+                  child: Transform.translate(
+                    offset: Offset(x, 0),
+                    child: SizedBox(
+                      key: const ValueKey('browse-dock'),
+                      width: width + (52 - width) * t,
+                      height: height,
+                      child: GlassPerformanceScope(
+                        high: GlassPerformanceScope.highOf(context),
+                        refraction:
+                            !scrolling &&
+                            (t == 0 || t == 1) &&
+                            GlassPerformanceScope.refractionOf(context),
+                        blurScale:
+                            GlassPerformanceScope.blurScaleOf(context) *
+                            (scrolling ? .6 : 1),
+                        child: MilkGlass(
+                          radius: 24,
+                          role: GlassRole.chrome,
+                          high: highQuality,
+                          tintOpacity: highQuality ? (dark ? .32 : .27) : .90,
+                          blurSigma: 14,
+                          shadow: true,
+                          child: ClipRect(
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  left: (26 - iconX) * t,
+                                  top: 0,
+                                  width: width,
+                                  height: height,
+                                  child: IgnorePointer(
+                                    ignoring: compact,
+                                    child: ExcludeSemantics(
+                                      excluding: compact,
+                                      child: Opacity(
+                                        opacity: (1 - t * 1.7).clamp(0, 1),
+                                        child: navigation,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                ignoring: !compact,
-                                child: ExcludeSemantics(
-                                  excluding: !compact,
-                                  child: Opacity(
-                                    opacity: ((t - .35) / .65).clamp(0, 1),
-                                    child: Center(
-                                      child: IconButton(
-                                        key: compact ? anchors[0] : null,
-                                        tooltip:
-                                            '${translate('展开导航', Localizations.localeOf(context))} · ${translate(current.label, Localizations.localeOf(context))}',
-                                        onPressed: chrome.expand,
-                                        icon: DestinationMotionIcon(
-                                          destination: current,
-                                          selected: true,
-                                          reduced:
-                                              !motion ||
-                                              MediaQuery.disableAnimationsOf(
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    ignoring: !compact,
+                                    child: ExcludeSemantics(
+                                      excluding: !compact,
+                                      child: Opacity(
+                                        opacity: ((t - .35) / .65).clamp(0, 1),
+                                        child: Center(
+                                          child: IconButton(
+                                            key: compact ? anchors[0] : null,
+                                            tooltip:
+                                                '${translate('展开导航', Localizations.localeOf(context))} · ${translate(current.label, Localizations.localeOf(context))}',
+                                            onPressed: chrome.expand,
+                                            icon: DestinationMotionIcon(
+                                              destination: current,
+                                              selected: true,
+                                              reduced:
+                                                  !motion ||
+                                                  MediaQuery.disableAnimationsOf(
+                                                    context,
+                                                  ),
+                                              color: Theme.of(
                                                 context,
-                                              ),
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
+                                              ).colorScheme.primary,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 

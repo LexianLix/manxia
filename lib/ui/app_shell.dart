@@ -38,6 +38,7 @@ import 'detail_page.dart';
 import 'collection_target.dart';
 import 'content_handoff.dart';
 import 'android_reading_widget.dart';
+import 'reading_queue_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 const green = Color(0xff535964);
@@ -302,17 +303,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final origin = openingOrigin?.$1 == c.path ? openingOrigin?.$2 : null;
     openingOrigin = null;
     try {
-      await Navigator.of(context).push(
-        comicDetailRoute(
-          context,
-          comic: c,
-          library: widget.library,
-          source: source,
-          web: widget.web,
-          flightTag: flightTag,
-          origin: origin,
-        ),
+      final route = comicDetailRoute(
+        context,
+        comic: c,
+        library: widget.library,
+        source: source,
+        web: widget.web,
+        flightTag: flightTag,
+        origin: origin,
       );
+      await Navigator.of(context).push(route);
+      await route.completed;
     } finally {
       opening = false;
     }
@@ -867,10 +868,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             ),
           ],
         ),
-        if (resume != null) ...[
-          const SizedBox(height: 12),
-          _resumeCard(resume),
-        ],
+        if (!archived) _readingDesk(resume),
         if (books.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 14),
@@ -878,8 +876,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               children: [
                 Expanded(
                   child: LocalizedText(
-                    '{count} 册收藏',
-                    arguments: {'count': books.length},
+                    '收藏',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -952,66 +949,102 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
-  Widget _resumeCard(ReadingRecord record) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.brightness == Brightness.dark
-          ? scheme.surfaceContainerHigh
-          : const Color(0xffeee9e1),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => continueBook(record.comic),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 44,
-                height: 60,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: ComicCover(
-                    record.comic,
-                    web: widget.web,
-                    cacheWidth: 160,
+  Widget _readingDesk(ReadingRecord? resume) {
+    final queue = widget.library.readingQueue.books;
+    final next = queue.firstOrNull;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: RoomGroupedSection(
+        dividerIndent: 16,
+        children: [
+          if (resume != null) _resumeCard(resume),
+          ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+            leading: const Icon(Icons.playlist_play_rounded, size: 22),
+            title: const LocalizedText('待读队列'),
+            subtitle: next == null
+                ? null
+                : Text(
+                    next.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (queue.isNotEmpty) Text('${queue.length}'),
+                const Icon(Icons.chevron_right, size: 20),
+              ],
+            ),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ReadingQueuePage(
+                  library: widget.library,
+                  web: widget.web,
+                  onOpen: open,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    LocalizedText('继续阅读', style: small(context)),
-                    Text(
-                      record.comic.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    LocalizedText(
-                      record.total > 0
-                          ? '{chapter} · 第 {page} / {total} 页'
-                          : record.chapterTitle,
-                      arguments: {
-                        'chapter': record.chapterTitle,
-                        'page': record.page + 1,
-                        'total': record.total,
-                      },
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: small(context),
-                    ),
-                  ],
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.arrow_forward, size: 19),
-              ),
-            ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resumeCard(ReadingRecord record) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => continueBook(record.comic),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 44,
+              height: 60,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: ComicCover(
+                  record.comic,
+                  web: widget.web,
+                  cacheWidth: 160,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LocalizedText('继续阅读', style: small(context)),
+                  Text(
+                    record.comic.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  LocalizedText(
+                    record.total > 0
+                        ? '{chapter} · 第 {page} / {total} 页'
+                        : record.chapterTitle,
+                    arguments: {
+                      'chapter': record.chapterTitle,
+                      'page': record.page + 1,
+                      'total': record.total,
+                    },
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: small(context),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.arrow_forward, size: 19),
+            ),
+          ],
         ),
       ),
     );

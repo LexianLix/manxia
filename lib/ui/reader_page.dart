@@ -27,6 +27,8 @@ import 'reading_profiles_page.dart';
 import 'source_search_page.dart';
 import '../data/script_source.dart';
 
+enum _ChapterEndAction { mark, next, catalog, readQueued, postpone }
+
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
     super.key,
@@ -854,9 +856,14 @@ class _ReaderPageState extends State<ReaderPage>
     endSheetOpen = true;
     chromeTimer?.cancel();
     final finished = chapter, next = nextChapter;
+    final queue = widget.library.readingQueue;
+    final queueIndex = queue.indexOf(widget.comic);
+    final queued = next == null ? queue.nextAfter(widget.comic) : null;
+    ModalRoute<dynamic>? sheetRoute;
     try {
-      await showReaderSheet(
-        (c) => SafeArea(
+      final choice = await showReaderSheet<_ChapterEndAction>((c) {
+        sheetRoute = ModalRoute.of(c);
+        return SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: Column(
@@ -875,54 +882,37 @@ class _ReaderPageState extends State<ReaderPage>
                     next == null ? Icons.done_all : Icons.arrow_forward,
                   ),
                   label: LocalizedText(next == null ? '标记本章已读' : '读完并继续下一章'),
-                  onPressed: () async {
-                    final wasRead = widget.library.chapterRead(
-                      widget.comic,
-                      finished.path,
-                    );
-                    await widget.library.setChapterRead(
-                      widget.comic,
-                      finished.path,
-                      true,
-                    );
-                    if (!c.mounted) return;
-                    Navigator.pop(c);
-                    if (next != null) {
-                      changeChapter(next);
-                    } else if (mounted) {
-                      setState(() {});
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const LocalizedText('本章已标为已读'),
-                          action: SnackBarAction(
-                            label: translate(
-                              '撤销',
-                              Localizations.localeOf(context),
-                            ),
-                            onPressed: () => widget.library.setChapterRead(
-                              widget.comic,
-                              finished.path,
-                              wasRead,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: () => Navigator.pop(c, _ChapterEndAction.mark),
                 ),
                 if (next != null)
                   TextButton(
-                    onPressed: () {
-                      Navigator.pop(c);
-                      changeChapter(next);
-                    },
+                    onPressed: () => Navigator.pop(c, _ChapterEndAction.next),
                     child: const LocalizedText('仅继续下一章'),
                   ),
+                if (next == null && (queued != null || queueIndex >= 0))
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.playlist_play),
+                    title: LocalizedText(
+                      queued == null
+                          ? '完成并移出待读'
+                          : queueIndex >= 0
+                          ? '完成并读下一本'
+                          : '读下一本待读漫画',
+                    ),
+                    subtitle: queued == null ? null : Text(queued.title),
+                    onTap: () => Navigator.pop(c, _ChapterEndAction.readQueued),
+                  ),
+                if (next == null &&
+                    queueIndex >= 0 &&
+                    queueIndex < queue.books.length - 1)
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(c, _ChapterEndAction.postpone),
+                    child: const LocalizedText('将本书移到队尾'),
+                  ),
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(c);
-                    catalog();
-                  },
+                  onPressed: () => Navigator.pop(c, _ChapterEndAction.catalog),
                   child: const LocalizedText('返回章节目录'),
                 ),
                 TextButton(
@@ -932,11 +922,109 @@ class _ReaderPageState extends State<ReaderPage>
               ],
             ),
           ),
-        ),
-      );
+        );
+      });
+      await sheetRoute?.completed;
+      if (!mounted || chapter.path != finished.path) return;
+      switch (choice) {
+        case _ChapterEndAction.mark:
+          final wasRead = widget.library.chapterRead(
+            widget.comic,
+            finished.path,
+          );
+          await widget.library.setChapterRead(
+            widget.comic,
+            finished.path,
+            true,
+          );
+          if (!mounted) return;
+          if (next != null) {
+            await changeChapter(next);
+          } else {
+            setState(() {});
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const LocalizedText('本章已标为已读'),
+                action: SnackBarAction(
+                  label: translate('撤销', Localizations.localeOf(context)),
+                  onPressed: () => widget.library.setChapterRead(
+                    widget.comic,
+                    finished.path,
+                    wasRead,
+                  ),
+                ),
+              ),
+            );
+          }
+        case _ChapterEndAction.next:
+          if (next != null) await changeChapter(next);
+        case _ChapterEndAction.catalog:
+          catalog();
+        case _ChapterEndAction.readQueued:
+          await openNextQueued(finished, queued);
+        case _ChapterEndAction.postpone:
+          await widget.library.moveQueued(widget.comic, queue.books.length - 1);
+        case null:
+          break;
+      }
     } finally {
       endSheetOpen = false;
       if (mounted) armChromeTimer();
+    }
+  }
+
+  Future<void> openNextQueued(Chapter finished, Comic? queued) async {
+    final library = widget.library;
+    final route = ModalRoute.of(context);
+    try {
+      final record = queued == null ? null : library.record(queued);
+      final detail = queued != null && record == null
+          ? await widget.source.detail(queued)
+          : null;
+      final chapters = detail?.chapters ?? const <Chapter>[];
+      final group = chapters.firstOrNull?.group;
+      final ordered = chapters.reversed
+          .where((entry) => entry.group == group)
+          .toList();
+      final target = record == null
+          ? ordered.firstOrNull
+          : Chapter(record.chapterPath, record.chapterTitle);
+      if (queued != null && target == null) {
+        throw SourceException('暂无章节');
+      }
+      if (!mounted ||
+          route?.isCurrent != true ||
+          chapter.path != finished.path) {
+        return;
+      }
+      await library.setChapterRead(widget.comic, finished.path, true);
+      await library.setQueued(widget.comic, false);
+      if (!mounted ||
+          route?.isCurrent != true ||
+          target == null ||
+          queued == null) {
+        return;
+      }
+      save();
+      unawaited(
+        Navigator.of(context).pushReplacement<void, void>(
+          MaterialPageRoute(
+            builder: (_) => ReaderPage(
+              comic: detail?.comic ?? record?.comic ?? queued,
+              chapter: target,
+              chapters: ordered,
+              library: library,
+              source: widget.source,
+              web: widget.web,
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted || route?.isCurrent != true) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: LocalizedText(friendlyError(error))));
     }
   }
 

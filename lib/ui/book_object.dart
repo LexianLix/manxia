@@ -79,21 +79,36 @@ class BookFlight extends StatelessWidget {
             : fromChild;
         final landsOnCover = targetChild is! BookObject;
         final hinge = targetChild is! _DetailComicCover || targetChild.opening;
-        Widget stillCover(Widget child) => child is ComicCover
+        final sourceContext = direction == HeroFlightDirection.push ? from : to;
+        final destinationContext = direction == HeroFlightDirection.push
+            ? to
+            : from;
+        int flightWidth(BuildContext context) {
+          final object = context.findRenderObject();
+          return ComicCover.decodeWidth(
+            context,
+            object is RenderBox && object.hasSize
+                ? object.size.width
+                : double.infinity,
+          );
+        }
+
+        final startWidth = flightWidth(sourceContext);
+        final endWidth = flightWidth(destinationContext);
+        Widget stillCover(Widget child, int width) => child is ComicCover
             ? ComicCover(
                 child.comic,
                 web: child.web,
                 fit: child.fit,
+                cacheWidth: child.cacheWidth ?? width,
                 animate: false,
               )
             : child;
-        final destinationContext = direction == HeroFlightDirection.push
-            ? to
-            : from;
         Widget destinationCover() => stillCover(
           destinationContext.mounted && destinationContext.widget is Hero
               ? (destinationContext.widget as Hero).child
               : targetChild,
+          endWidth,
         );
         if (landsOnCover && flat) {
           return AnimatedBuilder(
@@ -101,7 +116,7 @@ class BookFlight extends StatelessWidget {
             builder: (_, _) => CoverHinge(
               progress: animation.value,
               opening: hinge,
-              source: stillCover(sourceChild),
+              source: stillCover(sourceChild, startWidth),
               destination: destinationCover(),
             ),
           );
@@ -155,7 +170,7 @@ class BookFlight extends StatelessWidget {
                         if (binding < 1)
                           Opacity(
                             opacity: 1 - binding,
-                            child: stillCover(sourceChild),
+                            child: stillCover(sourceChild, startWidth),
                           ),
                       ],
                     )
@@ -260,16 +275,17 @@ class DetailCover extends StatelessWidget {
     required this.web,
     this.tag,
     this.opening = true,
+    this.animate = true,
   });
   final Comic comic;
   final bool web;
   final Object? tag;
-  final bool opening;
+  final bool opening, animate;
 
   @override
   Widget build(BuildContext context) {
     final cover = _DetailComicCover(comic, web: web, opening: opening);
-    if (MediaQuery.disableAnimationsOf(context)) return cover;
+    if (!animate || MediaQuery.disableAnimationsOf(context)) return cover;
     return Hero(
       tag: tag ?? 'book-${comic.path}',
       curve: Curves.linear,
@@ -303,33 +319,42 @@ class ComicCover extends StatelessWidget {
     super.key,
     required this.web,
     this.fit = BoxFit.cover,
-    this.cacheWidth = 512,
+    this.cacheWidth,
     this.animate = true,
   });
   final Comic comic;
   final bool web;
   final BoxFit fit;
-  final int cacheWidth;
+  final int? cacheWidth;
   final bool animate;
+  static int decodeWidth(BuildContext context, double width) {
+    final pixels = width.isFinite
+        ? width * MediaQuery.devicePixelRatioOf(context)
+        : 512.0;
+    return ((pixels / 64).ceil() * 64).clamp(96, 768);
+  }
+
   @override
-  Widget build(BuildContext context) => ComicImage(
-    comic.cover,
-    web: web,
-    fit: fit,
-    cacheWidth: cacheWidth,
-    animate: animate,
-    fallback: ColoredBox(
-      color: const Color(0xffeae5dc),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: LocalizedText(
-            comic.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xff433d35),
-              fontFamily: 'ArchiveSerif',
-              fontSize: 20,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) => ComicImage(
+      comic.cover,
+      web: web,
+      fit: fit,
+      cacheWidth: cacheWidth ?? decodeWidth(context, box.maxWidth),
+      animate: animate,
+      fallback: ColoredBox(
+        color: const Color(0xffeae5dc),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: LocalizedText(
+              comic.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xff433d35),
+                fontFamily: 'ArchiveSerif',
+                fontSize: 20,
+              ),
             ),
           ),
         ),

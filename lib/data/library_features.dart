@@ -8,6 +8,7 @@ import 'backup_preview.dart';
 import 'reading_profile.dart';
 import 'library_notice.dart';
 import 'reading_journal.dart';
+import 'reading_queue.dart';
 import 'retired_sources.dart';
 
 mixin LibraryFeatures on ChangeNotifier {
@@ -27,6 +28,15 @@ mixin LibraryFeatures on ChangeNotifier {
   List<ReadingRecord> get history;
   final Map<String, Map<String, dynamic>> metadata = {};
   final ReadingJournal journal = ReadingJournal();
+  final ReadingQueue readingQueue = ReadingQueue();
+  Future<void> setQueued(Comic comic, bool queued) async {
+    if (readingQueue.setQueued(comic, queued)) await persistFeatures();
+  }
+
+  Future<void> moveQueued(Comic comic, int index) async {
+    if (readingQueue.move(comic, index)) await persistFeatures();
+  }
+
   final Map<String, dynamic> options = {};
   final List<String> searchHistory = [];
   final List<Map<String, dynamic>> bookmarks = [], sourceProfiles = [];
@@ -170,6 +180,7 @@ mixin LibraryFeatures on ChangeNotifier {
       for (final e in (j['updates'] as Map? ?? {}).entries) {
         updates[e.key] = Map<String, dynamic>.from(e.value);
       }
+      readingQueue.merge(j['readingQueue']);
     } catch (_) {}
   }
 
@@ -187,6 +198,7 @@ mixin LibraryFeatures on ChangeNotifier {
         'tombstones': tombstones,
         'favoriteTimes': favoriteTimes,
         'journal': journal.toJson(),
+        'readingQueue': readingQueue.toJson(),
       }),
     );
   }
@@ -307,6 +319,7 @@ mixin LibraryFeatures on ChangeNotifier {
     'tombstones': tombstones,
     'favoriteTimes': favoriteTimes,
     'journal': journal.toJson(),
+    'readingQueue': readingQueue.toJson(),
     'sources': sourceProfiles,
   };
   Future<void> restore(
@@ -417,6 +430,7 @@ mixin LibraryFeatures on ChangeNotifier {
       }
     }
     journal.merge(j['journal'], tombstones);
+    readingQueue.merge(j['readingQueue']);
     // Device addresses, passwords and appearance remain local. Reader preferences
     // live with each comic's timestamped metadata and are merged above.
     retireSourcePlugins(options);

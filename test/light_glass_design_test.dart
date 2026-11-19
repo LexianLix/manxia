@@ -41,7 +41,7 @@ void main() {
     final scheme = Theme.of(
       tester.element(find.byType(Scaffold).first),
     ).colorScheme;
-    expect(scheme.surface, const Color(0xfff5f5f7));
+    expect(scheme.surface, const Color(0xfff7f4ef));
     expect(scheme.primary, const Color(0xff303238));
     await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();

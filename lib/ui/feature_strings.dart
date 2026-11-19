@@ -1,4 +1,15 @@
 const featureEnglish = <String, String>{
+  '待读队列': 'Up next',
+  '加入待读': 'Add to Up next',
+  '移出待读': 'Remove from Up next',
+  '在发现页长按封面，把想读的漫画加入这里。': 'Touch and hold a cover in Discover to add it here.',
+  '拖动排序': 'Drag to reorder',
+  '上移': 'Move up',
+  '下移': 'Move down',
+  '完成并移出待读': 'Finish and remove from Up next',
+  '完成并读下一本': 'Finish and read the next book',
+  '读下一本待读漫画': 'Read the next queued book',
+  '将本书移到队尾': 'Move this book to the end',
   '留空检查发现目录，或输入关键词搜索。试读首个结果最早一章，并实际解码首图。':
       'Leave empty to check discovery, or search a keyword. Decode the first image of the earliest chapter.',
   '邻章首屏加载失败，请重试。': 'The next chapter image could not load. Please retry.',
@@ -267,6 +278,17 @@ const featureEnglish = <String, String>{
 };
 
 const featureTraditional = <String, String>{
+  '待读队列': '待讀佇列',
+  '加入待读': '加入待讀',
+  '移出待读': '移出待讀',
+  '在发现页长按封面，把想读的漫画加入这里。': '在發現頁長按封面，把想讀的漫畫加入這裡。',
+  '拖动排序': '拖曳排序',
+  '上移': '上移',
+  '下移': '下移',
+  '完成并移出待读': '完成並移出待讀',
+  '完成并读下一本': '完成並讀下一本',
+  '读下一本待读漫画': '讀下一本待讀漫畫',
+  '将本书移到队尾': '將本書移到佇列末端',
   '留空检查发现目录，或输入关键词搜索。试读首个结果最早一章，并实际解码首图。':
       '留空檢查探索目錄，或輸入關鍵字搜尋。試讀首個結果最早一章，並解碼首圖。',
   '邻章首屏加载失败，请重试。': '鄰章首屏載入失敗，請重試。',

@@ -270,10 +270,11 @@ class _DetailPageState extends State<DetailPage> {
             ),
           ),
           const SizedBox(height: 10),
-          LocalizedText(
-            comic.author.isEmpty ? '漫画详情' : comic.author,
-            style: TextStyle(fontSize: 13, color: quiet(context)),
-          ),
+          if (comic.author.isNotEmpty)
+            Text(
+              comic.author,
+              style: TextStyle(fontSize: 13, color: quiet(context)),
+            ),
           if (comic.tags.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
@@ -298,12 +299,16 @@ class _DetailPageState extends State<DetailPage> {
       Widget cover(double width) => SizedBox(
         width: width,
         height: width * 1.4,
-        child: DetailCover(
-          comic,
-          web: widget.web,
-          opening: widget.library.option<bool>('bookOpening', true),
-          tag: widget.flightTag,
-          key: coverKey,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: DetailCover(
+            comic,
+            web: widget.web,
+            opening: widget.library.option<bool>('bookOpening', true),
+            animate: widget.library.motion,
+            tag: widget.flightTag,
+            key: coverKey,
+          ),
         ),
       );
       final stacked =
@@ -336,6 +341,18 @@ class _DetailPageState extends State<DetailPage> {
                   value: 'organize',
                   child: LocalizedText('分组、标签与系列'),
                 ),
+                PopupMenuItem(
+                  value: 'queue',
+                  child: LocalizedText(
+                    widget.library.readingQueue.contains(comic)
+                        ? '移出待读'
+                        : '加入待读',
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'review',
+                  child: LocalizedText('我的评分与短评'),
+                ),
                 if (comic.sourceId != 'local')
                   const PopupMenuItem(
                     value: 'original',
@@ -352,6 +369,14 @@ class _DetailPageState extends State<DetailPage> {
                 if (!mounted || !context.mounted) return;
                 if (value == 'positions') {
                   await restorePosition();
+                } else if (value == 'queue') {
+                  await widget.library.setQueued(
+                    comic,
+                    !widget.library.readingQueue.contains(comic),
+                  );
+                  if (mounted) setState(() {});
+                } else if (value == 'review') {
+                  await editPersonalReview(context, widget.library, comic);
                 } else if (value == 'organize') {
                   await editBook(context, widget.library, comic);
                 } else if (value == 'diagnostics') {
@@ -381,14 +406,17 @@ class _DetailPageState extends State<DetailPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
                 child: MilkGlass(
-                  radius: 28,
+                  radius: 24,
                   role: GlassRole.chrome,
                   high:
                       widget.library.option<String>('quality', 'high') ==
                       'high',
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -458,9 +486,9 @@ class _DetailPageState extends State<DetailPage> {
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         compact ? 26 : 60,
-                        compact ? 5 : 35,
+                        compact ? 12 : 30,
                         compact ? 26 : 60,
-                        35,
+                        14,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,15 +501,11 @@ class _DetailPageState extends State<DetailPage> {
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                cover(compact ? 112 : 210),
-                                SizedBox(width: compact ? 20 : 36),
+                                cover(compact ? 114 : 196),
+                                SizedBox(width: compact ? 18 : 32),
                                 Expanded(child: info()),
                               ],
                             ),
-                          PersonalReviewTile(
-                            library: widget.library,
-                            comic: comic,
-                          ),
                           if (comic.description.isNotEmpty) ...[
                             const SizedBox(height: 18),
                             LayoutBuilder(
@@ -542,12 +566,12 @@ class _DetailPageState extends State<DetailPage> {
                           ],
                           const SizedBox(height: 18),
                           Container(
-                            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                            padding: const EdgeInsets.fromLTRB(12, 5, 5, 5),
                             decoration: BoxDecoration(
                               color: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerLow
-                                  .withValues(alpha: .8),
+                                  .withValues(alpha: .52),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Column(

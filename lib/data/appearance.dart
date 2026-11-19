@@ -37,7 +37,7 @@ class RoomAppearance {
   static Color surface(Color seed, bool dark) {
     // Artwork supplies the colour; the reading surface stays neutral even
     // when a wallpaper's accent is green, pink or strongly saturated.
-    return dark ? const Color(0xff151518) : const Color(0xfff5f5f7);
+    return dark ? const Color(0xff19191c) : const Color(0xfff7f4ef);
   }
 }
 

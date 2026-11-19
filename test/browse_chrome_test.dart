@@ -68,6 +68,13 @@ void main() {
         await tester.tap(find.byTooltip('展开导航 · 书架'));
         await tester.pumpAndSettle();
         expect(tester.getRect(dock), expanded);
+        await tester.drag(find.byType(ListView), const Offset(0, -200));
+        await tester.pumpAndSettle();
+        expect(chrome.value, isTrue);
+        await tester.drag(find.byType(ListView), const Offset(0, 100));
+        await tester.pumpAndSettle();
+        expect(chrome.value, isFalse);
+        expect(tester.getRect(dock), expanded);
         chrome.value = true;
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 75));

@@ -427,7 +427,9 @@ class _LivingShelfState extends State<LivingShelf>
                                             cursor: SystemMouseCursors.click,
                                             child: RepaintBoundary(
                                               child: BookFlight(
-                                                enabled: focused,
+                                                enabled:
+                                                    focused &&
+                                                    widget.library.motion,
                                                 child: BookObject(
                                                   item,
                                                   key: bookKeys.putIfAbsent(
@@ -723,13 +725,13 @@ class _OpenBookTransitionState extends State<OpenBookTransition> {
       child: widget.child,
       builder: (context, child) {
         final t = const Interval(
-          .45,
-          .95,
+          .32,
+          .88,
           curve: RoomMotion.ease,
         ).transform(widget.animation.value);
         final background = const Interval(
           0,
-          .24,
+          .30,
           curve: RoomMotion.ease,
         ).transform(widget.animation.value);
         final secondary = widget.secondaryAnimation;

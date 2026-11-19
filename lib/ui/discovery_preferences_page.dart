@@ -26,6 +26,23 @@ Future<void> showDiscoveryInterest(
             ),
           ),
           ListTile(
+            leading: Icon(
+              library.readingQueue.contains(book)
+                  ? Icons.playlist_remove
+                  : Icons.playlist_add,
+            ),
+            title: LocalizedText(
+              library.readingQueue.contains(book) ? '移出待读' : '加入待读',
+            ),
+            onTap: () async {
+              await library.setQueued(
+                book,
+                !library.readingQueue.contains(book),
+              );
+              if (c.mounted) Navigator.pop(c);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.visibility_off_outlined),
             title: const LocalizedText('对此不感兴趣'),
             onTap: () async {

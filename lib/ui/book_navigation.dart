@@ -21,6 +21,7 @@ PageRoute<void> comicDetailRoute(
   final animate = library.motion && !MediaQuery.disableAnimationsOf(context);
   return PageRouteBuilder<void>(
     opaque: true,
+    allowSnapshotting: false,
     transitionDuration: animate ? RoomMotion.book : Duration.zero,
     reverseTransitionDuration: animate ? RoomMotion.bookReturn : Duration.zero,
     pageBuilder: (_, _, _) => DetailPage(
