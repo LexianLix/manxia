@@ -142,6 +142,9 @@ def main():
         nav.tap('Next page')
         time.sleep(3)
         nav.adb('shell', 'input', 'keyevent', '4')
+        detail = nav.wait_ui('More actions')
+        if not nav.has_label(detail, 'My ratings & reviews'):
+            nav.tap('More actions')
         nav.wait_ui('My ratings & reviews')
         nav.tap('My ratings & reviews')
         nav.wait_ui('Rate 4 stars')
