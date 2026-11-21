@@ -26,7 +26,7 @@
   <img src="docs/images/discovery.png" width="256" alt="发现页的搜索、封面推荐和磨砂玻璃导航栏" />
 </p>
 
-<p align="center"><sub>轻透书廊与发现页预览，使用测试收藏与缓存目录。</sub></p>
+<p align="center"><sub>v0.5.8 的书架与发现页，截自手机尺寸的 Web 预览，使用测试收藏与缓存目录。</sub></p>
 
 ## 阅读与整理
 
@@ -54,7 +54,7 @@
 
 同一架构、同一项目签名的新版 APK 可以直接覆盖安装，保留书库。也可在 **设置 → 关于与更新 → 检查 GitHub 更新** 中获取正式版。校验文件、旧测试包迁移与备份步骤见[构建与发布指南](docs/RELEASE.md)。
 
-本文介绍主分支功能。待读队列和桌面续读小组件已包含在 v0.5.8 源码中，各发行版功能见[更新日志](CHANGELOG.md)。
+待读队列和桌面续读小组件在 [v0.5.8](https://github.com/LexianLix/manxia/releases/tag/v0.5.8) 中可用。各版本功能见[更新日志](CHANGELOG.md)。
 
 ## 插件
 
