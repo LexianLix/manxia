@@ -468,7 +468,7 @@ class _FrostedNavigationState extends State<FrostedNavigation>
       rect: bounds,
       child: IgnorePointer(
         child: GlassLens(
-          enabled: widget.highQuality && widget.liquid,
+          enabled: !widget.embedded && widget.highQuality && widget.liquid,
           center: Offset(head, iconY) - bounds.topLeft,
           strength: .14 + contact.value * .22,
           clipper: _DropClipper(painter, bounds.topLeft),

@@ -219,7 +219,7 @@ void main() {
       );
       await tester.tap(find.byType(BookObject));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 380));
+      await tester.pump(RoomMotion.book * .55);
       expect(
         tester
             .widgetList<BookObject>(find.byType(BookObject))

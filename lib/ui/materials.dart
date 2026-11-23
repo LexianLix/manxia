@@ -84,7 +84,6 @@ class _MilkGlassState extends State<MilkGlass> {
 
   void loadShader() {
     if (widget.high &&
-        widget.role != GlassRole.floating &&
         allowHigh &&
         allowRefraction &&
         shader == null &&
@@ -118,22 +117,23 @@ class _MilkGlassState extends State<MilkGlass> {
     final chrome = widget.role == GlassRole.chrome;
     final blurScale = GlassPerformanceScope.blurScaleOf(context);
     final sigma =
-        (widget.blurSigma ?? (floating ? 12 : (chrome ? 18 : 22))) * blurScale;
+        (widget.blurSigma ?? (floating ? 7.5 : (chrome ? 18 : 22))) * blurScale;
     ui.ImageFilter filter = ui.ImageFilter.blur(
       sigmaX: high ? sigma : 0,
       sigmaY: high ? sigma : 0,
     );
-    if (high && !contrast && !floating && allowRefraction && shader != null) {
+    if (high && !contrast && allowRefraction && shader != null) {
+      final pixelRatio = MediaQuery.devicePixelRatioOf(context);
       shader!
-        ..setFloat(2, chrome ? .45 : .30)
-        ..setFloat(3, widget.radius * MediaQuery.devicePixelRatioOf(context))
-        ..setFloat(4, 0)
-        ..setFloat(5, 0)
+        ..setFloat(2, floating ? .85 : (chrome ? .45 : .30))
+        ..setFloat(3, widget.radius * pixelRatio)
+        ..setFloat(4, floating ? -1 : 0)
+        ..setFloat(5, floating ? sigma * pixelRatio : 0)
         ..setFloat(6, 0);
-      filter = ui.ImageFilter.compose(
-        outer: filter,
-        inner: ui.ImageFilter.shader(shader!),
-      );
+      final refraction = ui.ImageFilter.shader(shader!);
+      filter = floating
+          ? refraction
+          : ui.ImageFilter.compose(outer: filter, inner: refraction);
     }
     final glass = ClipRRect(
       borderRadius: BorderRadius.circular(widget.radius),
@@ -151,7 +151,7 @@ class _MilkGlassState extends State<MilkGlass> {
                   : widget.tintOpacity ??
                         (high
                             ? (floating
-                                  ? (dark ? .61 : .53)
+                                  ? (dark ? .43 : .31)
                                   : (chrome
                                         ? (dark ? .28 : .20)
                                         : (dark ? .38 : .30)))
@@ -171,13 +171,13 @@ class _MilkGlassState extends State<MilkGlass> {
                 end: Alignment.bottomRight,
                 colors: [
                   Colors.white.withValues(
-                    alpha: floating ? (dark ? .14 : .28) : (dark ? .05 : .09),
+                    alpha: floating ? (dark ? .18 : .34) : (dark ? .05 : .09),
                   ),
                   if (floating)
                     Colors.white.withValues(alpha: dark ? .045 : .08),
                   Colors.white.withValues(alpha: .01),
                 ],
-                stops: floating ? const [0, .24, 1] : null,
+                stops: floating ? const [0, .20, 1] : null,
               ),
             ),
             child: Padding(

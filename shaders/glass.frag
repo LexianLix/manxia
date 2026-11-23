@@ -6,6 +6,22 @@ uniform float uLensMode;
 uniform vec2 uLensCenter;
 uniform sampler2D uBackdrop;
 out vec4 fragColor;
+
+vec4 sampleBackdrop(vec2 uv) {
+  return texture(uBackdrop, clamp(uv, 0.001, 0.999));
+}
+
+vec4 frost(vec2 uv, vec2 radius) {
+  vec2 x = vec2(radius.x, 0.0);
+  vec2 y = vec2(0.0, radius.y);
+  vec4 color = sampleBackdrop(uv) * 4.0;
+  color += (sampleBackdrop(uv+x) + sampleBackdrop(uv-x)
+           + sampleBackdrop(uv+y) + sampleBackdrop(uv-y)) * 2.0;
+  color += sampleBackdrop(uv+x+y) + sampleBackdrop(uv+x-y)
+         + sampleBackdrop(uv-x+y) + sampleBackdrop(uv-x-y);
+  return color / 16.0;
+}
+
 void main(){
   vec2 point=FlutterFragCoord().xy;
   vec2 uv=point/uSize;
@@ -32,7 +48,12 @@ void main(){
   #ifdef IMPELLER_TARGET_OPENGLES
   shift.y=-shift.y;
   #endif
-  vec4 c=texture(uBackdrop,clamp(uv-shift,0.001,0.999));
-  float shine=edge*max(0.0,dot(gradient,normalize(vec2(-.6,-1.0))))*.06;
+  bool floating = uLensMode < -.5;
+  vec2 samplePoint = uv - shift;
+  vec4 c = floating
+    ? frost(samplePoint, min(uLensCenter.x, 20.0) / uSize)
+    : sampleBackdrop(samplePoint);
+  float shine=edge*max(0.0,dot(gradient,normalize(vec2(-.6,-1.0))))
+    *(floating ? .13 : .06);
   fragColor=vec4(c.rgb+shine,c.a);
 }
