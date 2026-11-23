@@ -194,7 +194,7 @@ void main() {
     },
   );
   testWidgets(
-    'wide detail keeps the book landing point fixed while metadata arrives',
+    'wide detail keeps the original cover and landing point as metadata arrives',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1;
@@ -234,7 +234,7 @@ void main() {
         ComicDetail(
           Comic(
             path: comic.path,
-            cover: comic.cover,
+            cover: 'offline:replacement-from-detail',
             title: 'A long book title ' * 7,
             author: 'Author',
             tags: List.generate(12, (i) => 'Tag $i'),
@@ -245,6 +245,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.getRect(cover), landing);
+      expect(tester.widget<ComicCover>(cover).comic.cover, comic.cover);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       source.close();

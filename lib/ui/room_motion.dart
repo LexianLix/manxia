@@ -8,8 +8,8 @@ abstract final class RoomMotion {
   static const scene = Duration(milliseconds: 240);
   static const arrival = Duration(milliseconds: 420);
   static const cover = Duration(milliseconds: 320);
-  static const book = Duration(milliseconds: 620);
-  static const bookReturn = Duration(milliseconds: 500);
+  static const book = Duration(milliseconds: 480);
+  static const bookReturn = Duration(milliseconds: 360);
   static const flight = Duration(milliseconds: 440);
   static const settle = SpringDescription(mass: 1, stiffness: 360, damping: 32);
   static const ease = Cubic(.22, 1, .36, 1);
@@ -23,6 +23,8 @@ abstract final class RoomMotion {
   static double routeEnter(double progress) =>
       ((progress - .5) * 2).clamp(0, 1);
   static double routeCovered(double progress) => (1 - progress * 2).clamp(0, 1);
+  static double detailHeading(double progress) =>
+      const Interval(.30, .86, curve: ease).transform(progress);
 
   static Duration duration(BuildContext context, Duration value) =>
       MediaQuery.disableAnimationsOf(context) ? Duration.zero : value;

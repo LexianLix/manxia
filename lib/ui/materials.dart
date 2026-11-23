@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'room_motion.dart';
 
-enum GlassRole { chrome, panel, control }
+enum GlassRole { chrome, floating, panel, control }
 
 class GlassPerformanceScope extends InheritedWidget {
   const GlassPerformanceScope({
@@ -84,6 +84,7 @@ class _MilkGlassState extends State<MilkGlass> {
 
   void loadShader() {
     if (widget.high &&
+        widget.role != GlassRole.floating &&
         allowHigh &&
         allowRefraction &&
         shader == null &&
@@ -113,13 +114,16 @@ class _MilkGlassState extends State<MilkGlass> {
     final dark = scheme.brightness == Brightness.dark;
     final contrast = MediaQuery.highContrastOf(context);
     final high = widget.high && allowHigh;
+    final floating = widget.role == GlassRole.floating;
     final chrome = widget.role == GlassRole.chrome;
     final blurScale = GlassPerformanceScope.blurScaleOf(context);
+    final sigma =
+        (widget.blurSigma ?? (floating ? 12 : (chrome ? 18 : 22))) * blurScale;
     ui.ImageFilter filter = ui.ImageFilter.blur(
-      sigmaX: high ? (widget.blurSigma ?? (chrome ? 18 : 22)) * blurScale : 0,
-      sigmaY: high ? (widget.blurSigma ?? (chrome ? 18 : 22)) * blurScale : 0,
+      sigmaX: high ? sigma : 0,
+      sigmaY: high ? sigma : 0,
     );
-    if (high && allowRefraction && shader != null) {
+    if (high && !contrast && !floating && allowRefraction && shader != null) {
       shader!
         ..setFloat(2, chrome ? .45 : .30)
         ..setFloat(3, widget.radius * MediaQuery.devicePixelRatioOf(context))
@@ -142,14 +146,22 @@ class _MilkGlassState extends State<MilkGlass> {
             color: scheme.surface.withValues(
               alpha: contrast
                   ? .96
+                  : floating && !high
+                  ? .96
                   : widget.tintOpacity ??
                         (high
-                            ? (chrome ? (dark ? .28 : .20) : (dark ? .38 : .30))
+                            ? (floating
+                                  ? (dark ? .61 : .53)
+                                  : (chrome
+                                        ? (dark ? .28 : .20)
+                                        : (dark ? .38 : .30)))
                             : .94),
             ),
             border: Border.all(
-              color: scheme.onSurface.withValues(alpha: dark ? .12 : .07),
-              width: .6,
+              color: scheme.onSurface.withValues(
+                alpha: floating ? (dark ? .19 : .11) : (dark ? .12 : .07),
+              ),
+              width: floating ? .8 : .6,
             ),
           ),
           child: DecoratedBox(
@@ -158,9 +170,14 @@ class _MilkGlassState extends State<MilkGlass> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withValues(alpha: dark ? .05 : .09),
+                  Colors.white.withValues(
+                    alpha: floating ? (dark ? .14 : .28) : (dark ? .05 : .09),
+                  ),
+                  if (floating)
+                    Colors.white.withValues(alpha: dark ? .045 : .08),
                   Colors.white.withValues(alpha: .01),
                 ],
+                stops: floating ? const [0, .24, 1] : null,
               ),
             ),
             child: Padding(

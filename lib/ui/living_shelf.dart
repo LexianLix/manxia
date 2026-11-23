@@ -734,13 +734,13 @@ class _OpenBookTransitionState extends State<OpenBookTransition> {
       child: widget.child,
       builder: (context, child) {
         final t = const Interval(
-          .32,
-          .88,
+          .24,
+          .84,
           curve: RoomMotion.ease,
         ).transform(widget.animation.value);
         final background = const Interval(
           0,
-          .30,
+          .24,
           curve: RoomMotion.ease,
         ).transform(widget.animation.value);
         final secondary = widget.secondaryAnimation;

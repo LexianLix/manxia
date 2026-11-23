@@ -56,9 +56,9 @@ void main() {
       );
       double opening() =>
           tester.widgetList<BookObject>(find.byType(BookObject)).single.opening;
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(RoomMotion.book * .45);
       final before = opening();
-      await tester.pump(const Duration(milliseconds: 240));
+      await tester.pump(RoomMotion.book * .30);
       expect(
         opening(),
         greaterThanOrEqualTo(before),

@@ -21,9 +21,9 @@ class BookFlightPose {
 
   double get travel => phase(progress, 0, 1);
   double get unfold => phase(progress, .08, .84);
-  double get flatten => phase(progress, .32, .96);
-  double get reveal => phase(progress, .48, .98);
-  double get departing => 1 - phase(progress, .70, 1);
+  double get flatten => phase(progress, .18, .87);
+  double get reveal => phase(progress, .46, .92);
+  double get departing => 1 - reveal;
   double get lift => math.pow(math.sin(math.pi * progress), 2).toDouble();
 }
 
@@ -146,7 +146,7 @@ class BookFlight extends StatelessWidget {
               )!,
               transparentBody: landsOnCover,
               opening: landsOnCover
-                  ? (hinge ? .93 * pose.unfold : 0)
+                  ? (hinge ? .42 * pose.unfold : 0)
                   : ui.lerpDouble(
                       source.opening,
                       target.opening,
@@ -192,9 +192,7 @@ class BookFlight extends StatelessWidget {
       };
 }
 
-/// Flat entries keep the exact source and landing bounds. Paper leaves stay
-/// behind a cover that pivots around its spine; no unrelated inner-page art is
-/// substituted for the image during the flight.
+/// The flat cover stays readable as its free edge lifts during the flight.
 class CoverHinge extends StatelessWidget {
   const CoverHinge({
     super.key,
@@ -209,59 +207,29 @@ class CoverHinge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pose = BookFlightPose(progress);
-    final lift = pose.lift;
-    final turn = pose.unfold;
-    final angle = opening ? 2.55 * turn : 0.0;
-    final departing = pose.departing;
-    final reveal = pose.reveal;
-    Widget plane(double angle, Widget child) => Transform(
+    final angle = opening ? .72 * pose.lift : 0.0;
+    final sameArt =
+        source is ComicCover &&
+        destination is ComicCover &&
+        (source as ComicCover).comic.cover ==
+            (destination as ComicCover).comic.cover;
+    return Transform(
       alignment: Alignment.centerLeft,
       transform: Matrix4.identity()
         ..setEntry(3, 2, .0015)
         ..rotateY(angle),
-      child: child,
-    );
-    return Stack(
-      fit: StackFit.expand,
-      clipBehavior: Clip.none,
-      children: [
-        Opacity(opacity: reveal, child: destination),
-        if (opening && lift > .001)
-          for (var leaf = 0; leaf < 3; leaf++)
-            Opacity(
-              opacity: lift * departing,
-              child: plane(
-                2.55 *
-                    BookFlightPose.phase(
-                      progress,
-                      .14 + leaf * .055,
-                      .90 + leaf * .025,
-                    ),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Color.lerp(
-                      const Color(0xfff8f5ec),
-                      const Color(0xffe4e0d5),
-                      leaf / 3,
-                    ),
-                    border: Border.all(
-                      color: const Color(0xffd7d3c7),
-                      width: .5,
-                    ),
-                  ),
-                ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16 - 2 * pose.travel),
+        child: sameArt
+            ? source
+            : Stack(
+                fit: StackFit.expand,
+                children: [
+                  Opacity(opacity: pose.reveal, child: destination),
+                  Opacity(opacity: pose.departing, child: source),
+                ],
               ),
-            ),
-        Opacity(
-          opacity: departing,
-          child: plane(
-            angle,
-            angle > math.pi / 2
-                ? const ColoredBox(color: Color(0xfff8f5ec))
-                : source,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

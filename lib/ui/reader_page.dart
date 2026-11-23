@@ -1440,7 +1440,7 @@ class _ReaderPageState extends State<ReaderPage>
     top: !bottomTools,
     child: MilkGlass(
       radius: 22,
-      role: GlassRole.chrome,
+      role: GlassRole.floating,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       high: widget.library.option<String>('quality', 'high') == 'high',
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -1510,7 +1510,7 @@ class _ReaderPageState extends State<ReaderPage>
     top: false,
     child: MilkGlass(
       radius: 22,
-      role: GlassRole.chrome,
+      role: GlassRole.floating,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       high: widget.library.option<String>('quality', 'high') == 'high',
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),

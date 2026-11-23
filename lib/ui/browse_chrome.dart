@@ -143,10 +143,9 @@ class BrowseNavigation extends StatelessWidget {
                             (scrolling ? .6 : 1),
                         child: MilkGlass(
                           radius: 24,
-                          role: GlassRole.chrome,
+                          role: GlassRole.floating,
                           high: highQuality,
-                          tintOpacity: highQuality ? (dark ? .32 : .27) : .90,
-                          blurSigma: 14,
+                          tintOpacity: dark ? .37 : .28,
                           shadow: true,
                           child: ClipRect(
                             child: Stack(

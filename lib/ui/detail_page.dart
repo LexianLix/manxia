@@ -24,6 +24,7 @@ import '../data/offline_library.dart';
 import 'visible_listenable_builder.dart';
 import 'personal_review.dart';
 import 'reading_positions.dart';
+import 'cover_atmosphere.dart';
 
 class DetailPage extends StatefulWidget {
   const DetailPage({
@@ -223,7 +224,7 @@ class _DetailPageState extends State<DetailPage> {
       void start() {
         if (history != null) {
           read(
-            coverComic,
+            comic,
             Chapter(history.chapterPath, history.chapterTitle),
             mainChapters,
           );
@@ -259,51 +260,72 @@ class _DetailPageState extends State<DetailPage> {
           ? '书源没有版权'
           : '重新加载';
 
-      Widget info() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LocalizedText(
-            comic.title,
-            style: TextStyle(
-              fontSize: compact ? 28 : 36,
-              height: 1.3,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (comic.author.isNotEmpty)
-            Text(
-              comic.author,
-              style: TextStyle(fontSize: 13, color: quiet(context)),
-            ),
-          if (comic.tags.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              comic.tags.join(' · '),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: small(context),
-            ),
-          ],
-          if (history != null) ...[
-            const SizedBox(height: 12),
+      Widget info() {
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             LocalizedText(
-              '上次读到 ${history.chapterTitle} · 第 ${history.page + 1} 页',
-              style: small(context),
+              comic.title,
+              style: TextStyle(
+                fontFamily: 'ArchiveSerif',
+                fontSize: compact ? 29 : 38,
+                height: 1.3,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ] else if (comic.latest.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            LocalizedText('最新章节 · ${comic.latest}', style: small(context)),
+            const SizedBox(height: 10),
+            if (comic.author.isNotEmpty)
+              Text(
+                comic.author,
+                style: TextStyle(fontSize: 13, color: quiet(context)),
+              ),
+            if (comic.tags.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                comic.tags.join(' · '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: small(context),
+              ),
+            ],
+            if (history != null) ...[
+              const SizedBox(height: 12),
+              LocalizedText(
+                '上次读到 ${history.chapterTitle} · 第 ${history.page + 1} 页',
+                style: small(context),
+              ),
+            ] else if (comic.latest.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              LocalizedText('最新章节 · ${comic.latest}', style: small(context)),
+            ],
           ],
-        ],
-      );
+        );
+        final flight = ModalRoute.of(context)?.animation;
+        if (flight == null ||
+            !widget.library.motion ||
+            MediaQuery.disableAnimationsOf(context)) {
+          return content;
+        }
+        return AnimatedBuilder(
+          animation: flight,
+          child: content,
+          builder: (context, child) {
+            final t = RoomMotion.detailHeading(flight.value);
+            return Transform.translate(
+              offset: Offset(0, (1 - t) * 10),
+              child: Opacity(opacity: t, child: child),
+            );
+          },
+        );
+      }
+
       Widget cover(double width) => SizedBox(
         width: width,
         height: width * 1.4,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
           child: DetailCover(
-            comic,
+            coverComic,
             web: widget.web,
             opening: widget.library.option<bool>('bookOpening', true),
             animate: widget.library.motion,
@@ -315,7 +337,9 @@ class _DetailPageState extends State<DetailPage> {
       final stacked =
           MediaQuery.sizeOf(context).width < 350 ||
           MediaQuery.textScalerOf(context).scale(14) > 19;
+      final coverWidth = stacked ? 128.0 : (compact ? 114.0 : 196.0);
       return Scaffold(
+        extendBody: true,
         appBar: AppBar(
           flexibleSpace: const MilkGlass(
             radius: 0,
@@ -410,7 +434,8 @@ class _DetailPageState extends State<DetailPage> {
                 padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
                 child: MilkGlass(
                   radius: 24,
-                  role: GlassRole.chrome,
+                  role: GlassRole.floating,
+                  shadow: true,
                   high:
                       widget.library.option<String>('quality', 'high') ==
                       'high',
@@ -478,172 +503,203 @@ class _DetailPageState extends State<DetailPage> {
         ),
         body: SafeArea(
           top: false,
+          bottom: false,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1100),
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        compact ? 26 : 60,
-                        compact ? 12 : 30,
-                        compact ? 26 : 60,
-                        14,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (stacked) ...[
-                            Center(child: cover(128)),
-                            const SizedBox(height: 16),
-                            info(),
-                          ] else
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                cover(compact ? 114 : 196),
-                                SizedBox(width: compact ? 18 : 32),
-                                Expanded(child: info()),
-                              ],
-                            ),
-                          if (comic.description.isNotEmpty) ...[
-                            const SizedBox(height: 18),
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                final style = TextStyle(
-                                  fontSize: 13,
-                                  height: 1.65,
-                                  color: quiet(context),
-                                );
-                                final measure = TextPainter(
-                                  text: TextSpan(
-                                    text: comic.description,
-                                    style: DefaultTextStyle.of(
-                                      context,
-                                    ).style.merge(style),
-                                  ),
-                                  textDirection: Directionality.of(context),
-                                  textScaler: MediaQuery.textScalerOf(context),
-                                  maxLines: 2,
-                                )..layout(maxWidth: constraints.maxWidth);
-                                final expandable = measure.didExceedMaxLines;
-                                measure.dispose();
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    AnimatedSize(
-                                      duration: RoomMotion.duration(
-                                        context,
-                                        RoomMotion.feedback,
-                                      ),
-                                      alignment: Alignment.topLeft,
-                                      curve: RoomMotion.ease,
-                                      child: LocalizedText(
-                                        comic.description,
-                                        maxLines: descriptionExpanded
-                                            ? null
-                                            : 2,
-                                        overflow: descriptionExpanded
-                                            ? null
-                                            : TextOverflow.ellipsis,
-                                        style: style,
-                                      ),
-                                    ),
-                                    if (expandable)
-                                      TextButton(
-                                        onPressed: () => setState(
-                                          () => descriptionExpanded =
-                                              !descriptionExpanded,
-                                        ),
-                                        child: LocalizedText(
-                                          descriptionExpanded ? '收起简介' : '展开简介',
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
-                          const SizedBox(height: 18),
-                          Container(
-                            padding: const EdgeInsets.fromLTRB(12, 5, 5, 5),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerLow
-                                  .withValues(alpha: .52),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            sourceName,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          LocalizedText(
-                                            stateLabel,
-                                            style: small(context),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (!ready)
-                                      const Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: SizedBox.square(
-                                          dimension: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    if (canChangeSource && canRead)
-                                      TextButton.icon(
-                                        onPressed: findAnotherSource,
-                                        icon: const Icon(
-                                          Icons.travel_explore,
-                                          size: 16,
-                                        ),
-                                        label: const LocalizedText('换源查找'),
-                                      ),
-                                  ],
-                                ),
-                                if (ready &&
-                                    (snapshot.hasError ||
-                                        noCopyright ||
-                                        chapters.isEmpty)) ...[
-                                  const SizedBox(height: 8),
-                                  LocalizedText(
-                                    noCopyright
-                                        ? '${copyrightFailure.message}${chapters.isNotEmpty ? '\n已下载章节仍可离线阅读。' : ''}'
-                                        : snapshot.hasError
-                                        ? friendlyError(snapshot.error)
-                                        : '尚未识别到章节目录，请重新加载。',
-                                    style: small(context),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: retry,
-                                    icon: const Icon(Icons.refresh, size: 16),
-                                    label: const LocalizedText('重试读取目录'),
-                                  ),
-                                ],
-                              ],
+                    child: Stack(
+                      children: [
+                        if (coverComic.cover.isNotEmpty &&
+                            !MediaQuery.highContrastOf(context))
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: stacked ? 360 : (compact ? 276 : 360),
+                            child: CoverAtmosphere(
+                              url: coverComic.cover,
+                              web: widget.web,
+                              coverWidth: ComicCover.decodeWidth(
+                                context,
+                                coverWidth,
+                              ),
+                              motion: widget.library.motion,
                             ),
                           ),
-                        ],
-                      ),
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            compact ? 26 : 60,
+                            compact ? 12 : 30,
+                            compact ? 26 : 60,
+                            14,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (stacked) ...[
+                                Center(child: cover(coverWidth)),
+                                const SizedBox(height: 16),
+                                info(),
+                              ] else
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    cover(coverWidth),
+                                    SizedBox(width: compact ? 18 : 32),
+                                    Expanded(child: info()),
+                                  ],
+                                ),
+                              if (comic.description.isNotEmpty) ...[
+                                const SizedBox(height: 18),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final style = TextStyle(
+                                      fontSize: 13,
+                                      height: 1.65,
+                                      color: quiet(context),
+                                    );
+                                    final measure = TextPainter(
+                                      text: TextSpan(
+                                        text: comic.description,
+                                        style: DefaultTextStyle.of(
+                                          context,
+                                        ).style.merge(style),
+                                      ),
+                                      textDirection: Directionality.of(context),
+                                      textScaler: MediaQuery.textScalerOf(
+                                        context,
+                                      ),
+                                      maxLines: 2,
+                                    )..layout(maxWidth: constraints.maxWidth);
+                                    final expandable =
+                                        measure.didExceedMaxLines;
+                                    measure.dispose();
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        AnimatedSize(
+                                          duration: RoomMotion.duration(
+                                            context,
+                                            RoomMotion.feedback,
+                                          ),
+                                          alignment: Alignment.topLeft,
+                                          curve: RoomMotion.ease,
+                                          child: LocalizedText(
+                                            comic.description,
+                                            maxLines: descriptionExpanded
+                                                ? null
+                                                : 2,
+                                            overflow: descriptionExpanded
+                                                ? null
+                                                : TextOverflow.ellipsis,
+                                            style: style,
+                                          ),
+                                        ),
+                                        if (expandable)
+                                          TextButton(
+                                            onPressed: () => setState(
+                                              () => descriptionExpanded =
+                                                  !descriptionExpanded,
+                                            ),
+                                            child: LocalizedText(
+                                              descriptionExpanded
+                                                  ? '收起简介'
+                                                  : '展开简介',
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                              const SizedBox(height: 18),
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(12, 5, 5, 5),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow
+                                      .withValues(alpha: .52),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                sourceName,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              LocalizedText(
+                                                stateLabel,
+                                                style: small(context),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (!ready)
+                                          const Padding(
+                                            padding: EdgeInsets.all(12),
+                                            child: SizedBox.square(
+                                              dimension: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                          ),
+                                        if (canChangeSource && canRead)
+                                          TextButton.icon(
+                                            onPressed: findAnotherSource,
+                                            icon: const Icon(
+                                              Icons.travel_explore,
+                                              size: 16,
+                                            ),
+                                            label: const LocalizedText('换源查找'),
+                                          ),
+                                      ],
+                                    ),
+                                    if (ready &&
+                                        (snapshot.hasError ||
+                                            noCopyright ||
+                                            chapters.isEmpty)) ...[
+                                      const SizedBox(height: 8),
+                                      LocalizedText(
+                                        noCopyright
+                                            ? '${copyrightFailure.message}${chapters.isNotEmpty ? '\n已下载章节仍可离线阅读。' : ''}'
+                                            : snapshot.hasError
+                                            ? friendlyError(snapshot.error)
+                                            : '尚未识别到章节目录，请重新加载。',
+                                        style: small(context),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: retry,
+                                        icon: const Icon(
+                                          Icons.refresh,
+                                          size: 16,
+                                        ),
+                                        label: const LocalizedText('重试读取目录'),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -843,6 +899,10 @@ class _DetailPageState extends State<DetailPage> {
                         },
                       ),
                     ),
+                  ),
+                  const SliverSafeArea(
+                    top: false,
+                    sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
                   ),
                 ],
               ),
